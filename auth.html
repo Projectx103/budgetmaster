@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BudgetMaster - Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --bg-light: #f9fafb;
+      --card: #ffffff;
+      --radius: 16px;
+      --shadow: 0 10px 25px rgba(0,0,0,0.1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+
+    body {
+      display: flex;
+      height: 100vh;
+      background: var(--bg-light);
+      color: #111;
+    }
+
+    .left {
+      flex: 1;
+      background: linear-gradient(135deg, #1e3a8a, #2563eb, #3b82f6);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+      text-align: center;
+    }
+    .left h1 { font-size: 2.5rem; margin-bottom: 15px; }
+    .left p { font-size: 1.1rem; opacity: 0.9; max-width: 320px; }
+
+    .right {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 40px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: var(--shadow);
+      text-align: center;
+    }
+
+    .card h2 { font-size: 1.8rem; margin-bottom: 20px; }
+
+    .form-group { margin-bottom: 16px; text-align: left; }
+    .form-group label { display: block; margin-bottom: 6px; font-weight: 500; font-size: 0.9rem; }
+    .form-group input { width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; }
+
+    .btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: background 0.2s;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-secondary { background: #f3f4f6; color: #111; }
+    .btn-secondary:hover { background: #e5e7eb; }
+
+    .switch { margin-top: 20px; font-size: 0.9rem; }
+    .switch a { color: var(--primary); font-weight: 600; text-decoration: none; }
+    .switch a:hover { text-decoration: underline; }
+
+    @media (max-width: 768px) {
+      body { flex-direction: column; }
+      .left, .right { flex: none; height: 50%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="left">
+    <h1>Welcome to BudgetMaster</h1>
+    <p>Take control of your finances with smart budgeting, category tracking, and rollover like YNAB.</p>
+  </div>
+
+  <div class="right">
+    <div class="card">
+      <h2>Login</h2>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="email" placeholder="Enter your email">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="password" placeholder="Enter your password">
+      </div>
+      <button class="btn btn-primary" onclick="login()">Login</button>
+      <button class="btn btn-secondary" onclick="redirectToSignup()">Sign Up</button>
+
+      <div class="switch">
+        <span>Don’t have an account? <a href="#" onclick="redirectToSignup()">Create one</a></span>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<script>
+  // Firebase config
+  const firebaseConfig = {
+    apiKey: "AIzaSyA1txE-ewGSTwVrNk7gVz3z8yLeYTdwYwk",
+    authDomain: "budget-monitoringv2.firebaseapp.com",
+    projectId: "budget-monitoringv2",
+  };
+
+  // Initialize Firebase
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+
+  async function login() {
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+
+    if (!email || !password) return alert("Please enter email and password");
+
+    try {
+      // Sign in with email & password
+      const userCredential = await auth.signInWithEmailAndPassword(email, password);
+      const user = userCredential.user;
+
+      if (!user) throw new Error("No user returned");
+
+      // Fetch user doc from Firestore
+      const userDoc = await db.collection("users").doc(user.uid).get();
+      if (!userDoc.exists) {
+        await auth.signOut();
+        return alert("User record not found. Please contact admin.");
+      }
+
+      const userData = userDoc.data();
+
+      // Debugging: check what's in userData
+      console.log("User Data:", userData);
+
+      // Check approval
+      if (userData.approved !== true) {
+        await auth.signOut();
+        return alert("Your account is not yet approved. Please contact the admin.");
+      }
+
+      // Approved → redirect
+      window.location.href = "Budgetmaster home.html";
+
+    } catch (error) {
+      console.error("Login Error:", error);
+      alert(error.message);
+    }
+  }
+
+  function redirectToSignup() {
+    window.location.href = "sign_auth.html";
+  }
+</script>
+
+</body>
+</html>
