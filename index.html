@@ -1,0 +1,1568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BudgetMaster – YNAB-Like Monitoring</title>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css">
+
+</head>
+<body>
+
+
+<!-- Theme Selector -->
+<div class="theme-selector">
+  <button class="theme-toggle" id="themeToggle">
+    <div class="theme-icon">🎨</div>
+    <span id="currentThemeName">Classic</span>
+    <svg class="dropdown-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="6 9 12 15 18 9"/>
+    </svg>
+  </button>
+ <!-- Theme dropdown -->
+<div class="theme-dropdown" id="themeDropdown">
+  <div class="theme-dropdown-header">Choose Theme</div>
+
+  <div class="theme-grid-section">
+
+    <!-- Classic Blue -->
+    <button class="theme-card active" data-theme="classic">
+      <div class="palette-strip">
+        <span style="background:#2563eb"></span>
+        <span style="background:#1d4ed8"></span>
+        <span style="background:#dbeafe"></span>
+        <span style="background:#f5f7fa"></span>
+      </div>
+      <div class="theme-card-label">Classic Blue</div>
+    </button>
+
+    <!-- Soft Sunrise -->
+    <button class="theme-card" data-theme="dark">
+      <div class="palette-strip">
+        <span style="background:#FFF9D2"></span>
+        <span style="background:#FFEBCC"></span>
+        <span style="background:#BFDDF0"></span>
+        <span style="background:#8CC0EB"></span>
+      </div>
+      <div class="theme-card-label">Soft Sunrise</div>
+    </button>
+
+    <!-- Crimson Dust -->
+    <button class="theme-card" data-theme="sage-garden">
+      <div class="palette-strip">
+        <span style="background:#810B38"></span>
+        <span style="background:#F1E2D1"></span>
+        <span style="background:#DCC3AA"></span>
+        <span style="background:#541A1A"></span>
+      </div>
+      <div class="theme-card-label">Crimson Dust</div>
+    </button>
+
+    <!-- Aqua Mist -->
+    <button class="theme-card" data-theme="warm-latte">
+      <div class="palette-strip">
+        <span style="background:#E3FDFD"></span>
+        <span style="background:#CBF1F5"></span>
+        <span style="background:#A6E3E9"></span>
+        <span style="background:#71C9CE"></span>
+      </div>
+      <div class="theme-card-label">Aqua Mist</div>
+    </button>
+
+    <!-- Forest Parchment -->
+    <button class="theme-card" data-theme="soft-blush">
+      <div class="palette-strip">
+        <span style="background:#FBF5DD"></span>
+        <span style="background:#E7E1B1"></span>
+        <span style="background:#306D29"></span>
+        <span style="background:#0D530E"></span>
+      </div>
+      <div class="theme-card-label">Forest Parchment</div>
+    </button>
+
+    <!-- Citrus Breeze -->
+    <button class="theme-card" data-theme="ocean-steel">
+      <div class="palette-strip">
+        <span style="background:#FFF6DE"></span>
+        <span style="background:#8BDFDD"></span>
+        <span style="background:#F48F68"></span>
+        <span style="background:#FFE394"></span>
+      </div>
+      <div class="theme-card-label">Citrus Breeze</div>
+    </button>
+
+    <!-- Lavender Fog -->
+    <button class="theme-card" data-theme="sunset-vibes">
+      <div class="palette-strip">
+        <span style="background:rgb(255,199,199)"></span>
+        <span style="background:rgb(255,226,226)"></span>
+        <span style="background:rgb(246,246,246)"></span>
+        <span style="background:rgb(135,133,162)"></span>
+      </div>
+      <div class="theme-card-label">Lavender Fog</div>
+    </button>
+
+    <!-- Midnight Red -->
+    <button class="theme-card" data-theme="pastel-dream">
+      <div class="palette-strip">
+        <span style="background:#000000"></span>
+        <span style="background:#3E3636"></span>
+        <span style="background:#D72323"></span>
+        <span style="background:#F5EDED"></span>
+      </div>
+      <div class="theme-card-label">Midnight Red</div>
+    </button>
+
+    <!-- Deep Emerald -->
+    <button class="theme-card" data-theme="steel-blue">
+      <div class="palette-strip">
+        <span style="background:#091413"></span>
+        <span style="background:#285A48"></span>
+        <span style="background:#408A71"></span>
+        <span style="background:#B0E4CC"></span>
+      </div>
+      <div class="theme-card-label">Deep Emerald</div>
+    </button>
+
+    <!-- Royal Ember -->
+    <button class="theme-card" data-theme="royal-ember">
+      <div class="palette-strip">
+        <span style="background:#32012F"></span>
+        <span style="background:#524C42"></span>
+        <span style="background:#E2DFD0"></span>
+        <span style="background:#F97300"></span>
+      </div>
+      <div class="theme-card-label">Royal Ember</div>
+    </button>
+
+  </div>
+</div>
+</div>
+
+
+
+
+
+
+
+
+!-- Sidebar -->
+<div class="sidebar">
+  <h1>BudgetMaster</h1>
+  <a href="#dashboard" class="active">Dashboard</a>
+  <a href="#accounts">Accounts</a>
+  <a href="#budget">Budget</a>
+  <a href="#reports">Reports</a>
+  <a href="#goals">Goals</a>
+  <a href="#settings">Settings</a>
+
+  <!-- Logout link -->
+  <a href="#logout" class="logout-link">Logout</a>
+</div>
+
+<!-- Main Content -->
+<div class="main-content">
+  <!-- ===== Dashboard Section ===== -->
+  <section id="dashboard" class="section">
+    <header>
+      <span>Dashboard</span>
+   <div class="rollover-container">
+            <button class="rollover-btn" onclick="initiateRollover()" id="rolloverBtn">
+                <span class="btn-text">Rollover</span>
+            </button>
+        </div>
+    </header>
+
+<div class="current-theme">
+  Current Theme: <span id="themeDisplay">Ocean Explorer</span>
+</div>
+
+    <!-- App Section -->
+    <div id="appSection" style="display:none;">
+        
+
+
+<!-- Month Filter - YNAB Style -->
+<!-- Month Filter - YNAB Style (Compact) -->
+<div class="month-selector-container">
+  <button class="month-nav-btn" onclick="changeMonth(-1)">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+  </button>
+  
+  <div class="month-display">
+    <div class="month-label" id="currentMonthLabel">Dec 2025</div>
+    <button class="note-btn" onclick="openMonthNoteModal()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/>
+        <line x1="16" y1="17" x2="8" y2="17"/>
+      </svg>
+      <span id="notePreview">Note...</span>
+    </button>
+  </div>
+  
+  <button class="month-nav-btn" onclick="changeMonth(1)">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="9 18 15 12 9 6"/>
+    </svg>
+  </button>
+</div>
+
+<!-- Month Note Modal -->
+<div id="monthNoteModal" class="modal hidden">
+  <div class="modal-content" style="max-width: 500px;">
+    <span class="close" onclick="closeModal('monthNoteModal')">&times;</span>
+    <h2 id="noteModalTitle">December 2025 Note</h2>
+    <textarea 
+      id="monthNoteText" 
+      placeholder="Hi there"
+      style="width: 100%; min-height: 150px; padding: 12px; border: 2px solid var(--ynab-border); border-radius: var(--radius); font-family: inherit; resize: vertical;"
+    ></textarea>
+    <div class="modal-actions">
+      <button onclick="closeModal('monthNoteModal')">Cancel</button>
+      <button class="btn-primary" onclick="saveMonthNote()">OK</button>
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+      <!-- Summary -->
+
+<div class="bm-summary-root">
+  <div class="bm-summary-grid">
+
+    <div class="bm-sc tbb" data-tip="Money not yet assigned to any category. Assign it all to reach zero!" data-pct="75">
+      <div class="bm-deco"></div>
+      <div class="bm-spark-layer"></div>
+      <div class="bm-top">
+        <div class="bm-icon-ring"><i class="ti ti-wallet"></i></div>
+        <span class="bm-badge">READY</span>
+      </div>
+      <div>
+        <div class="bm-label">To Be Budgeted</div>
+        <div class="bm-val" id="tbb">0</div>
+        <div class="bm-barw"><div class="bm-bar" id="bar-tbb" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <div class="bm-sc asgn" data-tip="Total assigned across all budget categories this month." data-pct="88">
+      <div class="bm-deco"></div>
+      <div class="bm-spark-layer"></div>
+      <div class="bm-top">
+        <div class="bm-icon-ring"><i class="ti ti-checklist"></i></div>
+        <span class="bm-badge">ASSIGNED</span>
+      </div>
+      <div>
+        <div class="bm-label">Total Assigned</div>
+        <div class="bm-val" id="assigned">0</div>
+        <div class="bm-barw"><div class="bm-bar" id="bar-assigned" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <div class="bm-sc avail" data-tip="Your current spendable balance — income minus spending and assignments." data-pct="62">
+      <div class="bm-deco"></div>
+      <div class="bm-spark-layer"></div>
+      <div class="bm-top">
+        <div class="bm-icon-ring"><i class="ti ti-trending-up"></i></div>
+        <span class="bm-badge">BALANCE</span>
+      </div>
+      <div>
+        <div class="bm-label">Available Balance</div>
+        <div class="bm-val" id="remaining">0</div>
+        <div class="bm-barw"><div class="bm-bar" id="bar-remaining" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <div class="bm-sc spent" data-tip="Total money spent across all transactions this month." data-pct="55">
+      <div class="bm-deco"></div>
+      <div class="bm-spark-layer"></div>
+      <div class="bm-top">
+        <div class="bm-icon-ring"><i class="ti ti-receipt"></i></div>
+        <span class="bm-badge">THIS MO.</span>
+      </div>
+      <div>
+        <div class="bm-label">Total Spent</div>
+        <div class="bm-val" id="spent">0</div>
+        <div class="bm-barw"><div class="bm-bar" id="bar-spent" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <div class="bm-sc over" data-tip="Categories where spending exceeded the assigned budget." data-pct="10">
+      <div class="bm-deco"></div>
+      <div class="bm-spark-layer"></div>
+      <div class="bm-top">
+        <div class="bm-icon-ring"><i class="ti ti-alert-triangle"></i></div>
+        <span class="bm-badge">ALERT</span>
+      </div>
+      <div>
+        <div class="bm-label">Overspent</div>
+        <div class="bm-val" id="overspent">0</div>
+        <div class="bm-barw"><div class="bm-bar" id="bar-overspent" style="width:0%"></div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+<div class="bm-tooltip-global" id="bmGlobalTip"></div>
+
+
+      <!-- Actions -->
+      <div class="actions">
+        <button onclick="openModal('incomeModal')">+ Income</button>
+        <button onclick="openModal('categoryModal')">+ Category</button>
+        <button onclick="openModal('transactionModal')">+ Transaction</button>
+      </div>
+
+      <!-- Categories -->
+      <div class="card">
+        <h2>Budget Categories</h2>
+        <div id="categories" class="budget-grid"></div>
+      </div>
+
+ <!-- Transaction History with Sort & Filter -->
+<div class="transactions-container">
+  <!-- Sort & Filter Controls -->
+  <div class="table-controls">
+    <div class="filter-group">
+      <label>Search:</label>
+      <input type="text" class="filter-input" id="searchTransactions" placeholder="Search payee or category...">
+    </div>
+    
+    <div class="filter-group">
+      <label>Category:</label>
+      <select class="filter-select" id="filterCategory">
+        <option value="">All Categories</option>
+      </select>
+    </div>
+    
+    <div class="filter-group">
+      <label>Date Range:</label>
+      <input type="date" class="filter-input" id="filterDateFrom">
+      <span style="color: var(--text-light);">to</span>
+      <input type="date" class="filter-input" id="filterDateTo">
+    </div>
+    
+    <button class="clear-filters-btn" onclick="clearTransactionFilters()">Clear Filters</button>
+  </div>
+
+  <div class="transactions-wrapper">
+    <table class="transactions-table">
+      <thead>
+        <tr>
+          <th onclick="sortTransactions('date')">
+            Date <span class="sort-indicator" id="sort-date"></span>
+          </th>
+          <th onclick="sortTransactions('payee')">
+            Payee <span class="sort-indicator" id="sort-payee"></span>
+          </th>
+          <th onclick="sortTransactions('category')">
+            Category <span class="sort-indicator" id="sort-category"></span>
+          </th>
+          <th onclick="sortTransactions('outflow')">
+            Outflow <span class="sort-indicator" id="sort-outflow"></span>
+          </th>
+          <th onclick="sortTransactions('inflow')">
+            Inflow <span class="sort-indicator" id="sort-inflow"></span>
+          </th>
+          <th>Source</th>
+        </tr>
+      </thead>
+      <tbody id="transactionsBody">
+        <!-- Transactions go here -->
+      </tbody>
+    </table>
+  </div>
+</div>
+  </section>
+
+
+<!-- ===== Accounts Section ===== -->
+<!-- ===== Accounts Section ===== -->
+<section id="accounts" class="section">
+  <header><span>Accounts</span></header>
+
+  <!-- Net Worth Bar -->
+  <div class="net-worth-bar" style="margin-top:14px;">
+    <div class="nw-cell">
+      <span class="nw-label">Total Assets</span>
+      <span class="nw-value green" id="total-assets-summary">₱0.00</span>
+    </div>
+    <div class="nw-cell" style="border-left:1px solid var(--ynab-border); border-right:1px solid var(--ynab-border);">
+      <span class="nw-label">Total Liabilities</span>
+      <span class="nw-value red" id="total-liabilities-summary">₱0.00</span>
+    </div>
+    <div class="nw-cell">
+      <span class="nw-label">Net Worth</span>
+      <span class="nw-value blue" id="net-worth-summary">₱0.00</span>
+    </div>
+  </div>
+
+  <!-- Two-column: Assets | Liabilities -->
+  <div class="accounts-two-col">
+
+    <!-- Assets Panel -->
+    <div class="accounts-panel">
+      <div class="accounts-panel-header">
+        <span class="accounts-panel-title">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Assets
+        </span>
+        <span class="accounts-panel-count" id="assets-count">0</span>
+      </div>
+      <div class="acc-list" id="assets-list">
+        <p class="acc-empty">No asset accounts yet.</p>
+      </div>
+    </div>
+
+    <!-- Liabilities Panel -->
+    <div class="accounts-panel">
+      <div class="accounts-panel-header">
+        <span class="accounts-panel-title">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          Liabilities
+        </span>
+        <span class="accounts-panel-count" id="liabilities-count">0</span>
+      </div>
+      <div class="acc-list" id="liabilities-list">
+        <p class="acc-empty">No liability accounts yet.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Add Account FAB -->
+  <button class="btn btn-primary" id="add-account-btn">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Add Account
+  </button>
+</section>
+
+<!-- 🏦 Add Account Modal -->
+<!-- 🏦 Add Account Modal -->
+<div id="account-modal" class="modal hidden">
+  <div class="modal-content" style="max-width: 600px;">
+    <span class="close" onclick="closeModal('account-modal')">&times;</span>
+    <h2 id="account-modal-title">Add Account</h2>
+
+    <div class="form-group">
+      <label for="account-type">Account Type</label>
+      <select id="account-type" class="form-select">
+        <optgroup label="💰 Assets (Money you have)">
+          <option value="checking">Checking Account</option>
+          <option value="savings">Savings Account</option>
+          <option value="cash">Cash</option>
+          <option value="investment">Investment Account</option>
+          <option value="retirement">Retirement Account</option>
+          <option value="other-asset">Other Asset</option>
+        </optgroup>
+        <optgroup label="💳 Liabilities (Money you owe)">
+          <option value="credit-card">Credit Card</option>
+          <option value="loan">Loan</option>
+          <option value="mortgage">Mortgage</option>
+          <option value="line-of-credit">Line of Credit</option>
+          <option value="other-liability">Other Liability</option>
+        </optgroup>
+      </select>
+      <small style="color: var(--text-light); margin-top: 6px; display: block;">
+        Assets increase your net worth. Liabilities decrease it.
+      </small>
+    </div>
+
+    <div class="form-group">
+      <label for="account-name">Account Name</label>
+      <input type="text" id="account-name" placeholder="e.g. BDO Savings, GCash, Credit Card" />
+      <small style="color: var(--text-light); margin-top: 6px; display: block;">
+        Give it a name you'll recognize
+      </small>
+    </div>
+
+    <div class="form-group">
+      <label for="account-balance" id="account-balance-label">Current Balance</label>
+      <input type="number" id="account-balance" placeholder="0.00" step="0.01" />
+      <small style="color: var(--text-light); margin-top: 6px; display: block;" id="balance-hint">
+        Enter the current balance of this account
+      </small>
+    </div>
+
+    <!-- Credit Card Only Fields -->
+    <div id="credit-card-fields" style="display:none;">
+      <div class="form-group">
+        <label for="account-credit-limit">Credit Limit</label>
+        <input type="number" id="account-credit-limit" placeholder="0.00" step="0.01" min="0" />
+        <small style="color: var(--text-light); margin-top: 6px; display: block;">
+          Your total approved credit limit for this card
+        </small>
+      </div>
+      <div class="form-group">
+        <label for="account-due-date">Monthly Due Date</label>
+        <select id="account-due-date" class="form-select">
+          <option value="">— Select day of month —</option>
+          <option value="1">1st of each month</option>
+          <option value="2">2nd of each month</option>
+          <option value="3">3rd of each month</option>
+          <option value="4">4th of each month</option>
+          <option value="5">5th of each month</option>
+          <option value="6">6th of each month</option>
+          <option value="7">7th of each month</option>
+          <option value="8">8th of each month</option>
+          <option value="9">9th of each month</option>
+          <option value="10">10th of each month</option>
+          <option value="11">11th of each month</option>
+          <option value="12">12th of each month</option>
+          <option value="13">13th of each month</option>
+          <option value="14">14th of each month</option>
+          <option value="15">15th of each month</option>
+          <option value="16">16th of each month</option>
+          <option value="17">17th of each month</option>
+          <option value="18">18th of each month</option>
+          <option value="19">19th of each month</option>
+          <option value="20">20th of each month</option>
+          <option value="21">21st of each month</option>
+          <option value="22">22nd of each month</option>
+          <option value="23">23rd of each month</option>
+          <option value="24">24th of each month</option>
+          <option value="25">25th of each month</option>
+          <option value="26">26th of each month</option>
+          <option value="27">27th of each month</option>
+          <option value="28">28th of each month</option>
+          <option value="29">29th of each month</option>
+          <option value="30">30th of each month</option>
+          <option value="31">31st of each month</option>
+        </select>
+        <small style="color: var(--text-light); margin-top: 6px; display: block;">
+          The day each month your payment is due
+        </small>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="account-notes">Notes (Optional)</label>
+      <textarea id="account-notes" placeholder="Account number, bank details, etc." rows="3" style="width: 100%; padding: 12px; border: 2px solid var(--ynab-border); border-radius: var(--radius); font-family: inherit;"></textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('account-modal')">Cancel</button>
+      <button class="btn btn-primary" id="save-account-btn">Save Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- 💳 Inline Transaction Panel (replaces old modal) — hidden template, cloned per account -->
+<template id="txn-panel-template">
+  <div class="txn-popover" data-active="deposit">
+    <div class="txn-pop-bar"></div>
+    <div class="txn-pop-inner">
+
+      <!-- Type tabs (asset mode) -->
+      <div class="txn-pop-tabs" id="txn-tabs-asset">
+        <button class="txn-pop-tab active" data-type="deposit">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+          Deposit
+        </button>
+        <button class="txn-pop-tab" data-type="withdrawal">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+          Withdraw
+        </button>
+        <button class="txn-pop-tab" data-type="transfer">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+          Transfer
+        </button>
+        <button class="txn-pop-tab" data-type="expense">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+          Expense
+        </button>
+      </div>
+
+      <!-- Type tabs (liability / credit-card mode) -->
+      <div class="txn-pop-tabs" id="txn-tabs-liability" style="display:none;">
+        <button class="txn-pop-tab active" data-type="expense">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+          Expense
+        </button>
+        <button class="txn-pop-tab" data-type="pay">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          Pay
+        </button>
+        <button class="txn-pop-tab" data-type="transfer">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+          Transfer
+        </button>
+      </div>
+
+      <!-- Amount -->
+      <div class="txn-pop-row">
+        <div class="txn-pop-field">
+          <label>Amount</label>
+          <input type="number" class="txn-pop-input amount-field" id="transaction-amount" placeholder="0.00" min="0" step="0.01" />
+        </div>
+        <div class="txn-pop-field" style="flex:0 0 120px;">
+          <label>Date</label>
+          <input type="date" class="txn-pop-input" id="transaction-date" />
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div class="txn-pop-row">
+        <div class="txn-pop-field">
+          <label>Notes <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.7">(optional)</span></label>
+          <input type="text" class="txn-pop-input" id="transaction-reason" placeholder="e.g. Grocery at SM" />
+        </div>
+      </div>
+
+      <!-- Transfer target (conditional) -->
+      <div class="txn-pop-row" id="transfer-target-group" style="display:none;">
+        <div class="txn-pop-field">
+          <label>Transfer To</label>
+          <select class="txn-pop-input" id="transfer-target"></select>
+        </div>
+      </div>
+
+      <!-- Expense category (conditional) -->
+      <div class="txn-pop-row" id="expense-category-group" style="display:none;">
+        <div class="txn-pop-field">
+          <label>Budget Category</label>
+          <select class="txn-pop-input" id="expense-category">
+            <option value="">— Select category —</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="txn-pop-actions">
+        <button class="txn-pop-cancel" onclick="closeTransactionPanel()">Cancel</button>
+        <button class="txn-pop-save" id="save-transaction-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          Save
+        </button>
+      </div>
+
+    </div>
+  </div>
+</template>
+
+
+
+
+<!-- ===== Budget Section ===== --> 
+<section id="budget" class="section">
+  <header><span>Budget</span></header>
+  <div class="card">
+    <h2>Monthly Budget</h2>
+    <table class="budget-table">
+      <thead>
+        <tr>
+          <th></th> <!-- Checkbox column -->
+          <th>Category</th>
+          <th>Assigned Amount</th>
+          <th>Amount Spent</th>
+          <th>Remaining Balance</th>
+        </tr>
+      </thead>
+      <tbody id="budget-table-body">
+        <!-- Rows will be dynamically inserted here -->
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Modal for Category Transactions -->
+<div id="category-modal" class="modal hidden">
+  <div class="cat-modal-panel">
+
+    <!-- Header -->
+    <div class="cat-modal-header">
+      <div class="cat-modal-header-left">
+        <div class="cat-modal-icon" id="cat-modal-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div>
+          <div class="cat-modal-title" id="cat-modal-display-name">Category</div>
+          <div class="cat-modal-subtitle" id="cat-modal-subtitle">0 transactions</div>
+        </div>
+      </div>
+      <button class="cat-modal-close" onclick="closeModal('category-modal')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <!-- Summary bar -->
+    <div class="cat-modal-summary">
+      <div class="cat-sum-pill">
+        <span class="cat-sum-label">Assigned</span>
+        <span class="cat-sum-val" id="cat-sum-assigned">—</span>
+      </div>
+      <div class="cat-sum-divider"></div>
+      <div class="cat-sum-pill">
+        <span class="cat-sum-label">Spent</span>
+        <span class="cat-sum-val cat-sum-spent" id="cat-sum-spent">—</span>
+      </div>
+      <div class="cat-sum-divider"></div>
+      <div class="cat-sum-pill">
+        <span class="cat-sum-label">Balance</span>
+        <span class="cat-sum-val" id="cat-sum-balance">—</span>
+      </div>
+    </div>
+
+    <!-- Edit name row -->
+    <div class="cat-modal-edit-row">
+      <input type="text" id="category-name-input" class="cat-name-input" placeholder="Category name" />
+      <button id="save-category-btn" class="cat-save-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Rename
+      </button>
+      <button id="delete-category-btn" class="cat-delete-cat-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        Delete Category
+      </button>
+    </div>
+
+    <!-- Transaction list -->
+    <div class="cat-txn-section">
+      <div class="cat-txn-section-label">Transactions</div>
+      <ul id="category-transactions-list" class="cat-txn-list">
+        <!-- Transactions rendered by JS -->
+      </ul>
+      <div id="cat-txn-empty" class="cat-txn-empty" style="display:none;">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".35"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+        <p>No transactions yet</p>
+      </div>
+    </div>
+
+  </div>
+</div> 
+
+<!-- ===== Reports Section ===== -->
+<section id="reports" class="section" style="display:none;">
+<header>
+  <span>Reports & Analytics</span>
+  <div style="display: flex; gap: 8px;">
+    <div class="export-menu">
+      <button onclick="toggleExportMenu()" class="btn btn-secondary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Export
+      </button>
+      <div id="exportDropdown" class="export-dropdown">
+        <div class="export-option" onclick="exportToCSV()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10 9 9 9 8 9"/>
+          </svg>
+          CSV
+        </div>
+        <div class="export-option" onclick="exportToPNG()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+          PNG
+        </div>
+        <div class="export-option" onclick="exportToPDF()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          PDF
+        </div>
+      </div>
+    </div>
+    <button onclick="printReport()" class="btn btn-secondary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="6 9 6 2 18 2 18 9"/>
+        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+        <rect x="6" y="14" width="12" height="8"/>
+      </svg>
+      Print
+    </button>
+  </div>
+</header>
+
+<div class="container" style="max-height: calc(100vh - 200px); overflow-y: auto;">
+  <nav class="report-nav">
+    <div class="report-tabs">
+      <button class="report-tab active" data-report="spending">Spending</button>
+      <button class="report-tab" data-report="income-expense">Income vs Expenses</button>
+      <button class="report-tab" data-report="net-worth">Net Worth</button>
+      <button class="report-tab" data-report="trends">Trends</button>
+      <button class="report-tab" data-report="comparison">Comparison</button>
+    </div>
+  </nav>
+
+  <!-- Filter Panel with Active Filters Display -->
+  <div class="filter-panel">
+    <div class="form-group">
+      <label>Date Range</label>
+      <select class="form-input" id="dateRange">
+        <option value="current-month">Current Month</option>
+        <option value="last-month">Last Month</option>
+        <option value="last-3-months">Last 3 Months</option>
+        <option value="last-6-months">Last 6 Months</option>
+        <option value="current-year">Current Year</option>
+        <option value="last-year">Last Year</option>
+        <option value="custom">Custom Range</option>
+      </select>
+    </div>
+    <div class="form-group" id="customDateRange" style="display: none;">
+      <label>From Date</label>
+      <input type="date" class="form-input" id="fromDate">
+    </div>
+    <div class="form-group" id="customDateRange2" style="display: none;">
+      <label>To Date</label>
+      <input type="date" class="form-input" id="toDate">
+    </div>
+    <button class="btn btn-primary" onclick="applyFilters()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="23 4 23 10 17 10"/>
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+      </svg>
+      Update Reports
+    </button>
+  </div>
+
+  <!-- Active Filters Display -->
+  <div class="filter-chips" id="activeFilters"></div>
+
+  <!-- Spending Report -->
+  <div id="report-spending" class="report-content active">
+    <div class="metric-cards">
+      <div class="metric-card">
+        <div class="metric-value" id="total-spending">0</div>
+        <div class="metric-label">Total Spending</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value" id="avg-daily-spending">0</div>
+        <div class="metric-label">Daily Average</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value" id="top-category-spending">0</div>
+        <div class="metric-label">Top Category</div>
+      </div>
+    </div>
+
+    <!-- Chart Controls -->
+    <div class="report-controls">
+      <div class="chart-type-selector">
+        <button class="chart-type-btn active" data-type="doughnut" onclick="changeSpendingChartType('doughnut')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <circle cx="12" cy="12" r="4"/>
+          </svg>
+          Donut
+        </button>
+        <button class="chart-type-btn" data-type="pie" onclick="changeSpendingChartType('pie')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+          </svg>
+          Pie
+        </button>
+        <button class="chart-type-btn" data-type="bar" onclick="changeSpendingChartType('bar')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="20" x2="18" y2="10"/>
+            <line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>
+          Bar
+        </button>
+      </div>
+      <button class="chart-control-btn" onclick="toggleSpendingTable()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 2v20M15 2v20M2 9h20M2 15h20M2 5h20M2 19h20"/>
+        </svg>
+        Data Table
+      </button>
+    </div>
+
+    <div class="report-layout">
+      <div class="chart-container" style="position: relative;">
+        <div class="chart-header">
+          <div class="chart-title">Spending by Category</div>
+          <div class="chart-subtitle">Current period breakdown</div>
+        </div>
+        <canvas id="spendingChart"></canvas>
+        
+        <!-- Interactive Legend -->
+        <div class="interactive-legend" id="spendingLegend"></div>
+      </div>
+      
+      <div class="category-breakdown">
+        <div class="breakdown-header">Category Details</div>
+        <div class="breakdown-list" id="spendingBreakdown">
+          <div class="loading">
+            <div class="spinner"></div>
+            Loading data...
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Table -->
+    <table class="data-table" id="spendingDataTable">
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th>Amount</th>
+          <th>Percentage</th>
+          <th>Transactions</th>
+        </tr>
+      </thead>
+      <tbody id="spendingTableBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Income vs Expenses Report -->
+  <div id="report-income-expense" class="report-content">
+    <div class="metric-cards">
+      <div class="metric-card">
+        <div class="metric-value positive" id="total-income">0</div>
+        <div class="metric-label">Total Income</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value negative" id="total-expenses">0</div>
+        <div class="metric-label">Total Expenses</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value" id="net-income">0</div>
+        <div class="metric-label">Net Income</div>
+      </div>
+    </div>
+
+    <!-- Chart Controls -->
+    <div class="report-controls">
+      <div class="chart-type-selector">
+        <button class="chart-type-btn active" data-type="bar" onclick="changeIncomeExpenseChartType('bar')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="20" x2="18" y2="10"/>
+            <line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>
+          Bar
+        </button>
+        <button class="chart-type-btn" data-type="line" onclick="changeIncomeExpenseChartType('line')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+          Line
+        </button>
+        <button class="chart-type-btn" data-type="area" onclick="changeIncomeExpenseChartType('area')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+            <path d="M3 18h18" stroke-linecap="round"/>
+          </svg>
+          Area
+        </button>
+      </div>
+      <button class="chart-control-btn" onclick="toggleIncomeExpenseTable()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 2v20M15 2v20M2 9h20M2 15h20M2 5h20M2 19h20"/>
+        </svg>
+        Data Table
+      </button>
+    </div>
+
+    <div class="report-layout">
+      <div class="chart-container" style="position: relative;">
+        <div class="chart-header">
+          <div class="chart-title">Income vs Expenses</div>
+          <div class="chart-subtitle">Monthly comparison</div>
+        </div>
+        <canvas id="incomeExpenseChart"></canvas>
+      </div>
+
+      <div class="summary-panel">
+        <div class="summary-header">Summary</div>
+        <div class="summary-item">
+          <div class="summary-label">Income</div>
+          <div class="summary-value positive" id="summary-income">0</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Expenses</div>
+          <div class="summary-value negative" id="summary-expenses">0</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Net</div>
+          <div class="summary-value" id="summary-net">0</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Savings Rate</div>
+          <div class="summary-value" id="summary-savings-rate">0%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Itemized Data Table -->
+    <div id="incomeExpenseDataTable" class="ie-table-wrap">
+      <div class="ie-table-header-row">
+        <span class="ie-col-month">Month</span>
+        <span class="ie-col-income">Income</span>
+        <span class="ie-col-expense">Expenses</span>
+        <span class="ie-col-net">Net</span>
+        <span class="ie-col-rate">Savings Rate</span>
+        <span class="ie-col-toggle"></span>
+      </div>
+      <div id="incomeExpenseTableBody"></div>
+    </div>
+  </div>
+
+  <!-- Net Worth Report -->
+  <div id="report-net-worth" class="report-content">
+    <div class="metric-cards">
+      <div class="metric-card">
+        <div class="metric-value positive" id="total-assets">0</div>
+        <div class="metric-label">Total Assets</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value negative" id="total-liabilities">0</div>
+        <div class="metric-label">Total Liabilities</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value" id="net-worth-value">0</div>
+        <div class="metric-label">Net Worth</div>
+      </div>
+    </div>
+
+    <!-- Chart Controls -->
+    <div class="report-controls">
+      <div class="chart-type-selector">
+        <button class="chart-type-btn active" data-type="doughnut" onclick="changeNetWorthChartType('doughnut')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <circle cx="12" cy="12" r="4"/>
+          </svg>
+          Donut
+        </button>
+        <button class="chart-type-btn" data-type="bar" onclick="changeNetWorthChartType('bar')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="20" x2="18" y2="10"/>
+            <line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>
+          Bar
+        </button>
+      </div>
+    </div>
+
+    <div class="report-layout">
+      <div class="chart-container">
+        <div class="chart-header">
+          <div class="chart-title">Net Worth Breakdown</div>
+          <div class="chart-subtitle">Assets vs Liabilities</div>
+        </div>
+        <canvas id="netWorthChart"></canvas>
+      </div>
+
+      <div class="summary-panel">
+        <div class="summary-header">Account Details</div>
+        <div id="accountBreakdown">
+          <div class="loading">
+            <div class="spinner"></div>
+            Loading accounts...
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Spending Trends Report -->
+  <div id="report-trends" class="report-content">
+    <!-- Chart Controls -->
+    <div class="report-controls">
+      <div class="chart-type-selector">
+        <button class="chart-type-btn active" data-type="line" onclick="changeTrendsChartType('line')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+          Line
+        </button>
+        <button class="chart-type-btn" data-type="bar" onclick="changeTrendsChartType('bar')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="20" x2="18" y2="10"/>
+            <line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>
+          Bar
+        </button>
+        <button class="chart-type-btn" data-type="area" onclick="changeTrendsChartType('area')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+            <path d="M3 18h18" stroke-linecap="round"/>
+          </svg>
+          Area
+        </button>
+      </div>
+      <button class="chart-control-btn" id="showTrendlineBtn" onclick="toggleTrendline()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 16V8a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z"/>
+          <polyline points="7 10 12 15 17 10"/>
+        </svg>
+        Show Trendline
+      </button>
+    </div>
+
+    <div class="report-layout">
+      <div class="chart-container">
+        <div class="chart-header">
+          <div class="chart-title">Spending Trends</div>
+          <div class="chart-subtitle">Monthly spending over time</div>
+        </div>
+        <canvas id="trendsChart"></canvas>
+      </div>
+
+      <div class="summary-panel">
+        <div class="summary-header">Trend Analysis</div>
+        <div class="summary-item">
+          <div class="summary-label">Avg Monthly</div>
+          <div class="summary-value" id="avg-monthly">0</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Highest Month</div>
+          <div class="summary-value" id="highest-month">0</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Lowest Month</div>
+          <div class="summary-value" id="lowest-month">0</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Trend Direction</div>
+          <div class="summary-value" id="trend-direction">-</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comparison Report -->
+  <div id="report-comparison" class="report-content">
+    <div class="comparison-mode">
+      <div class="comparison-selector">
+        <label>Compare Period 1</label>
+        <select id="comparePeriod1" class="form-input">
+          <option value="current-month">Current Month</option>
+          <option value="last-month">Last Month</option>
+          <option value="last-3-months">Last 3 Months</option>
+          <option value="last-6-months">Last 6 Months</option>
+        </select>
+      </div>
+      <div class="comparison-selector">
+        <label>Compare Period 2</label>
+        <select id="comparePeriod2" class="form-input">
+          <option value="last-month">Last Month</option>
+          <option value="last-3-months">Last 3 Months</option>
+          <option value="last-6-months">Last 6 Months</option>
+          <option value="last-year">Last Year</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="loadComparisonReport()" style="align-self: flex-end;">
+        Compare
+      </button>
+    </div>
+
+    <div class="report-layout">
+      <div class="chart-container">
+        <div class="chart-header">
+          <div class="chart-title">Period Comparison</div>
+          <div class="chart-subtitle">Side-by-side analysis</div>
+        </div>
+        <canvas id="comparisonChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+  <!-- ===== Goals Section ===== -->
+  <section id="goals" class="section">
+
+          <div class="header">
+            <h1>Financial Goals</h1>
+            <button class="add-goal-btn" onclick="openAddGoalModal()">+ Add Goal</button>
+        </div>
+
+        <div id="goals-grid" class="goals-grid">
+            <!-- Goals will be rendered here -->
+        </div>
+
+        <div id="empty-state" class="empty-state" style="display: none;">
+            <div class="empty-icon">🎯</div>
+            <div class="empty-title">No Goals Yet</div>
+            <div class="empty-text">Create your first financial goal to start tracking your progress</div>
+            <button class="btn btn-primary" onclick="openAddGoalModal()">Add Your First Goal</button>
+        </div>
+    </div>
+
+    <!-- Add/Edit Goal Modal -->
+    <div id="goal-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title" class="modal-title">Add New Goal</h3>
+                <button class="close-btn" onclick="closeGoalModal()">&times;</button>
+            </div>
+
+            <form id="goal-form">
+                <div class="form-group">
+                    <label class="form-label">Goal Name</label>
+                    <input type="text" id="goal-name" class="form-input" placeholder="e.g., Emergency Fund, Vacation, New Car" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Goal Type</label>
+                    <select id="goal-type" class="form-select" required>
+                        <option value="">Select goal type</option>
+                        <option value="emergency">Emergency Fund</option>
+                        <option value="saving">General Savings</option>
+                        <option value="vacation">Vacation</option>
+                        <option value="purchase">Major Purchase</option>
+                        <option value="debt">Debt Payoff</option>
+                        <option value="retirement">Retirement</option>
+                        <option value="education">Education</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Target Amount ()</label>
+                    <input type="number" id="target-amount" class="form-input" min="1" step="0.01" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Target Date</label>
+                    <input type="date" id="target-date" class="form-input">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Monthly Contribution ()</label>
+                    <input type="number" id="monthly-contribution" class="form-input" min="0" step="0.01" placeholder="Optional - for automatic calculations">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea id="goal-description" class="form-textarea" placeholder="What is this goal for? Any additional details..."></textarea>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeGoalModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Goal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+  </section>
+
+
+ 
+<section id="settings" class="section">
+  <header class="settings-header">
+    <span>Settings</span>
+  </header>
+
+  <div class="settings-container">
+    <!-- Sidebar -->
+    <nav class="settings-sidebar">
+      <ul>
+        <li class="active" data-section="profileSection">Profile</li>
+        <li data-section="rolloverSection">Rollover Settings</li>
+        <li data-section="dataSection">Data Management</li>
+      </ul>
+    </nav>
+
+    <!-- Content -->
+    <div class="settings-content">
+      
+      <!-- Profile Section -->
+      <div class="card settings-section active" id="profileSection">
+        <div class="section-header">
+          <h2>Profile</h2>
+        </div>
+
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="displayName" placeholder="Your name">
+        </div>
+
+        <div class="form-group">
+          <label>Email <span class="badge success">Verified</span></label>
+          <input type="email" id="email" disabled value="user@example.com">
+          <small>Your email address cannot be changed. Contact support if needed.</small>
+        </div>
+
+        <div class="form-group">
+          <label>Default Currency</label>
+          <select id="currency">
+        <option>USD</option>
+        <option>PHP</option>
+        <option>JPY</option>
+        <option>EUR</option>
+          </select>
+          <small>This will be used for all new budgets and transactions.</small>
+        </div>
+
+        <button class="btn btn-primary" id="saveBtn">Save Settings</button>
+      </div>
+
+      <!-- Rollover Settings Section -->
+      <div class="card settings-section" id="rolloverSection" style="display:none;">
+        <div class="section-header">
+          <h2>Rollover Settings</h2>
+        </div>
+
+        <div class="info-box">
+          <strong>Budget Rollover:</strong> Control how your budget handles leftover money each month.
+        </div>
+
+        <div class="form-group">
+          <label>Rollover Mode</label>
+          <select id="rolloverMode" onchange="toggleRolloverSettings()">
+            <option value="manual">Manual Rollover</option>
+            <option value="automatic">Automatic Rollover</option>
+          </select>
+          <small>Manual: Click button to rollover each month | Automatic: Rollover happens automatically</small>
+        </div>
+
+        <div class="form-group" id="automaticDayGroup" style="display: none;">
+          <label>Automatic Rollover Day</label>
+          <select id="automaticRolloverDay">
+            <option value="1">1st of the month</option>
+            <option value="2">2nd of the month</option>
+            <option value="3">3rd of the month</option>
+            <option value="4">4th of the month</option>
+            <option value="5">5th of the month</option>
+            <option value="10">10th of the month</option>
+            <option value="15">15th of the month</option>
+            <option value="20">20th of the month</option>
+            <option value="25">25th of the month</option>
+            <option value="last">Last day of month</option>
+          </select>
+          <small>Budget will automatically rollover on this day each month</small>
+        </div>
+
+        <button class="btn btn-primary" id="saveRolloverBtn">Save Rollover Settings</button>
+      </div>
+
+      <!-- Data Management Section -->
+      <div class="card settings-section" id="dataSection" style="display:none;">
+        <div class="section-header">
+          <h2>Data Management</h2>
+        </div>
+
+        <div class="form-group">
+          <label>Export Data</label>
+          <button class="btn btn-secondary" id="exportBtn">Export Backup</button>
+          <small>Download a complete backup of all your budget data.</small>
+        </div>
+
+        <div class="info-box danger">
+          <strong>Danger Zone:</strong> These actions cannot be undone. Please proceed with caution.
+        </div>
+
+        <div class="form-group">
+          <label>Reset Data <span class="badge danger">Permanent</span></label>
+          <button class="btn btn-danger" id="clearDataBtn">Clear All Data</button>
+          <small>This will permanently delete all your budgets and transactions.</small>
+        </div>
+
+        <div class="form-group">
+          <label>Delete Account <span class="badge danger">Final</span></label>
+          <button class="btn btn-danger" id="deleteAccountBtn">Delete Account</button>
+          <small>Permanently delete your account and all data. This cannot be reversed.</small>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Rollover Confirmation Modal -->
+<div id="rolloverModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center;">
+  <div style="background: white; border-radius: 12px; padding: 24px; max-width: 400px; width: 90%; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+    <h3 style="margin: 0 0 16px 0; color: var(--text, #2d3748);">⚠️ Confirm Rollover</h3>
+    <p style="color: var(--text-muted, #718096); margin-bottom: 20px;">
+      Are you sure you want to rollover the current month to next month? This action will:
+    </p>
+    <ul style="color: var(--text-muted, #718096); margin-bottom: 20px; padding-left: 20px;">
+      <li>Carry forward positive balances to next month</li>
+      <li>Reset negative balances to zero</li>
+      <li>Move any negative amounts to "To Be Budgeted"</li>
+    </ul>
+    <p style="color: var(--text-muted, #718096); margin-bottom: 20px;">
+      <strong>This action cannot be undone.</strong>
+    </p>
+    <div style="display: flex; gap: 12px; justify-content: flex-end;">
+      <button class="btn btn-secondary" onclick="closeRolloverModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="proceedWithRollover()">Continue</button>
+    </div>
+  </div>
+</div>
+
+
+
+  <!-- Footer -->
+  <footer>
+    © 2025 BudgetMaster ·
+    <a href="#">Privacy</a> ·
+    <a href="#">Terms</a> ·
+    <a href="#">Contact</a>
+  </footer>
+</div>
+
+
+
+  <!-- Modals -->
+  <div id="incomeModal" class="modal hidden">
+    <div class="modal-content">
+      <span class="close" onclick="closeModal('incomeModal')">&times;</span>
+      <h2>Add Income</h2>
+      <div class="split">
+        <div><label>Date</label><input type="date" id="incomeDate"></div>
+        <div><label>Amount</label><input type="number" id="incomeAmount" step="0.01"></div>
+      </div>
+      <label>Description</label>
+      <input type="text" id="incomeDescription" placeholder="Salary, Bonus, Gift">
+      <div class="modal-actions">
+        <button onclick="closeModal('incomeModal')">Cancel</button>
+        <button class="btn-primary" onclick="addIncome(); closeModal('incomeModal')">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="categoryModal" class="modal hidden">
+    <div class="modal-content">
+      <span class="close" onclick="closeModal('categoryModal')">&times;</span>
+      <h2>Add Category</h2>
+      <div class="split">
+        <div><label>Name</label><input type="text" id="categoryName"></div>
+        <div><label>Budget</label><input type="number" id="categoryBudget"></div>
+      </div>
+      <div class="modal-actions">
+        <button onclick="closeModal('categoryModal')">Cancel</button>
+        <button class="btn-primary" onclick="addCategory(); closeModal('categoryModal')">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="transactionModal" class="modal hidden">
+    <div class="modal-content">
+      <span class="close" onclick="closeModal('transactionModal')">&times;</span>
+      <h2>Add Transaction</h2>
+      <div class="split">
+        <div><label>Payee</label><input type="text" id="transactionName"></div>
+        <div><label>Amount</label><input type="number" id="transactionAmount"></div>
+      </div>
+      <label>Category</label>
+      <select id="transactionCategory"></select>
+      <label>Date</label>
+      <input type="date" id="transactionDate">
+      <div class="modal-actions">
+        <button onclick="closeModal('transactionModal')">Cancel</button>
+        <button class="btn-primary" onclick="addTransaction(); closeModal('transactionModal')">Save</button>
+      </div>
+    </div>
+  </div>
+
+
+<!-- Password Re-auth Modal -->
+<div id="reauthModal" class="modal" style="display:none;">
+  <div class="modal-content">
+    <h3>Confirm Password</h3>
+    <p>Please enter your account password to continue.</p>
+    <input type="password" id="reauthPassword" placeholder="Password">
+    <div class="modal-actions">
+      <button id="reauthCancel" class="btn btn-secondary">Cancel</button>
+      <button id="reauthConfirm" class="btn btn-primary">Confirm</button>
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+
+
+
+<!-- ===== Category Card Color Picker Modal ===== -->
+<div id="catColorModal">
+  <div class="cat-color-panel">
+    <button class="cc-close-btn" onclick="closeCatColorModal()">×</button>
+    <h3 id="ccCatTitle">🎨 Card Color</h3>
+    <p class="cc-subtitle">Click a shade to preview, then choose where to apply.</p>
+
+    <!-- Hue bar -->
+    <div class="cc-hue-bar-wrap">
+      <div class="cc-hue-bar-label">Select Hue</div>
+      <div class="cc-hue-bar" id="ccHueBar">
+        <div class="cc-hue-thumb" id="ccHueThumb"></div>
+      </div>
+    </div>
+
+    <!-- Shade swatches -->
+    <div class="cc-shades-label">Select Shade</div>
+    <div class="cc-shades-grid" id="ccShadesGrid"></div>
+
+    <!-- Text color -->
+    <div class="cc-shades-label">Text Color</div>
+    <div class="cc-text-color-row">
+      <button class="cc-text-option" data-mode="auto">Auto</button>
+      <button class="cc-text-option" data-mode="light" style="background:#fff;color:#1e293b;">White text</button>
+      <button class="cc-text-option" data-mode="dark"  style="background:#1e293b;color:#fff;">Dark text</button>
+    </div>
+
+    <!-- Live preview -->
+    <div class="cc-preview-wrap">
+      <div class="cc-preview-label">Preview</div>
+      <div class="cc-preview-card" id="ccPreviewCard">
+        <div class="cc-preview-name">Category Name</div>
+        <div class="cc-preview-amounts">Assigned · Spent · Balance</div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="cc-actions">
+      <button class="cc-btn cc-btn-this" onclick="applyCatColorThis()">Apply to this card</button>
+      <button class="cc-btn cc-btn-all"  onclick="applyCatColorAll()">Apply to all cards</button>
+      <button class="cc-btn-reset" onclick="resetCatColor()" title="Remove custom color">↺ Reset</button>
+    </div>
+  </div>
+</div>
+
+  <!-- Phase 0 helpers -->
+  <script src="helpers/currency.js"></script>
+  <script src="firebase/firestoreTransactionRunner.js"></script>
+
+  <!-- Phase 1 service layer (ES modules) -->
+  <script type="module" src="services/transactions/transactionTypes.js"></script>
+  <script type="module" src="services/transactions/transactionIntent.js"></script>
+  <script type="module" src="services/budgets/budgetMutationService.js"></script>
+  <script type="module" src="services/accounts/accountMutationService.js"></script>
+  <script type="module" src="services/months/monthService.js"></script>
+
+  <!-- Phase 1 bridge: import engine and expose it globally for classic scripts -->
+  <script type="module">
+    import { processFinancialTransaction } from './services/transactions/transactionEngine.js';
+    window.processFinancialTransaction = processFinancialTransaction;
+  </script>
+
+  <!-- Phase 2 persistence layer -->
+  <script src="services/transactions/transactionPersistence.js" defer></script>
+
+  <!-- Main app (always last) -->
+  <script src="script.js" defer></script>
+</body>
+</html>
