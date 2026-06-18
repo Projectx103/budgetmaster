@@ -116,7 +116,7 @@ const FEATURE_FLAGS = {
   useEngineForIncome:          true,  // Phase 2 — set true after staging smoke test
   useEngineForCategoryAssign:  true,  // Phase 3 — set true after staging smoke test
   useEngineForExpense:         true,  // Phase 4 — set true after staging smoke test
-  useEngineForAssignEdit:      false,  // Phase 5 — set true after staging smoke test
+  useEngineForAssignEdit:      true,  // Phase 5 — set true after staging smoke test
 };
 
 let currentSort = { column: 'date', direction: 'desc' };
