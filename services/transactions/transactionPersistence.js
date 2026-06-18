@@ -185,10 +185,18 @@ function buildIntentFromFlat(flat) {
 
     // Phases 4-7 will add: expense, deposit, withdrawal, transfer, liability_payment.
     case "expense":
-      throw new Error(
-        `buildIntentFromFlat: type "expense" is not yet wired (Phase 4+). ` +
-        `Add its branch here when that phase ships.`
-      );
+      // Phase 4 — dashboard expense from available balance
+      return {
+        type:         "expense",
+        source:       flat.source || "available",
+        payee:        (flat.name || "Expense").trim(),
+        categoryName: flat.category || flat.categoryName,
+        accountName:  flat.accountName || null,
+        amountCents:  _toCents(flat.amount),
+        date:         flat.date,
+        month:        flat.monthKey,
+        meta:         flat.meta || {},
+      };
 
     case "assign":
       // Phase 3 — new category or reassignment
