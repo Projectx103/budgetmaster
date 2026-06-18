@@ -140,15 +140,18 @@ function _buildTransactionRecord(intent) {
         outflow: 0,
       };
 
-    case TYPE_EXPENSE:
-      return {
+    case TYPE_EXPENSE: {
+      const expenseRecord = {
         ...base,
-        inflow:        0,
-        outflow:       amount,
-        fromAsset:     intent.source === SOURCE_ASSET     ? true : undefined,
-        fromLiability: intent.source === SOURCE_LIABILITY ? true : undefined,
-        fromAccount:   intent.accountName || undefined,
+        inflow:  0,
+        outflow: amount,
       };
+      // Only set these flags when true — Firestore rejects undefined values
+      if (intent.source === SOURCE_ASSET)     expenseRecord.fromAsset     = true;
+      if (intent.source === SOURCE_LIABILITY) expenseRecord.fromLiability = true;
+      if (intent.accountName)                 expenseRecord.fromAccount    = intent.accountName;
+      return expenseRecord;
+    }
 
     case TYPE_TRANSFER:
       return {
