@@ -113,8 +113,8 @@
 // Flip individual flags to false to instantly revert to the old inline path.
 // All flags default OFF until the phase is verified on staging.
 const FEATURE_FLAGS = {
-  useEngineForIncome:          false,  // Phase 2 — set true after staging smoke test
-  useEngineForCategoryAssign:  false,  // Phase 3 — set true after staging smoke test
+  useEngineForIncome:         true,  // Phase 2 verified ✅
+  useEngineForCategoryAssign: true,  // Phase 3 verified ✅
 };
 
 let currentSort = { column: 'date', direction: 'desc' };
