@@ -35,7 +35,7 @@
  * @param {number}  [options.seedTbb=0]     — starting TBB (float pesos)
  * @returns {MonthDoc}
  */
-export function buildEmptyMonth({ monthKey, seedCategories = [], seedTbb = 0 } = {}) {
+function buildEmptyMonth({ monthKey, seedCategories = [], seedTbb = 0 } = {}) {
   if (!monthKey || typeof monthKey !== "string" || !/^\d{4}-\d{2}$/.test(monthKey)) {
     throw new Error(
       `buildEmptyMonth: monthKey must be a YYYY-MM string, got "${monthKey}"`
@@ -95,7 +95,7 @@ export function buildEmptyMonth({ monthKey, seedCategories = [], seedTbb = 0 } =
  *   — root-doc TBB to seed with when creating fresh
  * @returns {MonthDoc}
  */
-export function ensureMonthExists({
+function ensureMonthExists({
   existingData,
   monthKey,
   rootCategories = [],
@@ -130,7 +130,7 @@ export function ensureMonthExists({
  * @param {string} monthKey   — YYYY-MM
  * @returns {string}          — YYYY-MM
  */
-export function getNextMonthKey(monthKey) {
+function getNextMonthKey(monthKey) {
   _requireMonthKey(monthKey, "getNextMonthKey");
 
   const [year, month] = monthKey.split("-").map(Number);
@@ -153,7 +153,7 @@ export function getNextMonthKey(monthKey) {
  * @param {string} monthKey   — YYYY-MM
  * @returns {string}          — YYYY-MM
  */
-export function getPreviousMonthKey(monthKey) {
+function getPreviousMonthKey(monthKey) {
   _requireMonthKey(monthKey, "getPreviousMonthKey");
 
   const [year, month] = monthKey.split("-").map(Number);
@@ -175,7 +175,7 @@ export function getPreviousMonthKey(monthKey) {
  * @param {string} dateStr   — YYYY-MM-DD
  * @returns {string}         — YYYY-MM
  */
-export function monthKeyFromDate(dateStr) {
+function monthKeyFromDate(dateStr) {
   if (typeof dateStr !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     throw new Error(
       `monthKeyFromDate: expected YYYY-MM-DD, got "${dateStr}"`
