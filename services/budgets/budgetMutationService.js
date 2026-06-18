@@ -13,17 +13,9 @@
  *    to surface them.
  */
 
-import {
-  TYPE_EXPENSE,
-  TYPE_INCOME,
-  TYPE_TRANSFER,
-  TYPE_LIABILITY_PAYMENT,
-  SOURCE_ASSET,
-  SOURCE_LIABILITY,
-  SOURCE_AVAILABLE,
-} from "../transactions/transactionTypes.js";
 
-import { toCents, fromCents } from "../transactions/transactionIntent.js";
+
+
 
 // ---------------------------------------------------------------------------
 // BudgetDelta type
@@ -70,7 +62,7 @@ import { toCents, fromCents } from "../transactions/transactionIntent.js";
  * @param {import('../transactions/transactionIntent').TransactionIntent} intent
  * @returns {BudgetDelta}
  */
-export function computeBudgetDelta(intent) {
+function computeBudgetDelta(intent) {
   _requireIntent(intent);
 
   switch (intent.type) {
@@ -168,7 +160,7 @@ export function computeBudgetDelta(intent) {
  * @param {BudgetDelta} delta
  * @returns {Object}  new month-doc with changes applied
  */
-export function applyBudgetDeltaToMonth(monthDoc, delta) {
+function applyBudgetDeltaToMonth(monthDoc, delta) {
   if (!monthDoc || typeof monthDoc !== "object") {
     throw new Error("applyBudgetDeltaToMonth: monthDoc must be a plain object");
   }
