@@ -118,6 +118,7 @@ const FEATURE_FLAGS = {
   useEngineForExpense:         true,  // Phase 4 — set true after staging smoke test
   useEngineForAssignEdit:      true,  // Phase 5 — set true after staging smoke test
   useEngineForAccountTxn:      true,  // Phase 6 — set true after staging smoke test
+  useEngineForDelete:          true,  // Phase 7 — set true after staging smoke test
 };
 
 let currentSort = { column: 'date', direction: 'desc' };
@@ -2850,41 +2851,126 @@ document.getElementById("delete-category-btn").addEventListener("click", async (
 // ✅ Delete transaction (and return amount to category)
 async function deleteTransaction(categoryName, txId) {
   if (!confirm("Delete this transaction?")) return;
-
   if (!currentUser) return;
-  const docRef = db.collection("budget").doc(currentUser.uid);
+
+  const docRef       = db.collection("budget").doc(currentUser.uid);
   const selectedMonth = availableMonths[currentMonthIndex] || new Date().toISOString().slice(0, 7);
-  const monthRef = docRef.collection("months").doc(selectedMonth);
+  const monthRef     = docRef.collection("months").doc(selectedMonth);
+
+  // ── Engine path (Phase 7) — atomic runWithRetry ──────────────────────────
+  if (FEATURE_FLAGS.useEngineForDelete) {
+    try {
+      let tx = null;
+
+      await runWithRetry(db, async (txn) => {
+        const [monthSnap, rootSnap] = await Promise.all([
+          txn.get(monthRef),
+          txn.get(docRef),
+        ]);
+        if (!monthSnap.exists) throw new Error("Month data not found");
+
+        const monthData = monthSnap.data();
+        const rootData  = rootSnap.exists ? rootSnap.data() : { accounts: [] };
+
+        const txIndex = monthData.transactions.findIndex(t => t.id === txId);
+        if (txIndex === -1) throw new Error("Transaction not found");
+        tx = monthData.transactions[txIndex];
+
+        // ── Reverse category effects ────────────────────────────────────────
+        const cat = monthData.categories.find(c => c.name === categoryName);
+        if (cat) {
+          if (tx.type === "expense") {
+            // Reverse expense: restore category spent and balance
+            cat.spent   = Math.max(0, (cat.spent || 0) - tx.amount);
+            cat.balance = cat.assigned - cat.spent;
+          } else if (tx.type === "income" && !tx.isAccountOnlyTxn) {
+            // Reverse income: restore TBB (NOT cat.assigned — income goes to TBB, not categories)
+            monthData.tbb = Math.max(0, (monthData.tbb || 0) - tx.amount);
+          }
+        }
+
+        // ── Reverse account effects ─────────────────────────────────────────
+        const updatedAccounts = rootData.accounts.map(a => ({ ...a }));
+
+        if (tx.fromAsset && tx.fromAccount) {
+          // Reverse asset-funded expense: restore asset balance
+          const i = updatedAccounts.findIndex(a => a.name === tx.fromAccount);
+          if (i !== -1) updatedAccounts[i].balance = (updatedAccounts[i].balance || 0) + tx.amount;
+        }
+
+        if (tx.fromLiability && tx.fromAccount) {
+          // Reverse liability charge: reduce amount owed
+          const i = updatedAccounts.findIndex(a => a.name === tx.fromAccount);
+          if (i !== -1) updatedAccounts[i].balance = Math.max(0, (updatedAccounts[i].balance || 0) - tx.amount);
+        }
+
+        if (tx.isLiabilityPayment) {
+          // Reverse liability payment: restore liability balance + restore TBB
+          const accName = tx.liabilityAccount || tx.fromAccount || tx.accountName;
+          const i = updatedAccounts.findIndex(a => a.name === accName);
+          if (i !== -1) {
+            updatedAccounts[i].balance = (updatedAccounts[i].balance || 0) + tx.amount;
+            if (updatedAccounts[i].nextDueOverride) delete updatedAccounts[i].nextDueOverride;
+            if (updatedAccounts[i].lastPaidDate)    delete updatedAccounts[i].lastPaidDate;
+          }
+          monthData.tbb = (monthData.tbb || 0) + tx.amount;
+        }
+
+        // ── Remove transaction ──────────────────────────────────────────────
+        monthData.transactions.splice(txIndex, 1);
+
+        // ── Write both docs atomically ──────────────────────────────────────
+        txn.set(monthRef, monthData);
+        txn.set(docRef, { ...rootData, accounts: updatedAccounts }, { merge: true });
+      });
+
+      // ── Refresh UI ────────────────────────────────────────────────────────
+      accounts = (await docRef.get()).data().accounts || [];
+      await loadBudgetSection();
+      renderAccounts(accounts);
+      const freshMonth = await monthRef.get();
+      renderBudget(freshMonth.exists ? freshMonth.data() : {});
+      closeModal("category-modal");
+
+      let toastMsg = "Transaction deleted";
+      if (tx && tx.fromAsset)          toastMsg += " — asset balance restored";
+      else if (tx && tx.fromLiability) toastMsg += " — liability balance restored";
+      else if (tx && tx.isLiabilityPayment) toastMsg += " — payment reversed, liability restored";
+      showToast(toastMsg, "success");
+      return;
+
+    } catch (err) {
+      console.error("[Phase 7] Engine deleteTransaction error:", err);
+      showToast(err.message || "Failed to delete transaction.", "error");
+      return;
+    }
+  }
+
+  // ── Legacy inline path (original code, untouched) ────────────────────────
   const monthSnap = await monthRef.get();
   if (!monthSnap.exists) return showToast("Month data not found", "error");
 
   let monthData = monthSnap.data();
-
   const txIndex = monthData.transactions.findIndex((t) => t.id === txId);
   if (txIndex === -1) return alert("Transaction not found!");
 
   const tx = monthData.transactions[txIndex];
 
-  // ✅ Adjust category values
   const cat = monthData.categories.find((c) => c.name === categoryName);
   if (cat) {
     if (tx.type === "expense") {
-      // return money back
       cat.spent -= tx.amount;
       if (cat.spent < 0) cat.spent = 0;
       cat.balance = cat.assigned - cat.spent;
     } else if (tx.type === "income") {
-      // rollback income
       cat.assigned -= tx.amount;
       if (cat.assigned < 0) cat.assigned = 0;
     }
   }
 
-  // Load root data for account updates
   const rootSnap = await docRef.get();
   let rootData = rootSnap.exists ? rootSnap.data() : null;
 
-  // ✅ If expense came from an ASSET account → restore asset balance
   if (tx.fromAsset && tx.fromAccount && rootData) {
     const accIdx = rootData.accounts.findIndex(a => a.name === tx.fromAccount);
     if (accIdx !== -1) {
@@ -2894,25 +2980,19 @@ async function deleteTransaction(categoryName, txId) {
     }
   }
 
-  // ✅ If expense came from a LIABILITY account (credit card charge) → reduce the liability balance back
   if (tx.fromLiability && tx.fromAccount && rootData) {
     const accIdx = rootData.accounts.findIndex(a => a.name === tx.fromAccount);
     if (accIdx !== -1) {
-      // Undo the charge: reduce amount owed on the liability
       rootData.accounts[accIdx].balance = Math.max(0, (rootData.accounts[accIdx].balance || 0) - tx.amount);
       await docRef.update({ accounts: rootData.accounts });
       accounts = rootData.accounts;
     }
-    // NOTE: Does NOT touch Dashboard Available Balance — liability expenses never affected it
   }
 
-  // ✅ If this was a liability payment → restore the liability balance AND restore TBB
   if (tx.isLiabilityPayment && tx.liabilityAccount && rootData) {
     const accIdx = rootData.accounts.findIndex(a => a.name === tx.liabilityAccount);
     if (accIdx !== -1) {
-      // Put the amount back on the liability
       rootData.accounts[accIdx].balance = (rootData.accounts[accIdx].balance || 0) + tx.amount;
-      // Also reset due date advance if applicable
       if (rootData.accounts[accIdx].nextDueOverride) {
         delete rootData.accounts[accIdx].nextDueOverride;
         delete rootData.accounts[accIdx].lastPaidDate;
@@ -2920,25 +3000,14 @@ async function deleteTransaction(categoryName, txId) {
       await docRef.update({ accounts: rootData.accounts });
       accounts = rootData.accounts;
     }
-    // Restore TBB since the payment came from available balance
     monthData.tbb = (monthData.tbb || 0) + tx.amount;
   }
 
-  // ✅ Remove transaction
   monthData.transactions.splice(txIndex, 1);
-
   await monthRef.set(monthData);
-
-  // Reload the updated data for budget, categories, and transactions
   await loadBudgetSection();
-
-  // Re-render accounts so balance is visually updated
   renderAccounts(accounts);
-
-  // Re-render the updated budget and categories
   renderBudget(monthData);
-
-  // ✅ Close the modal after deletion
   closeModal("category-modal");
 
   let toastMsg = "Transaction deleted";
@@ -3064,8 +3133,89 @@ async function deleteAccountTransaction(txId, monthKey, accountIndex) {
   if (!confirm('Delete this transaction? This will reverse the account balance only.')) return;
   if (!currentUser) return;
 
-  const docRef    = db.collection("budget").doc(currentUser.uid);
-  const monthRef  = docRef.collection("months").doc(monthKey);
+  const docRef   = db.collection("budget").doc(currentUser.uid);
+  const monthRef = docRef.collection("months").doc(monthKey);
+
+  // ── Engine path (Phase 7) — atomic runWithRetry ──────────────────────────
+  if (FEATURE_FLAGS.useEngineForDelete) {
+    try {
+      await runWithRetry(db, async (txn) => {
+        const [monthSnap, rootSnap] = await Promise.all([
+          txn.get(monthRef),
+          txn.get(docRef),
+        ]);
+        if (!monthSnap.exists) throw new Error("Month data not found");
+
+        const monthData = monthSnap.data();
+        const rootData  = rootSnap.exists ? rootSnap.data() : { accounts: [] };
+
+        const txIndex = monthData.transactions.findIndex(t => t.id === txId);
+        if (txIndex === -1) throw new Error("Transaction not found");
+        const tx = monthData.transactions[txIndex];
+
+        const updatedAccounts = rootData.accounts.map(a => ({ ...a }));
+
+        if (tx.category === 'Deposit') {
+          // Reverse deposit: remove money from account back to budget
+          const i = updatedAccounts.findIndex(a => a.name === tx.accountName);
+          if (i !== -1) updatedAccounts[i].balance = (updatedAccounts[i].balance || 0) - tx.amount;
+
+        } else if (tx.category === 'Withdrawal') {
+          // Reverse withdrawal: put money back into account from budget
+          const i = updatedAccounts.findIndex(a => a.name === tx.accountName);
+          if (i !== -1) updatedAccounts[i].balance = (updatedAccounts[i].balance || 0) + tx.amount;
+          // Also restore TBB (withdrawal decremented it when created)
+          monthData.tbb = (monthData.tbb || 0) + tx.amount;
+
+        } else if (tx.category === 'Transfer') {
+          // Reverse transfer: restore both accounts
+          if (tx.fromAccount) {
+            const fi = updatedAccounts.findIndex(a => a.name === tx.fromAccount);
+            if (fi !== -1) updatedAccounts[fi].balance = (updatedAccounts[fi].balance || 0) + tx.amount;
+          }
+          if (tx.toAccount) {
+            const ti = updatedAccounts.findIndex(a => a.name === tx.toAccount);
+            if (ti !== -1) updatedAccounts[ti].balance = (updatedAccounts[ti].balance || 0) - tx.amount;
+          }
+
+        } else if (tx.isLiabilityPayment) {
+          // Reverse liability payment: restore liability balance
+          const accName = tx.liabilityAccount || tx.accountName;
+          const i = updatedAccounts.findIndex(a => a.name === accName);
+          if (i !== -1) {
+            updatedAccounts[i].balance = (updatedAccounts[i].balance || 0) + tx.amount;
+            if (updatedAccounts[i].nextDueOverride) delete updatedAccounts[i].nextDueOverride;
+            if (updatedAccounts[i].lastPaidDate)    delete updatedAccounts[i].lastPaidDate;
+          }
+        }
+
+        monthData.transactions.splice(txIndex, 1);
+
+        // ── Write both docs atomically ────────────────────────────────────
+        txn.set(monthRef, monthData);
+        txn.set(docRef, { ...rootData, accounts: updatedAccounts }, { merge: true });
+      });
+
+      // ── Refresh UI ──────────────────────────────────────────────────────
+      accounts = (await docRef.get()).data().accounts || [];
+      renderAccounts(accounts);
+      await loadAccountTransactionHistory(accountIndex);
+      const panel = document.getElementById('acct-txn-history-' + accountIndex);
+      if (panel) panel.style.display = 'block';
+      const currentMk = availableMonths[currentMonthIndex] || monthKey;
+      await loadMonthData(currentMk);
+      await loadBudget();
+      showToast("Transaction deleted — account balance restored.", "success");
+      return;
+
+    } catch (err) {
+      console.error("[Phase 7] Engine deleteAccountTransaction error:", err);
+      showToast(err.message || "Failed to delete transaction.", "error");
+      return;
+    }
+  }
+
+  // ── Legacy inline path (original code, untouched) ────────────────────────
   const monthSnap = await monthRef.get();
   if (!monthSnap.exists) return showToast("Month data not found", "error");
 
@@ -3081,11 +3231,9 @@ async function deleteAccountTransaction(txId, monthKey, accountIndex) {
   if (tx.category === 'Deposit') {
     const i = rootData.accounts.findIndex(a => a.name === tx.accountName);
     if (i !== -1) rootData.accounts[i].balance = (rootData.accounts[i].balance || 0) - tx.amount;
-
   } else if (tx.category === 'Withdrawal') {
     const i = rootData.accounts.findIndex(a => a.name === tx.accountName);
     if (i !== -1) rootData.accounts[i].balance = (rootData.accounts[i].balance || 0) + tx.amount;
-
   } else if (tx.category === 'Transfer') {
     if (tx.fromAccount) {
       const fi = rootData.accounts.findIndex(a => a.name === tx.fromAccount);
@@ -3095,7 +3243,6 @@ async function deleteAccountTransaction(txId, monthKey, accountIndex) {
       const ti = rootData.accounts.findIndex(a => a.name === tx.toAccount);
       if (ti !== -1) rootData.accounts[ti].balance = (rootData.accounts[ti].balance || 0) - tx.amount;
     }
-
   } else if (tx.isLiabilityPayment) {
     const i = rootData.accounts.findIndex(a => a.name === tx.liabilityAccount);
     if (i !== -1) {
@@ -3112,16 +3259,12 @@ async function deleteAccountTransaction(txId, monthKey, accountIndex) {
 
   accounts = rootData.accounts;
   renderAccounts(accounts);
-
   await loadAccountTransactionHistory(accountIndex);
   const panel = document.getElementById('acct-txn-history-' + accountIndex);
   if (panel) panel.style.display = 'block';
-
-  // Force immediate recompute of Available Balance on the dashboard
   const currentMk = availableMonths[currentMonthIndex] || monthKey;
   await loadMonthData(currentMk);
   await loadBudget();
-
   showToast("Transaction deleted — account balance restored.", "success");
 }
 
