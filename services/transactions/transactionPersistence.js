@@ -300,39 +300,85 @@ function buildIntentFromFlat(flat) {
 /**
  * Builds the Firestore payload for the month doc write.
  *
- * Rules for Phase 2 (income only):
- *  - Write tbb and transactions from the engine result.
- *  - Preserve all other fields from the existing month doc (categories,
- *    availableBalance, note, savedAt, currentMonth, etc.).
- *  - When the month doc is NEW (existingMonthData === null), write the full
- *    engine-produced month doc — but still omit availableBalance (Phase 8).
+ * Phase 8: availableBalance is now computed here and written with every
+ * engine transaction — making the engine the single source of truth for
+ * this field instead of renderBudget's async side-effect write.
  *
- * We do NOT use {merge: true} on the txn.set() because inside a Firestore
- * runTransaction, txn.set() replaces the document but we control the full
- * payload here anyway. This is intentional — we always write a complete,
- * consistent document.
+ * The formula mirrors renderBudget() exactly:
+ *   availableBalance = totalIncome - totalSpentForBalance
+ *   where totalSpentForBalance = (categories.spent - assetFunded - liabilityFunded) + accountOutflow
  *
  * @param {object} engineMonthDoc    - result.monthDoc from processFinancialTransaction
  * @param {object|null} existingData - original Firestore month doc data (or null)
  * @returns {object}                 - safe payload for txn.set()
  */
 function _safeMonthPayload(engineMonthDoc, existingData) {
+  // Compute availableBalance from the engine's output transactions + categories
+  const availableBalance = _computeAvailableBalance(
+    engineMonthDoc.transactions || [],
+    engineMonthDoc.categories   || []
+  );
+
   if (existingData === null) {
-    // Brand-new month doc: write the full engine output, but scrub availableBalance.
-    const payload = { ...engineMonthDoc };
-    delete payload.availableBalance;  // Phase 8 owns this field
-    return payload;
+    // Brand-new month doc: write the full engine output + computed availableBalance
+    return { ...engineMonthDoc, availableBalance };
   }
 
-  // Existing month doc: merge engine's tbb + transactions + categories into existing data.
-  // Preserve every other field exactly as it was (availableBalance, note, savedAt, etc.)
-  // Phase 3: categories must also be written because assign/unassign mutate them.
+  // Existing month doc: merge engine fields + freshly computed availableBalance.
+  // Preserve note, savedAt, currentMonth, and any other non-financial fields.
   return {
     ...existingData,
-    tbb:          engineMonthDoc.tbb,
-    transactions: engineMonthDoc.transactions,
-    categories:   engineMonthDoc.categories,
+    tbb:              engineMonthDoc.tbb,
+    transactions:     engineMonthDoc.transactions,
+    categories:       engineMonthDoc.categories,
+    availableBalance,
   };
+}
+
+/**
+ * Compute availableBalance from transactions and categories.
+ * Mirrors renderBudget() formula exactly so engine and UI always agree.
+ *
+ * @param {Array} transactions
+ * @param {Array} categories
+ * @returns {number}
+ */
+function _computeAvailableBalance(transactions, categories) {
+  // Sum of categories[].spent
+  const spent = categories.reduce((s, c) => s + (c.spent || 0), 0);
+
+  // accountOutflow: deposits reduce Available Balance, withdrawals increase it
+  let accountOutflow = 0;
+  transactions.forEach(t => {
+    if (t.fromAsset || t.fromLiability) return;
+    if (t.category === "Deposit"    && t.outflow > 0) accountOutflow += t.outflow;
+    if (t.category === "Withdrawal" && t.inflow  > 0) accountOutflow -= t.inflow;
+    if (t.isLiabilityPayment && t.outflow > 0)        accountOutflow += t.outflow;
+  });
+
+  // Asset-funded and liability-funded expenses don't reduce Available Balance
+  let assetFundedSpent = 0;
+  transactions.forEach(t => {
+    if (t.fromAsset && t.type === "expense" && t.amount > 0) assetFundedSpent += t.amount;
+  });
+  let liabilityFundedSpent = 0;
+  transactions.forEach(t => {
+    if (t.fromLiability && t.type === "expense" && t.amount > 0) liabilityFundedSpent += t.amount;
+  });
+
+  // Total income (real income only — not deposits/withdrawals/transfers)
+  let totalIncome = 0;
+  transactions.forEach(t => {
+    if (t.fromAsset || t.fromLiability) return;
+    const isAcct = t.category === "Deposit" || t.category === "Withdrawal" || t.category === "Transfer";
+    if (isAcct || t.isLiabilityPayment) return;
+    if (t.type === "income" || (t.inflow && t.inflow > 0)) {
+      totalIncome += t.amount || t.inflow || 0;
+    }
+  });
+
+  const totalSpentForBalance = (spent - assetFundedSpent - liabilityFundedSpent) + accountOutflow;
+  return totalIncome - totalSpentForBalance;
 }
 
 // ---------------------------------------------------------------------------
@@ -371,6 +417,7 @@ if (typeof module !== "undefined" && module.exports) {
     persistFinancialTransaction,
     buildIntentFromFlat,
     _safeMonthPayload,
+    _computeAvailableBalance,
     _validateFlatIntent,
     _toCents,
   };
