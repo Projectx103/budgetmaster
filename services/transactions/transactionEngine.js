@@ -173,6 +173,30 @@ function _buildTransactionRecord(intent) {
         fromAccount:        intent.accountName,
       };
 
+    // Phase 6: deposit — money in from outside
+    case "deposit":
+      return {
+        ...base,
+        category: "Deposit",
+        type:     "expense",   // matches legacy shape (deposit uses outflow)
+        inflow:   0,
+        outflow:  amount,
+        isAccountOnlyTxn: true,
+        accountName: intent.accountName,
+      };
+
+    // Phase 6: withdrawal — money out to outside
+    case "withdrawal":
+      return {
+        ...base,
+        category: "Withdrawal",
+        type:     "income",    // matches legacy shape (withdrawal uses inflow)
+        inflow:   amount,
+        outflow:  0,
+        isAccountOnlyTxn: true,
+        accountName: intent.accountName,
+      };
+
     // Phase 3: assign/unassign are budget-only operations — no transaction record
     case "assign":
     case "unassign":

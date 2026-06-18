@@ -233,7 +233,7 @@ function buildIntentFromFlat(flat) {
     case "deposit":
       // Phase 6 — deposit into an asset account (increases account balance)
       return {
-        type:         "income",          // engine uses income type for deposits
+        type:         "deposit",
         source:       null,
         payee:        (flat.name || "Deposit").trim(),
         categoryName: "Deposit",
@@ -241,23 +241,21 @@ function buildIntentFromFlat(flat) {
         amountCents:  _toCents(flat.amount),
         date:         flat.date,
         month:        flat.monthKey,
-        meta:         { isDeposit: true, accountName: flat.accountName, ...flat.meta },
+        meta:         flat.meta || {},
       };
 
     case "withdrawal":
       // Phase 6 — withdrawal from an asset account (decreases account balance)
       return {
-        type:         "transfer",        // engine uses transfer type for withdrawals
+        type:         "withdrawal",
         source:       null,
         payee:        (flat.name || "Withdrawal").trim(),
         categoryName: "Withdrawal",
         accountName:  flat.accountName,
-        fromAccountName: flat.accountName,
-        toAccountName:   null,
         amountCents:  _toCents(flat.amount),
         date:         flat.date,
         month:        flat.monthKey,
-        meta:         { isWithdrawal: true, accountName: flat.accountName, ...flat.meta },
+        meta:         flat.meta || {},
       };
 
     case "transfer":
