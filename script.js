@@ -2269,7 +2269,9 @@ async function openTransactionPanel(index) {
         accounts = (await docRef.get()).data().accounts;
         closeTransactionPanel();
         renderAccounts(accounts);
+        // Force immediate recompute of Available Balance on the dashboard
         await loadMonthData(currentMonth);
+        await loadBudget();
 
         if (type === 'pay')        showToast(`${formatCurrency(amount)} payment recorded for ${sourceAccount.name}. Due date advanced.`, "success");
         else if (type === 'deposit')    showToast(`${formatCurrency(amount)} deposited to ${sourceAccount.name}`, "success");
@@ -2352,6 +2354,7 @@ async function openTransactionPanel(index) {
       closeTransactionPanel();
       renderAccounts(accounts);
       await loadMonthData(currentMonth);
+      await loadBudget();
       showToast(`${formatCurrency(amount)} payment recorded for ${sourceAccount.name}. Due date advanced.`, "success");
       return;
     }
@@ -2400,6 +2403,7 @@ async function openTransactionPanel(index) {
       closeTransactionPanel();
       renderAccounts(accounts);
       await loadMonthData(currentMonth);
+      await loadBudget();
       showToast(`${formatCurrency(amount)} expense on "${categoryName}" charged to ${sourceAccount.name}`, "success");
       return;
     }
@@ -2476,6 +2480,7 @@ async function openTransactionPanel(index) {
       closeTransactionPanel();
       renderAccounts(accounts);
       await loadMonthData(currentMonth);
+      await loadBudget();
 
       showToast(`${formatCurrency(amount)} expense under "${categoryName}" recorded from ${data.accounts[transactionAccountIndex].name}`, "success");
       return;
@@ -2500,6 +2505,7 @@ async function openTransactionPanel(index) {
     closeTransactionPanel();
     renderAccounts(accounts);
     await loadMonthData(currentMonth);
+    await loadBudget();
 
     if (type === "deposit")         showToast(`${formatCurrency(amount)} deposited to ${data.accounts[transactionAccountIndex].name}`, "success");
     else if (type === "withdrawal") showToast(`${formatCurrency(amount)} withdrawn from ${data.accounts[transactionAccountIndex].name}`, "success");
@@ -3110,6 +3116,11 @@ async function deleteAccountTransaction(txId, monthKey, accountIndex) {
   await loadAccountTransactionHistory(accountIndex);
   const panel = document.getElementById('acct-txn-history-' + accountIndex);
   if (panel) panel.style.display = 'block';
+
+  // Force immediate recompute of Available Balance on the dashboard
+  const currentMk = availableMonths[currentMonthIndex] || monthKey;
+  await loadMonthData(currentMk);
+  await loadBudget();
 
   showToast("Transaction deleted — account balance restored.", "success");
 }
