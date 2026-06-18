@@ -14,15 +14,7 @@
  * are provided for bridging.
  */
 
-import {
-  TYPE_EXPENSE,
-  TYPE_INCOME,
-  TYPE_TRANSFER,
-  TYPE_LIABILITY_PAYMENT,
-  SOURCE_ASSET,
-  SOURCE_LIABILITY,
-  SOURCE_AVAILABLE,
-} from "./transactionTypes.js";
+
 
 // ---------------------------------------------------------------------------
 // Money helpers
@@ -35,7 +27,7 @@ import {
  * @param {number} floatAmount
  * @returns {number}  integer cents, always ≥ 0 after Math.round
  */
-export function toCents(floatAmount) {
+function toCents(floatAmount) {
   return Math.round(floatAmount * 100);
 }
 
@@ -45,7 +37,7 @@ export function toCents(floatAmount) {
  * @param {number} cents
  * @returns {number}
  */
-export function fromCents(cents) {
+function fromCents(cents) {
   return cents / 100;
 }
 
@@ -53,7 +45,7 @@ export function fromCents(cents) {
 // Validation errors
 // ---------------------------------------------------------------------------
 
-export class IntentValidationError extends Error {
+class IntentValidationError extends Error {
   /**
    * @param {string} message
    * @param {string} field  — the field name that failed validation
@@ -83,7 +75,7 @@ export class IntentValidationError extends Error {
  * }} raw
  * @returns {TransactionIntent}
  */
-export function buildExpenseIntent(raw) {
+function buildExpenseIntent(raw) {
   _requireString(raw.payee,        "payee");
   _requireString(raw.categoryName, "categoryName");
   _requireDate(raw.date,           "date");
@@ -123,7 +115,7 @@ export function buildExpenseIntent(raw) {
  * }} raw
  * @returns {TransactionIntent}
  */
-export function buildIncomeIntent(raw) {
+function buildIncomeIntent(raw) {
   _requireString(raw.description, "description");
   _requireDate(raw.date,          "date");
   _requireMonth(raw.month,        "month");
@@ -153,7 +145,7 @@ export function buildIncomeIntent(raw) {
  * }} raw
  * @returns {TransactionIntent}
  */
-export function buildTransferIntent(raw) {
+function buildTransferIntent(raw) {
   _requireString(raw.fromAccountName, "fromAccountName");
   _requireString(raw.toAccountName,   "toAccountName");
   _requireDate(raw.date,              "date");
@@ -192,7 +184,7 @@ export function buildTransferIntent(raw) {
  * }} raw
  * @returns {TransactionIntent}
  */
-export function buildLiabilityPaymentIntent(raw) {
+function buildLiabilityPaymentIntent(raw) {
   _requireString(raw.liabilityAccountName, "liabilityAccountName");
   _requireDate(raw.date,                   "date");
   _requireMonth(raw.month,                 "month");

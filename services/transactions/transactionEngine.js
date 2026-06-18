@@ -30,27 +30,15 @@
  * (Phase 2 will add a thin persistence wrapper).
  */
 
-import { computeBudgetDelta, applyBudgetDeltaToMonth }
-  from "../budgets/budgetMutationService.js";
 
-import { computeAccountDelta, applyAccountDeltaToRoot }
-  from "../accounts/accountMutationService.js";
 
-import { ensureMonthExists }
-  from "../months/monthService.js";
 
-import { fromCents }
-  from "./transactionIntent.js";
 
-import {
-  TYPE_EXPENSE,
-  TYPE_INCOME,
-  TYPE_TRANSFER,
-  TYPE_LIABILITY_PAYMENT,
-  SOURCE_ASSET,
-  SOURCE_LIABILITY,
-  SOURCE_AVAILABLE,
-} from "./transactionTypes.js";
+
+
+
+
+
 
 // ---------------------------------------------------------------------------
 // processFinancialTransaction
@@ -69,7 +57,7 @@ import {
  * @returns {EngineResult}
  *   — new state to persist (caller is responsible for Firestore writes)
  */
-export function processFinancialTransaction(intent, ctx) {
+function processFinancialTransaction(intent, ctx) {
   // ── 0. Validate context ────────────────────────────────────────────────
   _requireContext(ctx);
 
@@ -94,8 +82,8 @@ export function processFinancialTransaction(intent, ctx) {
   // ── 5. Build the transaction record (matches existing Firestore schema) ─
   const txnRecord = _buildTransactionRecord(intent);
 
-  // ── 6. Append transaction to month-doc ────────────────────────────────
-  const finalMonthDoc = {
+  // ── 6. Append transaction to month-doc (skipped for assign/unassign) ───
+  const finalMonthDoc = txnRecord === null ? updatedMonthDoc : {
     ...updatedMonthDoc,
     transactions: [...(updatedMonthDoc.transactions || []), txnRecord],
   };
@@ -181,6 +169,11 @@ function _buildTransactionRecord(intent) {
         isLiabilityPayment: true,
         fromAccount:        intent.accountName,
       };
+
+    // Phase 3: assign/unassign are budget-only operations — no transaction record
+    case "assign":
+    case "unassign":
+      return null;
 
     default:
       throw new Error(`_buildTransactionRecord: unknown type "${intent.type}"`);

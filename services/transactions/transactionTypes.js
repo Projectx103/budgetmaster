@@ -18,18 +18,18 @@
 
 /** Reduces a budget category's `spent`; touches TBB only when paid from
  *  available balance (not from an asset account or liability). */
-export const TYPE_EXPENSE = "expense";
+const TYPE_EXPENSE = "expense";
 
 /** Increases TBB for the month it lands in. */
-export const TYPE_INCOME = "income";
+const TYPE_INCOME = "income";
 
 /** Moves money between two accounts; no budget category involved.
  *  fromAccount / toAccount carry the names. */
-export const TYPE_TRANSFER = "transfer";
+const TYPE_TRANSFER = "transfer";
 
 /** Cash repayment of a liability balance; reduces the liability account
  *  balance AND reduces available balance (cash outflow). */
-export const TYPE_LIABILITY_PAYMENT = "liability_payment";
+const TYPE_LIABILITY_PAYMENT = "liability_payment";
 
 // ---------------------------------------------------------------------------
 // Payment source — controls which balance buckets are affected
@@ -37,38 +37,38 @@ export const TYPE_LIABILITY_PAYMENT = "liability_payment";
 
 /** Expense paid from an asset account (e.g. checking).
  *  Reduces asset balance; does NOT reduce TBB / available balance. */
-export const SOURCE_ASSET = "asset";
+const SOURCE_ASSET = "asset";
 
 /** Expense charged to a liability account (e.g. credit card).
  *  Increases liability balance; does NOT reduce TBB / available balance. */
-export const SOURCE_LIABILITY = "liability";
+const SOURCE_LIABILITY = "liability";
 
 /** Expense paid from the budget's available balance (TBB pool).
  *  Reduces TBB; no account balance changes. */
-export const SOURCE_AVAILABLE = "available";
+const SOURCE_AVAILABLE = "available";
 
 // ---------------------------------------------------------------------------
 // Account category — mirrors ACCOUNT_TYPES in script.js
 // ---------------------------------------------------------------------------
 
-export const ACCOUNT_CATEGORY_ASSET     = "asset";
-export const ACCOUNT_CATEGORY_LIABILITY = "liability";
+const ACCOUNT_CATEGORY_ASSET     = "asset";
+const ACCOUNT_CATEGORY_LIABILITY = "liability";
 
 // ---------------------------------------------------------------------------
 // Reserved category names (script.js conventions)
 // ---------------------------------------------------------------------------
 
 /** Category name used for account Deposit transactions. */
-export const CAT_DEPOSIT    = "Deposit";
+const CAT_DEPOSIT    = "Deposit";
 
 /** Category name used for account Withdrawal transactions. */
-export const CAT_WITHDRAWAL = "Withdrawal";
+const CAT_WITHDRAWAL = "Withdrawal";
 
 /** Category name used for inter-account Transfer transactions. */
-export const CAT_TRANSFER   = "Transfer";
+const CAT_TRANSFER   = "Transfer";
 
 /** Synthetic category name written by the rollover process. */
-export const CAT_ROLLOVER   = "BALANCE FROM LAST MONTH";
+const CAT_ROLLOVER   = "BALANCE FROM LAST MONTH";
 
 // ---------------------------------------------------------------------------
 // Derived helpers (pure functions; no side-effects)
@@ -84,7 +84,7 @@ export const CAT_ROLLOVER   = "BALANCE FROM LAST MONTH";
  *
  * @param {{ fromAsset?: boolean, fromLiability?: boolean }} txn
  */
-export function isExcludedFromAvailableBalance(txn) {
+function isExcludedFromAvailableBalance(txn) {
   return Boolean(txn.fromAsset || txn.fromLiability);
 }
 
@@ -94,7 +94,7 @@ export function isExcludedFromAvailableBalance(txn) {
  *
  * @param {{ category?: string }} txn
  */
-export function isAccountLedgerTransaction(txn) {
+function isAccountLedgerTransaction(txn) {
   return (
     txn.category === CAT_DEPOSIT ||
     txn.category === CAT_WITHDRAWAL ||
