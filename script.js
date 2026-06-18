@@ -445,15 +445,22 @@ async function renderBudget(data) {
   // Including them would incorrectly reduce Available Balance even though no budget money was spent.
   let accountOutflow = 0;
   transactions.forEach(t => {
-    if (t.fromAsset) return; // ✅ Asset-paid expenses never touch Available Balance
-    if (t.fromLiability) return; // ✅ Liability-charged expenses never touch Available Balance
-    const isAccountTransaction = t.category === 'Deposit' || 
-                                 t.category === 'Withdrawal' || 
+    if (t.fromAsset) return;    // Asset-paid expenses never touch Available Balance
+    if (t.fromLiability) return; // Liability-charged expenses never touch Available Balance
+    const isAccountTransaction = t.category === 'Deposit' ||
+                                 t.category === 'Withdrawal' ||
                                  t.category === 'Transfer';
+
+    // Deposit: cash goes INTO account FROM budget → Available Balance decreases (outflow)
     if (t.outflow && t.outflow > 0 && isAccountTransaction) {
       accountOutflow += t.outflow;
     }
-    // ✅ Liability payments are real cash outflows from Available Balance
+    // Withdrawal: cash comes OUT of account BACK TO budget → Available Balance increases
+    // Withdrawal has inflow > 0, outflow = 0, category = "Withdrawal"
+    if (t.category === 'Withdrawal' && t.inflow && t.inflow > 0) {
+      accountOutflow -= t.inflow;  // negative outflow = net increase to Available Balance
+    }
+    // Liability payments are real cash outflows from Available Balance
     if (t.isLiabilityPayment && t.outflow && t.outflow > 0) {
       accountOutflow += t.outflow;
     }
