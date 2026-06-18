@@ -1542,11 +1542,11 @@
   </div>
 </div>
 
-<!-- Phase 0 helpers -->
+  <!-- Phase 0 helpers -->
   <script src="helpers/currency.js"></script>
   <script src="firebase/firestoreTransactionRunner.js"></script>
 
-  <!-- Phase 1 service layer (plain scripts — no ES module syntax) -->
+  <!-- Phase 1 service layer (plain scripts, load in dependency order) -->
   <script src="services/transactions/transactionTypes.js"></script>
   <script src="services/transactions/transactionIntent.js"></script>
   <script src="services/budgets/budgetMutationService.js"></script>
