@@ -202,10 +202,12 @@ describe("buildIntentFromFlat", () => {
   });
 
   test("throws a clear error for unimplemented types", () => {
+    // expense is not yet wired (Phase 4+)
     expect(() => buildIntentFromFlat({ type: "expense", amount: 50, date: "2026-06-01", monthKey: MONTH }))
-      .toThrow(/not yet wired in Phase 2/);
-    expect(() => buildIntentFromFlat({ type: "assign", amount: 50, date: "2026-06-01", monthKey: MONTH }))
-      .toThrow(/not yet wired in Phase 2/);
+      .toThrow(/not yet wired/);
+    // assign was wired in Phase 3 — no longer throws
+    expect(() => buildIntentFromFlat({ type: "assign", amount: 50, date: "2026-06-01", monthKey: MONTH, category: "X", meta: {} }))
+      .not.toThrow();
   });
 
   test("throws on unknown type", () => {
