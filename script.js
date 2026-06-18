@@ -116,6 +116,7 @@ const FEATURE_FLAGS = {
   useEngineForIncome:          true,  // Phase 2 — set true after staging smoke test
   useEngineForCategoryAssign:  true,  // Phase 3 — set true after staging smoke test
   useEngineForExpense:         true,  // Phase 4 — set true after staging smoke test
+  useEngineForAssignEdit:      false,  // Phase 5 — set true after staging smoke test
 };
 
 let currentSort = { column: 'date', direction: 'desc' };
@@ -600,29 +601,34 @@ async function renderBudget(data) {
 
 async function saveAssigned(index, newValue) {
   if (!currentUser) return;
+
+  // ── Validation (unchanged) ───────────────────────────────────────────────
   const val = parseFloat(newValue);
   if (isNaN(val) || val < 0) return alert("Enter valid number");
 
+  // ── Load root + month data (needed for both paths) ───────────────────────
   const docRef = db.collection("budget").doc(currentUser.uid);
   const docSnap = await docRef.get();
   const data = docSnap.data() || {};
 
-  // ✅ FIX: Use current month from navigation instead of dropdown
-  const selectedMonth = availableMonths[currentMonthIndex] || data.currentMonth || new Date().toISOString().slice(0,7);
+  const selectedMonth = availableMonths[currentMonthIndex] || data.currentMonth || new Date().toISOString().slice(0, 7);
 
   const monthDocRef = docRef.collection("months").doc(selectedMonth);
-  const monthSnap = await monthDocRef.get();
-  let monthData = monthSnap.exists
+  const monthSnap  = await monthDocRef.get();
+  let monthData    = monthSnap.exists
     ? monthSnap.data()
     : { categories: JSON.parse(JSON.stringify(data.categories || [])), transactions: [], tbb: data.tbb || 0, currentMonth: selectedMonth };
 
   if (!monthData.categories[index]) return;
 
   const oldValue = monthData.categories[index].assigned || 0;
-  const diff = val - oldValue;
-  const newTBB = monthData.tbb - diff;
+  const diff     = val - oldValue;
+  const newTBB   = monthData.tbb - diff;
 
-  // ✅ YNAB STYLE: WARN if going negative, but ALLOW it
+  // No change — nothing to do
+  if (diff === 0) { renderBudget(monthData); return; }
+
+  // ── Negative TBB warning — stays in UI layer for both paths ─────────────
   if (newTBB < 0 && diff > 0) {
     const proceed = confirm(
       `⚠️ WARNING: This will make your "To Be Budgeted" negative!\n\n` +
@@ -632,24 +638,50 @@ async function saveAssigned(index, newValue) {
       `This means you're budgeting more money than you have.\n\n` +
       `Do you want to continue?`
     );
-    if (!proceed) {
-      // Re-render to reset the input
+    if (!proceed) { renderBudget(monthData); return; }
+  }
+
+  // ── Engine path (Phase 5) ────────────────────────────────────────────────
+  if (FEATURE_FLAGS.useEngineForAssignEdit) {
+    const categoryName = monthData.categories[index].name;
+    // diff > 0 = assigning more money TO the category (TBB decreases)
+    // diff < 0 = removing money FROM the category (TBB increases)
+    const intentType   = diff > 0 ? "assign" : "unassign";
+    const intentAmount = Math.abs(diff);  // engine always takes a positive amount
+
+    try {
+      await persistFinancialTransaction(
+        {
+          type:     intentType,
+          amount:   intentAmount,
+          date:     new Date().toISOString().slice(0, 10),
+          monthKey: selectedMonth,
+          category: categoryName,
+          meta:     { isNewCategory: false },  // editing existing — never create placeholder
+        },
+        db,
+        currentUser.uid
+      );
+      // Re-read the saved month to render accurate state
+      const refreshed = await monthDocRef.get();
+      renderBudget(refreshed.exists ? refreshed.data() : monthData);
+    } catch (err) {
+      console.error("[Phase 5] Engine saveAssigned error:", err);
+      alert("Failed to update budget. Please try again.");
       renderBudget(monthData);
       return;
     }
+  } else {
+    // ── Legacy inline path (original code, untouched) ────────────────────
+    monthData.categories[index].assigned = val;
+    monthData.categories[index].balance  = val - monthData.categories[index].spent;
+    monthData.tbb = newTBB;
+
+    await monthDocRef.set(monthData);
+    renderBudget(monthData);
   }
 
-  // Update assigned & balance
-  monthData.categories[index].assigned = val;
-  monthData.categories[index].balance = val - monthData.categories[index].spent;
-
-  // ✅ ALLOW TBB to go negative
-  monthData.tbb = newTBB;
-
-  await monthDocRef.set(monthData);
-  renderBudget(monthData);
-  
-  // Show warning toast if TBB is negative
+  // Show warning toast if TBB went negative (runs for both paths)
   if (newTBB < 0) {
     showToast("⚠️ Warning: You've over-budgeted! TBB is now negative.", "error");
   }
