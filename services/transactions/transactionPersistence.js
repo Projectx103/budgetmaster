@@ -135,16 +135,21 @@ async function persistFinancialTransaction(flatIntent, db, uid, _engine) {
     });
 
     // ── Write phase ────────────────────────────────────────────────────────
-    // Phase 2 scope: income only touches the month doc (tbb + transactions).
-    // accounts[] is unchanged for income — no root-doc write needed this phase.
-    //
     // CRITICAL: do NOT write currentMonth here.
-    // The old addIncome does NOT update docRef.currentMonth either — only
-    // addTransaction does. We match that behaviour exactly.
+    // CRITICAL: do NOT touch availableBalance — Phase 8 owns it.
     //
-    // CRITICAL: do NOT touch availableBalance — it stays driven by
-    // renderBudget() until Phase 8.
+    // Phase 6: account-touching types also write accounts[] to root doc.
+    const accountTouchingTypes = ["deposit","withdrawal","transfer","liability_payment","expense"];
+    const touchesAccounts = accountTouchingTypes.includes(flatIntent.type) &&
+      engineResult.accounts && engineResult.accounts.length > 0 &&
+      JSON.stringify(engineResult.accounts) !== JSON.stringify(rootData.accounts);
+
     txn.set(monthRef, _safeMonthPayload(engineResult.monthDoc, monthData));
+
+    if (touchesAccounts) {
+      // Use merge:true so we only update accounts[], leaving other root fields intact
+      txn.set(rootRef, { accounts: engineResult.accounts }, { merge: true });
+    }
   });
 
   return engineResult;
@@ -226,13 +231,64 @@ function buildIntentFromFlat(flat) {
       };
 
     case "deposit":
+      // Phase 6 — deposit into an asset account (increases account balance)
+      return {
+        type:         "income",          // engine uses income type for deposits
+        source:       null,
+        payee:        (flat.name || "Deposit").trim(),
+        categoryName: "Deposit",
+        accountName:  flat.accountName,
+        amountCents:  _toCents(flat.amount),
+        date:         flat.date,
+        month:        flat.monthKey,
+        meta:         { isDeposit: true, accountName: flat.accountName, ...flat.meta },
+      };
+
     case "withdrawal":
+      // Phase 6 — withdrawal from an asset account (decreases account balance)
+      return {
+        type:         "transfer",        // engine uses transfer type for withdrawals
+        source:       null,
+        payee:        (flat.name || "Withdrawal").trim(),
+        categoryName: "Withdrawal",
+        accountName:  flat.accountName,
+        fromAccountName: flat.accountName,
+        toAccountName:   null,
+        amountCents:  _toCents(flat.amount),
+        date:         flat.date,
+        month:        flat.monthKey,
+        meta:         { isWithdrawal: true, accountName: flat.accountName, ...flat.meta },
+      };
+
     case "transfer":
+      // Phase 6 — transfer between two accounts
+      return {
+        type:            "transfer",
+        source:          null,
+        payee:           (flat.name || "Transfer").trim(),
+        categoryName:    "Transfer",
+        accountName:     flat.accountName || flat.fromAccountName,
+        fromAccountName: flat.fromAccountName,
+        toAccountName:   flat.toAccountName,
+        amountCents:     _toCents(flat.amount),
+        date:            flat.date,
+        month:           flat.monthKey,
+        meta:            flat.meta || {},
+      };
+
     case "liability_payment":
-      throw new Error(
-        `buildIntentFromFlat: type "${flat.type}" is not yet wired in Phase 3. ` +
-        `Add its branch here when that phase ships.`
-      );
+      // Phase 6 — payment reducing a liability account balance
+      return {
+        type:         "liability_payment",
+        source:       "available",
+        payee:        (flat.name || `Payment — ${flat.accountName}`).trim(),
+        categoryName: flat.accountName,
+        accountName:  flat.accountName,
+        amountCents:  _toCents(flat.amount),
+        date:         flat.date,
+        month:        flat.monthKey,
+        meta:         flat.meta || {},
+      };
 
     default:
       throw new Error(`buildIntentFromFlat: unknown intent type "${flat.type}"`);
