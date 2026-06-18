@@ -117,6 +117,7 @@ const FEATURE_FLAGS = {
   useEngineForCategoryAssign:  true,  // Phase 3 — set true after staging smoke test
   useEngineForExpense:         true,  // Phase 4 — set true after staging smoke test
   useEngineForAssignEdit:      true,  // Phase 5 — set true after staging smoke test
+  useEngineForAccountTxn:      false,  // Phase 6 — set true after staging smoke test
 };
 
 let currentSort = { column: 'date', direction: 'desc' };
@@ -2129,6 +2130,155 @@ async function openTransactionPanel(index) {
 
     const transactionId  = `tx-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const sourceAccount  = data.accounts[transactionAccountIndex];
+    const currentMonth   = availableMonths[currentMonthIndex] || data.currentMonth || new Date().toISOString().slice(0, 7);
+
+    // ── Engine path (Phase 6) ──────────────────────────────────────────────
+    if (FEATURE_FLAGS.useEngineForAccountTxn) {
+      try {
+        let flatIntent = null;
+
+        if (type === 'pay') {
+          // Credit card payment — liability payment type
+          const monthDocRef = docRef.collection("months").doc(currentMonth);
+          const monthSnap   = await monthDocRef.get();
+          const monthData   = monthSnap.exists ? monthSnap.data() : { availableBalance: 0 };
+          const currentAvailableBalance = monthData.availableBalance || 0;
+          if (currentAvailableBalance < amount) {
+            if (!confirm(`⚠️ Paying ${formatCurrency(amount)} exceeds your Available Balance of ${formatCurrency(currentAvailableBalance)}. Proceed anyway?`)) return;
+          }
+          // Advance due date (UI logic stays here — engine only handles money)
+          const dueDay = data.accounts[transactionAccountIndex].dueDay;
+          if (dueDay) {
+            const today = new Date();
+            let nextDue = new Date(today.getFullYear(), today.getMonth(), dueDay);
+            if (nextDue <= today) nextDue = new Date(today.getFullYear(), today.getMonth() + 1, dueDay);
+            nextDue = new Date(nextDue.getFullYear(), nextDue.getMonth() + 1, dueDay);
+            data.accounts[transactionAccountIndex].lastPaidDate    = today.toISOString().slice(0, 10);
+            data.accounts[transactionAccountIndex].nextDueOverride = nextDue.toISOString().slice(0, 10);
+            await docRef.update({ accounts: data.accounts });
+            accounts = data.accounts;
+          }
+          flatIntent = {
+            type:            'liability_payment',
+            amount,
+            date,
+            monthKey:        currentMonth,
+            name:            reason || `Payment — ${sourceAccount.name}`,
+            sourceAccountId: sourceAccount.name,
+            accountName:     sourceAccount.name,
+            meta:            { liabilityAccountName: sourceAccount.name },
+          };
+
+        } else if (type === 'expense' && isLiability) {
+          // Credit card charge — expense from liability
+          const catIndex     = parseInt(wrapper.querySelector('#expense-category').value);
+          const monthDocRef  = docRef.collection("months").doc(currentMonth);
+          const monthSnap    = await monthDocRef.get();
+          const monthData    = monthSnap.exists ? monthSnap.data() : { categories: [] };
+          const categoryName = (monthData.categories[catIndex] && monthData.categories[catIndex].name) || "Uncategorized";
+          flatIntent = {
+            type:        'expense',
+            amount,
+            date,
+            monthKey:    currentMonth,
+            name:        reason || sourceAccount.name,
+            category:    categoryName,
+            source:      'liability',
+            accountName: sourceAccount.name,
+            meta:        {},
+          };
+
+        } else if (type === 'deposit') {
+          flatIntent = {
+            type:        'deposit',
+            amount,
+            date,
+            monthKey:    currentMonth,
+            name:        reason || sourceAccount.name,
+            accountName: sourceAccount.name,
+            meta:        {},
+          };
+
+        } else if (type === 'withdrawal') {
+          if (data.accounts[transactionAccountIndex].balance < amount) return alert("Insufficient balance.");
+          flatIntent = {
+            type:        'withdrawal',
+            amount,
+            date,
+            monthKey:    currentMonth,
+            name:        reason || sourceAccount.name,
+            accountName: sourceAccount.name,
+            meta:        {},
+          };
+
+        } else if (type === 'transfer') {
+          const targetIndex = parseInt(wrapper.querySelector('#transfer-target').value);
+          if (data.accounts[transactionAccountIndex].balance < amount) return alert("Insufficient balance.");
+          flatIntent = {
+            type:            'transfer',
+            amount,
+            date,
+            monthKey:        currentMonth,
+            name:            reason || `Transfer`,
+            accountName:     sourceAccount.name,
+            fromAccountName: sourceAccount.name,
+            toAccountName:   data.accounts[targetIndex].name,
+            meta:            {},
+          };
+
+        } else if (type === 'expense' && !isLiability) {
+          // Expense from asset account
+          if (data.accounts[transactionAccountIndex].balance < amount) return alert("Insufficient balance.");
+          const catIndex     = parseInt(wrapper.querySelector('#expense-category').value);
+          const monthDocRef  = docRef.collection("months").doc(currentMonth);
+          const monthSnap    = await monthDocRef.get();
+          const monthData    = monthSnap.exists ? monthSnap.data() : { categories: [] };
+          const categoryName = (monthData.categories[catIndex] && monthData.categories[catIndex].name) || "Uncategorized";
+          flatIntent = {
+            type:        'expense',
+            amount,
+            date,
+            monthKey:    currentMonth,
+            name:        reason || sourceAccount.name,
+            category:    categoryName,
+            source:      'asset',
+            accountName: sourceAccount.name,
+            meta:        {},
+          };
+        }
+
+        if (!flatIntent) return alert("Unknown transaction type.");
+
+        await persistFinancialTransaction(flatIntent, db, currentUser.uid);
+
+        accounts = (await docRef.get()).data().accounts;
+        closeTransactionPanel();
+        renderAccounts(accounts);
+        await loadMonthData(currentMonth);
+
+        if (type === 'pay')        showToast(`${formatCurrency(amount)} payment recorded for ${sourceAccount.name}. Due date advanced.`, "success");
+        else if (type === 'deposit')    showToast(`${formatCurrency(amount)} deposited to ${sourceAccount.name}`, "success");
+        else if (type === 'withdrawal') showToast(`${formatCurrency(amount)} withdrawn from ${sourceAccount.name}`, "success");
+        else if (type === 'transfer')   showToast(`${formatCurrency(amount)} transferred successfully`, "success");
+        else if (type === 'expense' && isLiability) {
+          const catIndex     = parseInt(wrapper.querySelector('#expense-category').value);
+          const monthDocRef  = docRef.collection("months").doc(currentMonth);
+          const monthSnap    = await monthDocRef.get();
+          const monthData    = monthSnap.exists ? monthSnap.data() : { categories: [] };
+          const categoryName = (monthData.categories[catIndex] && monthData.categories[catIndex].name) || "Uncategorized";
+          showToast(`${formatCurrency(amount)} expense on "${categoryName}" charged to ${sourceAccount.name}`, "success");
+        } else {
+          showToast(`${formatCurrency(amount)} expense recorded from ${sourceAccount.name}`, "success");
+        }
+        return;
+
+      } catch (err) {
+        console.error("[Phase 6] Engine account txn error:", err);
+        alert("Failed to save transaction. Please try again.");
+        return;
+      }
+    }
+    // ── End engine path ───────────────────────────────────────────────────
 
     // ===== PAY (Credit Card Payment) =====
     if (type === 'pay') {
