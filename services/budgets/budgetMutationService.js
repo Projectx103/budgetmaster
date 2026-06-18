@@ -107,6 +107,30 @@ function computeBudgetDelta(intent) {
         reason: `Liability payment of ${_bmsFmt(intent.amountCents)} to "${intent.accountName}" deducted from TBB`,
       };
 
+    // ── Phase 6: deposit / withdrawal ──────────────────────────────────────
+    case "deposit":
+      // Deposit increases account balance — no direct budget impact
+      // (tbb and categories are unchanged; availableBalance handled by renderBudget)
+      return {
+        tbbDeltaCents:      0,
+        categoryName:       null,
+        categorySpentDelta: 0,
+        assignedDelta:      0,
+        isNewCategory:      false,
+        reason: `Deposit of ${_bmsFmt(intent.amountCents)} — no budget impact`,
+      };
+
+    case "withdrawal":
+      // Withdrawal decreases tbb (cash leaves the budget pool)
+      return {
+        tbbDeltaCents:      -intent.amountCents,
+        categoryName:       null,
+        categorySpentDelta: 0,
+        assignedDelta:      0,
+        isNewCategory:      false,
+        reason: `Withdrawal of ${_bmsFmt(intent.amountCents)} deducted from TBB`,
+      };
+
     // ── Phase 3: assign / unassign ─────────────────────────────────────────
     case "assign":
       return {
