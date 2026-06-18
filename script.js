@@ -117,7 +117,7 @@ const FEATURE_FLAGS = {
   useEngineForCategoryAssign:  true,  // Phase 3 — set true after staging smoke test
   useEngineForExpense:         true,  // Phase 4 — set true after staging smoke test
   useEngineForAssignEdit:      true,  // Phase 5 — set true after staging smoke test
-  useEngineForAccountTxn:      false,  // Phase 6 — set true after staging smoke test
+  useEngineForAccountTxn:      true,  // Phase 6 — set true after staging smoke test
 };
 
 let currentSort = { column: 'date', direction: 'desc' };
@@ -493,16 +493,16 @@ async function renderBudget(data) {
     }
   });
   
-  // ✅ Total spent for DISPLAY — use categories[].spent as the source of truth.
-  // actualSpendingOutflow (sum of t.outflow on transactions) represents the SAME money
-  // already captured in categories[].spent — adding both would double-count every expense.
-  // actualSpendingOutflow is only needed for account-type transactions (Deposit/Withdrawal)
-  // which don't update any category.spent — those are already handled via accountOutflow above.
-  const totalSpentDisplay = spent - assetFundedSpent - liabilityFundedSpent;
-  
-  // ✅ Total spent for REMAINING BALANCE calculation
-  // spent = sum of categories[].spent — but this includes asset-funded and liability-funded expenses,
-  // so we subtract both to keep Available Balance unaffected by non-cash-budget spending.
+  // ✅ Total spent for DISPLAY — sum of ALL category spending regardless of payment source.
+  // Asset-funded and liability-funded expenses DO update categories[].spent (correct — you spent
+  // from that category), so they SHOULD appear in Total Spent. Only account-only transactions
+  // (Deposit/Withdrawal/Transfer) that have no category impact are excluded.
+  const totalSpentDisplay = spent;
+
+  // ✅ Total spent for REMAINING BALANCE (Available Balance) calculation.
+  // Asset-funded and liability-funded expenses must be EXCLUDED here because no budget money
+  // actually left — the cash came from an account or was charged to a liability.
+  // Available Balance only decreases when budget money (TBB pool) is spent.
   const totalSpentForBalance = (spent - assetFundedSpent - liabilityFundedSpent) + accountOutflow;
   
   // ✅ Calculate total income (inflows) — exclude asset-sourced and liability-sourced transactions
