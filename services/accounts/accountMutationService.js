@@ -67,7 +67,7 @@
  * @returns {AccountDelta}
  */
 function computeAccountDelta(intent, accounts) {
-  _requireIntent(intent);
+  _amsRequireIntent(intent);
   if (!Array.isArray(accounts)) {
     throw new Error("computeAccountDelta: accounts must be an array");
   }
@@ -77,36 +77,36 @@ function computeAccountDelta(intent, accounts) {
     case TYPE_INCOME: {
       // Income with a named account = deposit into that account
       if (intent.accountName) {
-        const acc = _findAccount(accounts, intent.accountName);
+        const acc = _amsFindAccount(accounts, intent.accountName);
         return {
           entries: [{ accountName: acc.name, balanceDeltaCents: intent.amountCents }],
-          reason: `Income deposited into account "${acc.name}" +${_fmt(intent.amountCents)}`,
+          reason: `Income deposited into account "${acc.name}" +${_amsFmt(intent.amountCents)}`,
         };
       }
-      return _noOp("Income to TBB — no account balance change");
+      return _amsNoOp("Income to TBB — no account balance change");
     }
 
     case TYPE_EXPENSE: {
       if (intent.source === SOURCE_AVAILABLE) {
-        return _noOp(`Expense from available balance — no account balance change`);
+        return _amsNoOp(`Expense from available balance — no account balance change`);
       }
 
       if (intent.source === SOURCE_ASSET) {
-        const acc = _findAccount(accounts, intent.accountName);
-        _assertCategory(acc, ACCOUNT_CATEGORY_ASSET, "SOURCE_ASSET expense");
+        const acc = _amsFindAccount(accounts, intent.accountName);
+        _amsAssertCategory(acc, ACCOUNT_CATEGORY_ASSET, "SOURCE_ASSET expense");
         return {
           entries: [{ accountName: acc.name, balanceDeltaCents: -intent.amountCents }],
-          reason: `Expense of ${_fmt(intent.amountCents)} deducted from asset "${acc.name}"`,
+          reason: `Expense of ${_amsFmt(intent.amountCents)} deducted from asset "${acc.name}"`,
         };
       }
 
       if (intent.source === SOURCE_LIABILITY) {
-        const acc = _findAccount(accounts, intent.accountName);
-        _assertCategory(acc, ACCOUNT_CATEGORY_LIABILITY, "SOURCE_LIABILITY expense");
+        const acc = _amsFindAccount(accounts, intent.accountName);
+        _amsAssertCategory(acc, ACCOUNT_CATEGORY_LIABILITY, "SOURCE_LIABILITY expense");
         // Liability balance stored as positive owed amount; charging increases it
         return {
           entries: [{ accountName: acc.name, balanceDeltaCents: intent.amountCents }],
-          reason: `Expense of ${_fmt(intent.amountCents)} charged to liability "${acc.name}" (balance increases)`,
+          reason: `Expense of ${_amsFmt(intent.amountCents)} charged to liability "${acc.name}" (balance increases)`,
         };
       }
 
@@ -114,31 +114,31 @@ function computeAccountDelta(intent, accounts) {
     }
 
     case TYPE_TRANSFER: {
-      const fromAcc = _findAccount(accounts, intent.fromAccountName);
-      const toAcc   = _findAccount(accounts, intent.toAccountName);
+      const fromAcc = _amsFindAccount(accounts, intent.fromAccountName);
+      const toAcc   = _amsFindAccount(accounts, intent.toAccountName);
       return {
         entries: [
           { accountName: fromAcc.name, balanceDeltaCents: -intent.amountCents },
           { accountName: toAcc.name,   balanceDeltaCents:  intent.amountCents },
         ],
-        reason: `Transfer of ${_fmt(intent.amountCents)} from "${fromAcc.name}" to "${toAcc.name}"`,
+        reason: `Transfer of ${_amsFmt(intent.amountCents)} from "${fromAcc.name}" to "${toAcc.name}"`,
       };
     }
 
     case TYPE_LIABILITY_PAYMENT: {
-      const acc = _findAccount(accounts, intent.accountName);
-      _assertCategory(acc, ACCOUNT_CATEGORY_LIABILITY, "liability payment");
+      const acc = _amsFindAccount(accounts, intent.accountName);
+      _amsAssertCategory(acc, ACCOUNT_CATEGORY_LIABILITY, "liability payment");
       // Payment reduces what is owed → balance decreases
       return {
         entries: [{ accountName: acc.name, balanceDeltaCents: -intent.amountCents }],
-        reason: `Liability payment of ${_fmt(intent.amountCents)} reduces balance of "${acc.name}"`,
+        reason: `Liability payment of ${_amsFmt(intent.amountCents)} reduces balance of "${acc.name}"`,
       };
     }
 
     // Phase 3: assign/unassign never touch account balances — pure budget operation
     case "assign":
     case "unassign":
-      return _noOp(`${intent.type} — no account balance change`);
+      return _amsNoOp(`${intent.type} — no account balance change`);
 
     default:
       throw new Error(`computeAccountDelta: unknown intent type "${intent.type}"`);
@@ -171,7 +171,7 @@ function applyAccountDeltaToRoot(accounts, delta) {
   if (!Array.isArray(accounts)) {
     throw new Error("applyAccountDeltaToRoot: accounts must be an array");
   }
-  _requireDelta(delta);
+  _amsRequireDelta(delta);
 
   if (delta.entries.length === 0) return accounts.map(a => ({ ...a }));
 
@@ -202,7 +202,7 @@ function applyAccountDeltaToRoot(accounts, delta) {
  * Finds an account by name (case-insensitive).
  * Throws a descriptive error if not found — avoids silent no-ops.
  */
-function _findAccount(accounts, name) {
+function _amsFindAccount(accounts, name) {
   const normalised = name.trim().toLowerCase();
   const acc = accounts.find(a => (a.name || "").toLowerCase() === normalised);
   if (!acc) {
@@ -227,7 +227,7 @@ function _findAccount(accounts, name) {
  * field we check it; otherwise we warn and continue so that existing data
  * (which may not have .category) doesn't break.
  */
-function _assertCategory(acc, expectedCategory, context) {
+function _amsAssertCategory(acc, expectedCategory, context) {
   if (acc.category && acc.category !== expectedCategory) {
     throw new Error(
       `computeAccountDelta (${context}): account "${acc.name}" is category ` +
@@ -237,11 +237,11 @@ function _assertCategory(acc, expectedCategory, context) {
   // If no .category field, skip the guard — Phase 2 will normalise this.
 }
 
-function _noOp(reason) {
+function _amsNoOp(reason) {
   return { entries: [], reason };
 }
 
-function _requireIntent(intent) {
+function _amsRequireIntent(intent) {
   if (!intent || typeof intent !== "object") {
     throw new Error("computeAccountDelta: intent must be a plain object");
   }
@@ -253,12 +253,12 @@ function _requireIntent(intent) {
   }
 }
 
-function _requireDelta(delta) {
+function _amsRequireDelta(delta) {
   if (!delta || !Array.isArray(delta.entries)) {
     throw new Error("applyAccountDeltaToRoot: delta.entries must be an array");
   }
 }
 
-function _fmt(cents) {
+function _amsFmt(cents) {
   return (cents / 100).toFixed(2);
 }
