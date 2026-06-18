@@ -140,6 +140,24 @@ function computeAccountDelta(intent, accounts) {
     case "unassign":
       return _amsNoOp(`${intent.type} — no account balance change`);
 
+    // Phase 6: deposit — increases asset account balance
+    case "deposit": {
+      const acc = _amsFindAccount(accounts, intent.accountName);
+      return {
+        entries: [{ accountName: acc.name, balanceDeltaCents: intent.amountCents }],
+        reason: `Deposit of ${_amsFmt(intent.amountCents)} into "${acc.name}"`,
+      };
+    }
+
+    // Phase 6: withdrawal — decreases asset account balance
+    case "withdrawal": {
+      const acc = _amsFindAccount(accounts, intent.accountName);
+      return {
+        entries: [{ accountName: acc.name, balanceDeltaCents: -intent.amountCents }],
+        reason: `Withdrawal of ${_amsFmt(intent.amountCents)} from "${acc.name}"`,
+      };
+    }
+
     default:
       throw new Error(`computeAccountDelta: unknown intent type "${intent.type}"`);
   }
