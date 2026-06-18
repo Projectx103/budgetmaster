@@ -201,16 +201,30 @@ describe("buildIntentFromFlat", () => {
     expect(intent.payee).toBe("Salary");
   });
 
-  test("throws a clear error for unimplemented types", () => {
-    // expense wired in Phase 4 — no longer throws
-    expect(() => buildIntentFromFlat({ type: "expense", amount: 50, date: "2026-06-01", monthKey: MONTH, category: "X", meta: {} }))
+  test("all implemented types no longer throw", () => {
+    // Phase 2: income
+    expect(() => buildIntentFromFlat({ type: "income", amount: 50, date: "2026-06-01", monthKey: MONTH, name: "x", meta: {} }))
       .not.toThrow();
-    // assign wired in Phase 3 — no longer throws
+    // Phase 3: assign/unassign
     expect(() => buildIntentFromFlat({ type: "assign", amount: 50, date: "2026-06-01", monthKey: MONTH, category: "X", meta: {} }))
       .not.toThrow();
-    // deposit/withdrawal/transfer still unimplemented (Phase 6+)
-    expect(() => buildIntentFromFlat({ type: "deposit", amount: 50, date: "2026-06-01", monthKey: MONTH }))
-      .toThrow(/not yet wired/);
+    expect(() => buildIntentFromFlat({ type: "unassign", amount: 50, date: "2026-06-01", monthKey: MONTH, category: "X", meta: {} }))
+      .not.toThrow();
+    // Phase 4: expense
+    expect(() => buildIntentFromFlat({ type: "expense", amount: 50, date: "2026-06-01", monthKey: MONTH, category: "X", meta: {} }))
+      .not.toThrow();
+    // Phase 6: account transactions
+    expect(() => buildIntentFromFlat({ type: "deposit", amount: 50, date: "2026-06-01", monthKey: MONTH, accountName: "Checking", meta: {} }))
+      .not.toThrow();
+    expect(() => buildIntentFromFlat({ type: "withdrawal", amount: 50, date: "2026-06-01", monthKey: MONTH, accountName: "Checking", meta: {} }))
+      .not.toThrow();
+    expect(() => buildIntentFromFlat({ type: "transfer", amount: 50, date: "2026-06-01", monthKey: MONTH, fromAccountName: "Checking", toAccountName: "Savings", accountName: "Checking", meta: {} }))
+      .not.toThrow();
+    expect(() => buildIntentFromFlat({ type: "liability_payment", amount: 50, date: "2026-06-01", monthKey: MONTH, accountName: "Credit Card", meta: {} }))
+      .not.toThrow();
+    // Unknown type still throws
+    expect(() => buildIntentFromFlat({ type: "banana", amount: 50, date: "2026-06-01", monthKey: MONTH }))
+      .toThrow(/unknown intent type/);
   });
 
   test("throws on unknown type", () => {
