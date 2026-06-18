@@ -451,15 +451,15 @@ async function renderBudget(data) {
                                  t.category === 'Withdrawal' ||
                                  t.category === 'Transfer';
 
-    // Deposit: cash goes INTO account FROM budget → Available Balance decreases (outflow)
-    if (t.outflow && t.outflow > 0 && isAccountTransaction) {
+    // Deposit: cash goes INTO account FROM budget → Available Balance decreases
+    if (t.category === 'Deposit' && t.outflow && t.outflow > 0) {
       accountOutflow += t.outflow;
     }
     // Withdrawal: cash comes OUT of account BACK TO budget → Available Balance increases
-    // Withdrawal has inflow > 0, outflow = 0, category = "Withdrawal"
     if (t.category === 'Withdrawal' && t.inflow && t.inflow > 0) {
-      accountOutflow -= t.inflow;  // negative outflow = net increase to Available Balance
+      accountOutflow -= t.inflow;
     }
+    // Transfer: money moves between accounts only — NO effect on Available Balance
     // Liability payments are real cash outflows from Available Balance
     if (t.isLiabilityPayment && t.outflow && t.outflow > 0) {
       accountOutflow += t.outflow;
