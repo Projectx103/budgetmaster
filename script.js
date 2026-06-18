@@ -113,8 +113,9 @@
 // Flip individual flags to false to instantly revert to the old inline path.
 // All flags default OFF until the phase is verified on staging.
 const FEATURE_FLAGS = {
-  useEngineForIncome:         true,  // Phase 2 verified ✅
-  useEngineForCategoryAssign: true,  // Phase 3 verified ✅
+  useEngineForIncome:          false,  // Phase 2 — set true after staging smoke test
+  useEngineForCategoryAssign:  false,  // Phase 3 — set true after staging smoke test
+  useEngineForExpense:         false,  // Phase 4 — set true after staging smoke test
 };
 
 let currentSort = { column: 'date', direction: 'desc' };
@@ -902,69 +903,95 @@ async function addCategory() {
   }
 }
 
-async function addTransaction() { 
-  const name = document.getElementById("transactionName").value.trim();
-  const amount = parseFloat(document.getElementById("transactionAmount").value);
+async function addTransaction() {
+  // ── Read DOM inputs (unchanged) ──────────────────────────────────────────
+  const name     = document.getElementById("transactionName").value.trim();
+  const amount   = parseFloat(document.getElementById("transactionAmount").value);
   const category = document.getElementById("transactionCategory").value;
-  const date = document.getElementById("transactionDate").value; // ✅ Get user's date
+  const date     = document.getElementById("transactionDate").value;
   const selectedMonth = availableMonths[currentMonthIndex] || null;
 
+  // ── Validation (unchanged) ───────────────────────────────────────────────
   if (!name || isNaN(amount) || amount <= 0) return alert("Enter valid transaction");
-  if (!date) return alert("Please select a date"); // ✅ Validate date
+  if (!date) return alert("Please select a date");
 
-  const docRef = db.collection("budget").doc(currentUser.uid);
+  // ── Resolve target month (unchanged) ─────────────────────────────────────
+  const docRef  = db.collection("budget").doc(currentUser.uid);
   const docSnap = await docRef.get();
-  const data = docSnap.data();
-  const monthsRef = docRef.collection("months");
-
-  // Determine month to use (selected month or currentMonth)
+  const data    = docSnap.data();
   const targetMonth = selectedMonth || data.currentMonth || new Date().toISOString().slice(0, 7);
 
-  // Load or create month-specific document
-  const monthDocRef = monthsRef.doc(targetMonth);
-  const monthSnap = await monthDocRef.get();
-  let monthData = monthSnap.exists 
-    ? monthSnap.data() 
-    : {
-        categories: JSON.parse(JSON.stringify(data.categories || [])), // deep copy
-        transactions: [],
-        tbb: data.tbb || 0,
-        currentMonth: targetMonth
-      };
+  // ── Engine path (Phase 4) ────────────────────────────────────────────────
+  if (FEATURE_FLAGS.useEngineForExpense) {
+    try {
+      await persistFinancialTransaction(
+        {
+          type:     "expense",
+          amount,
+          date,
+          monthKey: targetMonth,
+          name,
+          category,
+          source:   "available",  // dashboard expenses always from available balance
+          meta:     {},
+        },
+        db,
+        currentUser.uid
+      );
+    } catch (err) {
+      console.error("[Phase 4] Engine expense error:", err);
+      alert("Failed to save transaction. Please try again.");
+      return;
+    }
+  } else {
+    // ── Legacy inline path (original code, untouched) ────────────────────
+    const monthsRef   = docRef.collection("months");
+    const monthDocRef = monthsRef.doc(targetMonth);
+    const monthSnap   = await monthDocRef.get();
+    let monthData     = monthSnap.exists
+      ? monthSnap.data()
+      : {
+          categories:   JSON.parse(JSON.stringify(data.categories || [])),
+          transactions: [],
+          tbb:          data.tbb || 0,
+          currentMonth: targetMonth
+        };
 
-  // Update category spent for that month
-  const catIndex = monthData.categories.findIndex(c => c.name === category);
-  if (catIndex !== -1) {
-    monthData.categories[catIndex].spent += amount;
-    monthData.categories[catIndex].balance = monthData.categories[catIndex].assigned - monthData.categories[catIndex].spent;
+    // Update category spent
+    const catIndex = monthData.categories.findIndex(c => c.name === category);
+    if (catIndex !== -1) {
+      monthData.categories[catIndex].spent  += amount;
+      monthData.categories[catIndex].balance =
+        monthData.categories[catIndex].assigned - monthData.categories[catIndex].spent;
+    }
+
+    // Add transaction with unique ID
+    const transactionId = Date.now().toString();
+    monthData.transactions.push({
+      id:       transactionId,
+      name,
+      amount,
+      category,
+      type:     "expense",
+      date,
+      source:   "dashboard"
+    });
+
+    // Save month data
+    await monthDocRef.set(monthData);
+
+    // Update root document's currentMonth pointer
+    await docRef.update({ currentMonth: targetMonth });
   }
 
-  // Add transaction with a unique ID
-  const transactionId = Date.now().toString(); // Use the current timestamp as the unique ID
-  monthData.transactions.push({
-    id: transactionId, // Add ID
-    name,
-    amount,
-    category,
-    type: "expense",
-    date: date, // ✅ Use the user's selected date
-    source: "dashboard"  // ← tag so transactions table knows this came from Dashboard
-  });
-
-  // Save month data
-  await monthDocRef.set(monthData);
-
-  // ✅ Update root document's currentMonth pointer
-  await docRef.update({ currentMonth: targetMonth });
-
-  // ✅ Force reload of budget data
+  // ── Post-save (unchanged — runs for both paths) ───────────────────────
   await loadBudget();
   await loadBudgetSection();
 
   // Reset modal
   document.getElementById("transactionName").value = "";
   document.getElementById("transactionAmount").value = "";
-  document.getElementById("transactionDate").value = ""; // ✅ Reset date field
+  document.getElementById("transactionDate").value = "";
 }
 
 
