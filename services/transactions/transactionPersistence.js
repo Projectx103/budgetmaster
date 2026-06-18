@@ -11,8 +11,8 @@
  * Public API
  * ----------
  *   persistFinancialTransaction(flatIntent, db, uid)
- *     → the function wired behind FEATURE_FLAGS.useEngineForIncome (and later
- *       for every other type).  Takes the flat intent shape the plan specifies,
+ *     → the function wired behind FEATURE_FLAGS.useEngineForIncome (Phase 2)
+ *       and FEATURE_FLAGS.useEngineForCategoryAssign (Phase 3).  Takes the flat intent shape the plan specifies,
  *       maps it to the engine's intent+ctx shape, runs the pure engine, then
  *       persists the result atomically via runWithRetry.
  *
@@ -183,18 +183,46 @@ function buildIntentFromFlat(flat) {
         month:        flat.monthKey,   // ← engine uses .month not .monthKey
       };
 
-    // Phases 3-7 will add: expense, assign, deposit, withdrawal, transfer,
-    // liability_payment. They are listed here to make the switch exhaustive
-    // and to fail fast with a clear message if called prematurely.
+    // Phases 4-7 will add: expense, deposit, withdrawal, transfer, liability_payment.
     case "expense":
+      throw new Error(
+        `buildIntentFromFlat: type "expense" is not yet wired (Phase 4+). ` +
+        `Add its branch here when that phase ships.`
+      );
+
     case "assign":
+      // Phase 3 — new category or reassignment
+      return {
+        type:         "assign",
+        source:       null,
+        payee:        `Assign to ${flat.category || flat.categoryName}`,
+        categoryName: flat.category || flat.categoryName,
+        accountName:  null,
+        amountCents:  _toCents(flat.amount),
+        date:         flat.date,
+        month:        flat.monthKey,
+        meta:         flat.meta || {},
+      };
+
     case "unassign":
+      return {
+        type:         "unassign",
+        source:       null,
+        payee:        `Unassign from ${flat.category || flat.categoryName}`,
+        categoryName: flat.category || flat.categoryName,
+        accountName:  null,
+        amountCents:  _toCents(flat.amount),
+        date:         flat.date,
+        month:        flat.monthKey,
+        meta:         flat.meta || {},
+      };
+
     case "deposit":
     case "withdrawal":
     case "transfer":
     case "liability_payment":
       throw new Error(
-        `buildIntentFromFlat: type "${flat.type}" is not yet wired in Phase 2. ` +
+        `buildIntentFromFlat: type "${flat.type}" is not yet wired in Phase 3. ` +
         `Add its branch here when that phase ships.`
       );
 
@@ -234,8 +262,9 @@ function _safeMonthPayload(engineMonthDoc, existingData) {
     return payload;
   }
 
-  // Existing month doc: merge engine's tbb + transactions into existing data.
-  // Preserve every other field exactly as it was.
+  // Existing month doc: merge engine's tbb + transactions + categories into existing data.
+  // Preserve every other field exactly as it was (availableBalance, note, savedAt, etc.)
+  // Phase 3: categories must also be written because assign/unassign mutate them.
   return {
     ...existingData,
     tbb:          engineMonthDoc.tbb,
