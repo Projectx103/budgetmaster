@@ -505,11 +505,19 @@ async function renderBudget(data) {
   // Available Balance only decreases when budget money (TBB pool) is spent.
   const totalSpentForBalance = (spent - assetFundedSpent - liabilityFundedSpent) + accountOutflow;
   
-  // ✅ Calculate total income (inflows) — exclude asset-sourced and liability-sourced transactions
+  // ✅ Calculate total income (inflows) — only real income transactions.
+  // Withdrawals have type:"income" and inflow>0 in the legacy shape but they are NOT
+  // real income — they move money out of the budget. Exclude them via category check.
+  // Transfers also use inflow/outflow but are excluded via isAccountTransaction guard.
   let totalIncome = 0;
   transactions.forEach(t => {
-    if (t.fromAsset) return; // ✅ Asset transactions don't count as income
-    if (t.fromLiability) return; // ✅ Liability transactions don't count as income
+    if (t.fromAsset) return;    // Asset transactions don't count as income
+    if (t.fromLiability) return; // Liability transactions don't count as income
+    const isAccountTransaction = t.category === 'Deposit' ||
+                                 t.category === 'Withdrawal' ||
+                                 t.category === 'Transfer';
+    if (isAccountTransaction) return; // Deposits/Withdrawals/Transfers are not income
+    if (t.isLiabilityPayment) return; // Liability payments are not income
     if (t.type === "income" || (t.inflow && t.inflow > 0)) {
       totalIncome += t.amount || t.inflow || 0;
     }
