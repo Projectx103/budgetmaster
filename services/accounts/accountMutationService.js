@@ -12,18 +12,9 @@
  * The root doc stores float pesos; toCents / fromCents bridge the gap.
  */
 
-import {
-  TYPE_EXPENSE,
-  TYPE_INCOME,
-  TYPE_TRANSFER,
-  TYPE_LIABILITY_PAYMENT,
-  SOURCE_ASSET,
-  SOURCE_LIABILITY,
-  ACCOUNT_CATEGORY_ASSET,
-  ACCOUNT_CATEGORY_LIABILITY,
-} from "../transactions/transactionTypes.js";
 
-import { toCents, fromCents } from "../transactions/transactionIntent.js";
+
+
 
 // ---------------------------------------------------------------------------
 // AccountDelta type
@@ -75,7 +66,7 @@ import { toCents, fromCents } from "../transactions/transactionIntent.js";
  * @param {Array<{name: string, type: string, balance: number}>} accounts
  * @returns {AccountDelta}
  */
-export function computeAccountDelta(intent, accounts) {
+function computeAccountDelta(intent, accounts) {
   _requireIntent(intent);
   if (!Array.isArray(accounts)) {
     throw new Error("computeAccountDelta: accounts must be an array");
@@ -144,6 +135,11 @@ export function computeAccountDelta(intent, accounts) {
       };
     }
 
+    // Phase 3: assign/unassign never touch account balances — pure budget operation
+    case "assign":
+    case "unassign":
+      return _noOp(`${intent.type} — no account balance change`);
+
     default:
       throw new Error(`computeAccountDelta: unknown intent type "${intent.type}"`);
   }
@@ -171,7 +167,7 @@ export function computeAccountDelta(intent, accounts) {
  * @param {AccountDelta}  delta
  * @returns {Array<Object>}  new accounts array with changes applied
  */
-export function applyAccountDeltaToRoot(accounts, delta) {
+function applyAccountDeltaToRoot(accounts, delta) {
   if (!Array.isArray(accounts)) {
     throw new Error("applyAccountDeltaToRoot: accounts must be an array");
   }
