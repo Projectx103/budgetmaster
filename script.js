@@ -119,6 +119,7 @@ const FEATURE_FLAGS = {
   useEngineForAssignEdit:      true,  // Phase 5 — set true after staging smoke test
   useEngineForAccountTxn:      true,  // Phase 6 — set true after staging smoke test
   useEngineForDelete:          true,  // Phase 7 — set true after staging smoke test
+  engineOwnsAvailableBalance:  true,  // Phase 8 — set true after staging smoke test
 };
 
 let currentSort = { column: 'date', direction: 'desc' };
@@ -534,13 +535,14 @@ async function renderBudget(data) {
   // ✅ Calculate remaining balance (Available Balance = income - non-asset spending)
   const remainingBalance = totalIncome - totalSpentForBalance;
   
-// ✅ Save Available Balance to database
-  if (currentUser) {
+// Save Available Balance to database.
+  // Phase 8: when engineOwnsAvailableBalance is true, the engine already wrote
+  // the correct value atomically — renderBudget's write is skipped to avoid
+  // a stale async overwrite racing against the engine's fresh value.
+  if (currentUser && !FEATURE_FLAGS.engineOwnsAvailableBalance) {
     const docRef = db.collection("budget").doc(currentUser.uid);
     const selectedMonth = availableMonths[currentMonthIndex] || data.currentMonth || new Date().toISOString().slice(0,7);
     const monthDocRef = docRef.collection("months").doc(selectedMonth);
-    
-    // Update the month document with the computed Available Balance
     monthDocRef.set({
       availableBalance: remainingBalance
     }, { merge: true }).catch(err => console.error("Error saving Available Balance:", err));
