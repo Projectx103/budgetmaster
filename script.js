@@ -113,10 +113,10 @@
 // Flip individual flags to false to instantly revert to the old inline path.
 // All flags default OFF until the phase is verified on staging.
 const FEATURE_FLAGS = {
-  useEngineForIncome:          true,  // Phase 2 — set true after staging smoke test
-  useEngineForCategoryAssign:  true,  // Phase 3 — set true after staging smoke test
-  useEngineForExpense:         true,  // Phase 4 — set true after staging smoke test
-  useEngineForAssignEdit:      true,  // Phase 5 — set true after staging smoke test
+  useEngineForIncome:          false,  // Phase 2 — set true after staging smoke test
+  useEngineForCategoryAssign:  false,  // Phase 3 — set true after staging smoke test
+  useEngineForExpense:         false,  // Phase 4 — set true after staging smoke test
+  useEngineForAssignEdit:      false,  // Phase 5 — set true after staging smoke test
   useEngineForAccountTxn:      false,  // Phase 6 — set true after staging smoke test
 };
 
@@ -2469,7 +2469,7 @@ async function openTransactionPanel(index) {
     // deposit / withdrawal / transfer shared path
     await docRef.update({ accounts: data.accounts });
 
-    const currentMonth = availableMonths[currentMonthIndex] || data.currentMonth || new Date().toISOString().slice(0, 7);
+    // currentMonth already declared above — reuse it here
     const monthDocRef  = docRef.collection("months").doc(currentMonth);
     const monthSnap    = await monthDocRef.get();
     let monthData      = monthSnap.exists
