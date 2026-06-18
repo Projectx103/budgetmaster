@@ -113,9 +113,9 @@
 // Flip individual flags to false to instantly revert to the old inline path.
 // All flags default OFF until the phase is verified on staging.
 const FEATURE_FLAGS = {
-  useEngineForIncome:         true,  // Phase 2 ✅
-  useEngineForCategoryAssign: true,  // Phase 3 ✅
-  useEngineForExpense:        true,  // Phase 4 ✅
+  useEngineForIncome:          false,  // Phase 2 — set true after staging smoke test
+  useEngineForCategoryAssign:  false,  // Phase 3 — set true after staging smoke test
+  useEngineForExpense:         false,  // Phase 4 — set true after staging smoke test
 };
 
 let currentSort = { column: 'date', direction: 'desc' };
@@ -491,8 +491,12 @@ async function renderBudget(data) {
     }
   });
   
-  // ✅ Total spent for DISPLAY (excludes deposits, asset-funded, and liability-funded expenses)
-  const totalSpentDisplay = spent + actualSpendingOutflow - assetFundedSpent - liabilityFundedSpent;
+  // ✅ Total spent for DISPLAY — use categories[].spent as the source of truth.
+  // actualSpendingOutflow (sum of t.outflow on transactions) represents the SAME money
+  // already captured in categories[].spent — adding both would double-count every expense.
+  // actualSpendingOutflow is only needed for account-type transactions (Deposit/Withdrawal)
+  // which don't update any category.spent — those are already handled via accountOutflow above.
+  const totalSpentDisplay = spent - assetFundedSpent - liabilityFundedSpent;
   
   // ✅ Total spent for REMAINING BALANCE calculation
   // spent = sum of categories[].spent — but this includes asset-funded and liability-funded expenses,
@@ -6194,4 +6198,3 @@ function openModal(id) {
     });
   });
 })();
-
