@@ -63,7 +63,7 @@
  * @returns {BudgetDelta}
  */
 function computeBudgetDelta(intent) {
-  _requireIntent(intent);
+  _bmsRequireIntent(intent);
 
   switch (intent.type) {
 
@@ -72,7 +72,7 @@ function computeBudgetDelta(intent) {
         tbbDeltaCents:      intent.amountCents,
         categoryName:       null,
         categorySpentDelta: 0,
-        reason: `Income of ${_fmt(intent.amountCents)} added to TBB`,
+        reason: `Income of ${_bmsFmt(intent.amountCents)} added to TBB`,
       };
 
     case TYPE_EXPENSE: {
@@ -80,8 +80,8 @@ function computeBudgetDelta(intent) {
       // TBB is never directly changed by an expense (it was already
       // reduced when the category was assigned money)
       const reason = intent.source === SOURCE_AVAILABLE
-        ? `Expense of ${_fmt(intent.amountCents)} on "${intent.categoryName}" (from available balance)`
-        : `Expense of ${_fmt(intent.amountCents)} on "${intent.categoryName}" (from ${intent.source} account "${intent.accountName}") — TBB unaffected`;
+        ? `Expense of ${_bmsFmt(intent.amountCents)} on "${intent.categoryName}" (from available balance)`
+        : `Expense of ${_bmsFmt(intent.amountCents)} on "${intent.categoryName}" (from ${intent.source} account "${intent.accountName}") — TBB unaffected`;
 
       return {
         tbbDeltaCents:      0,
@@ -96,7 +96,7 @@ function computeBudgetDelta(intent) {
         tbbDeltaCents:      0,
         categoryName:       null,
         categorySpentDelta: 0,
-        reason: `Transfer of ${_fmt(intent.amountCents)} between accounts — no budget impact`,
+        reason: `Transfer of ${_bmsFmt(intent.amountCents)} between accounts — no budget impact`,
       };
 
     case TYPE_LIABILITY_PAYMENT:
@@ -104,7 +104,7 @@ function computeBudgetDelta(intent) {
         tbbDeltaCents:      -intent.amountCents,
         categoryName:       null,
         categorySpentDelta: 0,
-        reason: `Liability payment of ${_fmt(intent.amountCents)} to "${intent.accountName}" deducted from TBB`,
+        reason: `Liability payment of ${_bmsFmt(intent.amountCents)} to "${intent.accountName}" deducted from TBB`,
       };
 
     // ── Phase 3: assign / unassign ─────────────────────────────────────────
@@ -115,7 +115,7 @@ function computeBudgetDelta(intent) {
         categorySpentDelta: 0,
         assignedDelta:      intent.amountCents,    // category.assigned increases
         isNewCategory:      intent.meta && intent.meta.isNewCategory ? true : false,
-        reason: `Assign ${_fmt(intent.amountCents)} to category "${intent.categoryName}"` +
+        reason: `Assign ${_bmsFmt(intent.amountCents)} to category "${intent.categoryName}"` +
                 (intent.meta && intent.meta.isNewCategory ? " (new category)" : ""),
       };
 
@@ -126,7 +126,7 @@ function computeBudgetDelta(intent) {
         categorySpentDelta:  0,
         assignedDelta:      -intent.amountCents,   // category.assigned decreases
         isNewCategory:       false,
-        reason: `Unassign ${_fmt(intent.amountCents)} from category "${intent.categoryName}"`,
+        reason: `Unassign ${_bmsFmt(intent.amountCents)} from category "${intent.categoryName}"`,
       };
 
     default:
@@ -164,7 +164,7 @@ function applyBudgetDeltaToMonth(monthDoc, delta) {
   if (!monthDoc || typeof monthDoc !== "object") {
     throw new Error("applyBudgetDeltaToMonth: monthDoc must be a plain object");
   }
-  _requireDelta(delta);
+  _bmsRequireDelta(delta);
 
   // Work in cents to stay precise
   const currentTbbCents = toCents(monthDoc.tbb || 0);
@@ -213,7 +213,7 @@ function applyBudgetDeltaToMonth(monthDoc, delta) {
 // Private helpers
 // ---------------------------------------------------------------------------
 
-function _requireIntent(intent) {
+function _bmsRequireIntent(intent) {
   if (!intent || typeof intent !== "object") {
     throw new Error("computeBudgetDelta: intent must be a plain object");
   }
@@ -225,7 +225,7 @@ function _requireIntent(intent) {
   }
 }
 
-function _requireDelta(delta) {
+function _bmsRequireDelta(delta) {
   if (!delta || typeof delta !== "object") {
     throw new Error("applyBudgetDeltaToMonth: delta must be a plain object");
   }
@@ -240,6 +240,6 @@ function _requireDelta(delta) {
 }
 
 /** Format cents for human-readable reason strings. */
-function _fmt(cents) {
+function _bmsFmt(cents) {
   return (cents / 100).toFixed(2);
 }
