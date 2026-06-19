@@ -121,7 +121,16 @@ function _buildTransactionRecord(intent) {
 
   // Base fields common to all types
   const base = {
-    id:       `txn-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    // A2: collision-proof ID — uses crypto.randomUUID() when available
+    id: (typeof generateTxnId === "function")
+      ? generateTxnId("txn")
+      : (() => {
+          const ts   = Date.now().toString(36);
+          const rand = (typeof crypto !== "undefined" && crypto.randomUUID)
+            ? crypto.randomUUID().replace(/-/g, "")
+            : Array.from({length:4}, () => Math.floor(Math.random()*0x100000000).toString(16).padStart(8,"0")).join("");
+          return `txn-${ts}-${rand}`;
+        })(),
     name:     intent.payee,
     amount,
     category: intent.categoryName,
