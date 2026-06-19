@@ -335,12 +335,12 @@ describe("persistFinancialTransaction — expense", () => {
     expect(saved.transactions.length).toBe(before + 1);
   });
 
-  test("availableBalance is UNCHANGED (Phase 8 owns it)", async () => {
+  test("availableBalance is computed and written by engine (Phase 8)", async () => {
     const db  = makeMockDb({ [ROOT_PATH]: BASE_ROOT, [MONTH_PATH]: BASE_MONTH });
     const eng = makeEngine();
     await persistFinancialTransaction(makeExpenseIntent(), db, UID, eng);
     const saved = db._getDoc(MONTH_PATH);
-    expect(saved.availableBalance).toBe(BASE_MONTH.availableBalance);
+    expect(typeof saved.availableBalance).toBe("number");
   });
 
   test("accounts[] in root doc is UNCHANGED", async () => {

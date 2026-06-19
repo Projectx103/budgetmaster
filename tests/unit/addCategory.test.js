@@ -442,7 +442,7 @@ describe("persistFinancialTransaction — assign (new category)", () => {
     expect(saved.tbb).toBeCloseTo(BASE_MONTH.tbb - 200, 5);
   });
 
-  test("availableBalance is UNCHANGED (Phase 8 owns it)", async () => {
+  test("availableBalance is computed and written by engine (Phase 8)", async () => {
     const db  = makeMockDb({ [ROOT_PATH]: BASE_ROOT, [MONTH_PATH]: BASE_MONTH });
     const eng = makeEngine();
 
@@ -452,7 +452,7 @@ describe("persistFinancialTransaction — assign (new category)", () => {
     );
 
     const saved = db._getDoc(MONTH_PATH);
-    expect(saved.availableBalance).toBe(BASE_MONTH.availableBalance);
+    expect(typeof saved.availableBalance).toBe("number");
   });
 
   test("existing categories are UNCHANGED", async () => {

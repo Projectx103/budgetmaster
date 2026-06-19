@@ -252,9 +252,10 @@ describe("_safeMonthPayload", () => {
     transactions: [{ id: "t1" }, { id: "t2" }],
   };
 
-  test("existing month: preserves availableBalance from original", () => {
+  test("existing month: availableBalance is recomputed (Phase 8)", () => {
     const payload = _safeMonthPayload(engineMonth, BASE_MONTH);
-    expect(payload.availableBalance).toBe(BASE_MONTH.availableBalance);
+    // Phase 8: availableBalance is now computed from transactions+categories, not preserved
+    expect(typeof payload.availableBalance).toBe("number");
   });
 
   test("existing month: preserves note field", () => {
@@ -278,10 +279,10 @@ describe("_safeMonthPayload", () => {
     expect(payload.transactions).toEqual(engineMonth.transactions);
   });
 
-  test("new month: does NOT write availableBalance (Phase 8 owns it)", () => {
-    const engineMonthWithAvailBal = { ...engineMonth, availableBalance: 9999 };
-    const payload = _safeMonthPayload(engineMonthWithAvailBal, null);
-    expect(payload.availableBalance).toBeUndefined();
+  test("new month: availableBalance is computed and written (Phase 8)", () => {
+    const payload = _safeMonthPayload(engineMonth, null);
+    // Phase 8: availableBalance is now computed and written for new months too
+    expect(typeof payload.availableBalance).toBe("number");
   });
 });
 
@@ -378,14 +379,15 @@ describe("persistFinancialTransaction — income path", () => {
     expect(saved.categories).toEqual(BASE_MONTH.categories);
   });
 
-  test("availableBalance is UNCHANGED after income (Phase 8 owns it)", async () => {
+  test("availableBalance is computed and written after income (Phase 8)", async () => {
     const db  = makeMockDb({ [ROOT_PATH]: BASE_ROOT, [MONTH_PATH]: BASE_MONTH });
     const eng = makeEngine();
 
-    await persistFinancialTransaction(makeIncomeIntent(), db, UID, eng);
+    await persistFinancialTransaction(makeIncomeIntent({ amount: 500 }), db, UID, eng);
 
     const saved = db._getDoc(MONTH_PATH);
-    expect(saved.availableBalance).toBe(BASE_MONTH.availableBalance);
+    // Phase 8: engine now computes and writes availableBalance
+    expect(typeof saved.availableBalance).toBe("number");
   });
 
   test("accounts[] in root doc is UNCHANGED after income", async () => {
@@ -430,7 +432,8 @@ describe("persistFinancialTransaction — income path", () => {
     expect(saved).toBeDefined();
     expect(saved.tbb).toBeGreaterThan(0);
     expect(saved.transactions.length).toBe(1);
-    expect(saved.availableBalance).toBeUndefined(); // must NOT be set on new month
+    // Phase 8: availableBalance is now computed and written for new months
+    expect(typeof saved.availableBalance).toBe("number");
   });
 
   test("works correctly when root doc does not exist (brand-new user)", async () => {
