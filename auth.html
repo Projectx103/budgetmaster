@@ -2,177 +2,219 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>BudgetMaster - Login</title>
+  <title>BudgetMaster — Login</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --primary: #2563eb;
-      --primary-hover: #1d4ed8;
-      --bg-light: #f9fafb;
-      --card: #ffffff;
-      --radius: 16px;
-      --shadow: 0 10px 25px rgba(0,0,0,0.1);
+      --ink:#132238; --muted:#66758a; --line:#dce7f3;
+      --blue:#2d6cdf; --blue-dark:#1d4fa8;
+      --white-glass:rgba(255,255,255,0.78);
+      --shadow-card:0 22px 50px rgba(49,91,137,0.16);
     }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
-
-    body {
-      display: flex;
-      height: 100vh;
-      background: var(--bg-light);
-      color: #111;
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{
+      font-family:'DM Sans',sans-serif;color:var(--ink);min-height:100vh;
+      display:grid;grid-template-columns:1fr 1fr;
+      background:
+        radial-gradient(circle at 10% 20%,rgba(186,219,255,.55),transparent 28%),
+        radial-gradient(circle at 85% 10%,rgba(222,244,255,.68),transparent 30%),
+        linear-gradient(135deg,#f7fbff 0%,#eef6fb 100%);
     }
+    .orb{position:fixed;border-radius:50%;filter:blur(72px);pointer-events:none;z-index:0;}
+    .orb-a{width:320px;height:320px;bottom:-100px;left:-80px;background:rgba(169,221,232,.48);}
+    .orb-b{width:260px;height:260px;top:-80px;right:8%;background:rgba(171,197,244,.42);}
+    .orb-c{width:180px;height:180px;bottom:20%;right:52%;background:rgba(130,215,200,.28);}
 
-    .left {
-      flex: 1;
-      background: linear-gradient(135deg, #1e3a8a, #2563eb, #3b82f6);
-      color: white;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 40px;
-      text-align: center;
-    }
-    .left h1 { font-size: 2.5rem; margin-bottom: 15px; }
-    .left p { font-size: 1.1rem; opacity: 0.9; max-width: 320px; }
+    /* LEFT */
+    .left-panel{position:relative;z-index:1;display:flex;flex-direction:column;justify-content:center;padding:60px 56px;overflow:hidden;}
+    .brand{display:flex;align-items:center;gap:12px;margin-bottom:72px;}
+    .brand-icon{width:44px;height:44px;background:var(--blue);border-radius:14px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px rgba(45,108,223,.28);flex-shrink:0;}
+    .brand-icon svg{width:22px;height:22px;color:white;}
+    .brand-name{font-size:22px;font-weight:700;color:var(--ink);letter-spacing:-0.02em;}
+    .brand-pill{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;background:#e9f2ff;color:#2b66b4;padding:4px 10px;border-radius:99px;}
+    .eyebrow{display:flex;align-items:center;gap:10px;margin-bottom:24px;}
+    .eyebrow-line{width:32px;height:1px;background:#8ca9c7;}
+    .eyebrow-text{font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#5d7898;}
+    .hero-title{font-family:'Fraunces',serif;font-size:clamp(36px,4vw,56px);font-weight:700;line-height:1.04;letter-spacing:-0.04em;color:#17304f;max-width:480px;margin-bottom:20px;}
+    .hero-title em{font-style:normal;color:var(--blue);}
+    .hero-sub{font-size:16px;line-height:1.65;color:var(--muted);max-width:400px;margin-bottom:52px;}
+    .stats-row{display:flex;gap:14px;}
+    .stat-card{background:var(--white-glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.72);box-shadow:0 12px 32px rgba(49,91,137,.12);border-radius:20px;padding:18px 20px;flex:1;}
+    .stat-label{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#71839a;margin-bottom:6px;}
+    .stat-value{font-size:22px;font-weight:700;letter-spacing:-0.03em;color:var(--ink);}
+    .stat-sub{font-size:12px;color:#2e9c81;font-weight:600;margin-top:4px;}
+    .stat-bar{margin-top:10px;height:5px;background:#dbe7f3;border-radius:99px;overflow:hidden;}
+    .stat-bar-fill{height:100%;background:var(--blue);border-radius:99px;width:73%;}
 
-    .right {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
+    /* RIGHT */
+    .right-panel{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;padding:40px 48px;}
+    .login-card{width:100%;max-width:420px;background:var(--white-glass);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.74);box-shadow:var(--shadow-card);border-radius:28px;padding:44px 40px;animation:fadeUp .4s ease forwards;}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    .card-eyebrow{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#5d7898;margin-bottom:8px;}
+    .card-title{font-family:'Fraunces',serif;font-size:30px;font-weight:700;letter-spacing:-0.03em;color:#17304f;line-height:1.1;margin-bottom:32px;}
+    .card-title span{color:var(--blue);}
+    .form-group{margin-bottom:18px;}
+    .form-group label{display:block;font-size:13px;font-weight:600;color:#21385a;margin-bottom:7px;}
+    .form-group input{width:100%;padding:13px 16px;font-family:'DM Sans',sans-serif;font-size:15px;color:var(--ink);background:#fbfdff;border:1.5px solid #d7e4f1;border-radius:14px;transition:border-color .2s,box-shadow .2s,background .2s;outline:none;}
+    .form-group input:focus{border-color:#7ea9ef;box-shadow:0 0 0 4px rgba(78,128,212,.13);background:#fff;}
+    .form-group input::placeholder{color:#a0b0c4;}
+    .form-error{min-height:20px;font-size:13px;color:#b54d4d;margin-bottom:14px;}
+    .btn-primary{width:100%;padding:14px;background:var(--blue);color:#fff;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:700;border:none;border-radius:14px;cursor:pointer;transition:transform .18s ease,box-shadow .18s ease,background .18s ease;margin-bottom:12px;}
+    .btn-primary:hover{background:var(--blue-dark);transform:translateY(-1px);box-shadow:0 12px 24px rgba(45,108,223,.22);}
+    .btn-primary.loading{opacity:.75;cursor:not-allowed;pointer-events:none;}
+    .btn-secondary{width:100%;padding:13px;background:transparent;color:var(--blue);font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;border:1.5px solid #c8daf5;border-radius:14px;cursor:pointer;transition:background .18s,border-color .18s;}
+    .btn-secondary:hover{background:#edf5ff;border-color:#a3c2ef;}
+    .divider{display:flex;align-items:center;gap:12px;margin:20px 0;}
+    .divider-line{flex:1;height:1px;background:#dce7f3;}
+    .divider-text{font-size:12px;color:#8ca4be;font-weight:500;}
+    .switch{text-align:center;margin-top:22px;font-size:13px;color:var(--muted);}
+    .switch a{color:var(--blue);font-weight:600;text-decoration:none;}
+    .switch a:hover{text-decoration:underline;}
 
-    .card {
-      background: var(--card);
-      border-radius: var(--radius);
-      padding: 40px;
-      width: 100%;
-      max-width: 380px;
-      box-shadow: var(--shadow);
-      text-align: center;
-    }
-
-    .card h2 { font-size: 1.8rem; margin-bottom: 20px; }
-
-    .form-group { margin-bottom: 16px; text-align: left; }
-    .form-group label { display: block; margin-bottom: 6px; font-weight: 500; font-size: 0.9rem; }
-    .form-group input { width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; }
-
-    .btn {
-      width: 100%;
-      padding: 12px;
-      border: none;
-      border-radius: 10px;
-      font-size: 1rem;
-      cursor: pointer;
-      margin-top: 10px;
-      transition: background 0.2s;
-    }
-    .btn-primary { background: var(--primary); color: white; }
-    .btn-primary:hover { background: var(--primary-hover); }
-    .btn-secondary { background: #f3f4f6; color: #111; }
-    .btn-secondary:hover { background: #e5e7eb; }
-
-    .switch { margin-top: 20px; font-size: 0.9rem; }
-    .switch a { color: var(--primary); font-weight: 600; text-decoration: none; }
-    .switch a:hover { text-decoration: underline; }
-
-    @media (max-width: 768px) {
-      body { flex-direction: column; }
-      .left, .right { flex: none; height: 50%; }
+    @media(max-width:900px){
+      body{grid-template-columns:1fr;}
+      .left-panel{padding:36px 28px 28px;}
+      .brand{margin-bottom:32px;}
+      .hero-title{font-size:36px;margin-bottom:12px;}
+      .hero-sub{margin-bottom:24px;font-size:15px;}
+      .stats-row{display:none;}
+      .right-panel{padding:28px 20px 48px;}
+      .login-card{padding:32px 24px;}
     }
   </style>
 </head>
 <body>
-  <div class="left">
-    <h1>Welcome to BudgetMaster</h1>
-    <p>Take control of your finances with smart budgeting, category tracking, and rollover like YNAB.</p>
+
+  <div class="orb orb-a"></div>
+  <div class="orb orb-b"></div>
+  <div class="orb orb-c"></div>
+
+  <!-- LEFT PANEL -->
+  <div class="left-panel">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="5" width="20" height="14" rx="2"/>
+          <line x1="2" y1="10" x2="22" y2="10"/>
+        </svg>
+      </div>
+      <span class="brand-name">BudgetMaster</span>
+      <span class="brand-pill">Smart budgeting</span>
+    </div>
+
+    <div class="eyebrow">
+      <span class="eyebrow-line"></span>
+      <span class="eyebrow-text">A calmer way to money</span>
+    </div>
+
+    <h1 class="hero-title">Make your money<br>feel <em>lighter.</em></h1>
+
+    <p class="hero-sub">
+      Take control of your finances with smart budgeting, category tracking, and YNAB-style rollover — without the overwhelm.
+    </p>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">Monthly plan</div>
+        <div class="stat-value">73%</div>
+        <div class="stat-sub">↑ On track</div>
+        <div class="stat-bar"><div class="stat-bar-fill"></div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Spending trend</div>
+        <div class="stat-value">12% lower</div>
+        <div class="stat-sub">↓ vs last month</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Categories</div>
+        <div class="stat-value">8 active</div>
+        <div class="stat-sub">2 goals met</div>
+      </div>
+    </div>
   </div>
 
-  <div class="right">
-    <div class="card">
-      <h2>Login</h2>
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+    <div class="login-card">
+      <div class="card-eyebrow">Welcome back</div>
+      <div class="card-title">Sign in to your <span>account</span></div>
+
       <div class="form-group">
-        <label>Email</label>
-        <input type="email" id="email" placeholder="Enter your email">
+        <label for="email">Email address</label>
+        <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
       </div>
+
       <div class="form-group">
-        <label>Password</label>
-        <input type="password" id="password" placeholder="Enter your password">
+        <label for="password">Password</label>
+        <input type="password" id="password" placeholder="Enter your password" autocomplete="current-password">
       </div>
-      <button class="btn btn-primary" onclick="login()">Login</button>
-      <button class="btn btn-secondary" onclick="redirectToSignup()">Sign Up</button>
+
+      <div class="form-error" id="error-msg"></div>
+
+      <button class="btn-primary" id="login-btn" onclick="login()">Sign in</button>
+
+      <div class="divider">
+        <span class="divider-line"></span>
+        <span class="divider-text">or</span>
+        <span class="divider-line"></span>
+      </div>
+
+      <button class="btn-secondary" onclick="redirectToSignup()">Create an account</button>
 
       <div class="switch">
-        <span>Don’t have an account? <a href="#" onclick="redirectToSignup()">Create one</a></span>
+        Don't have an account? <a href="#" onclick="redirectToSignup()">Sign up free</a>
       </div>
     </div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyA1txE-ewGSTwVrNk7gVz3z8yLeYTdwYwk",
+      authDomain: "budget-monitoringv2.firebaseapp.com",
+      projectId: "budget-monitoringv2",
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db   = firebase.firestore();
 
-<script>
-  // Firebase config
-  const firebaseConfig = {
-    apiKey: "AIzaSyA1txE-ewGSTwVrNk7gVz3z8yLeYTdwYwk",
-    authDomain: "budget-monitoringv2.firebaseapp.com",
-    projectId: "budget-monitoringv2",
-  };
-
-  // Initialize Firebase
-  firebase.initializeApp(firebaseConfig);
-  const auth = firebase.auth();
-  const db = firebase.firestore();
-
-  async function login() {
-    const email = document.getElementById("email").value.trim();
-    const password = document.getElementById("password").value;
-
-    if (!email || !password) return alert("Please enter email and password");
-
-    try {
-      // Sign in with email & password
-      const userCredential = await auth.signInWithEmailAndPassword(email, password);
-      const user = userCredential.user;
-
-      if (!user) throw new Error("No user returned");
-
-      // Fetch user doc from Firestore
-      const userDoc = await db.collection("users").doc(user.uid).get();
-      if (!userDoc.exists) {
-        await auth.signOut();
-        return alert("User record not found. Please contact admin.");
-      }
-
-      const userData = userDoc.data();
-
-      // Debugging: check what's in userData
-      console.log("User Data:", userData);
-
-      // Check approval
-      if (userData.approved !== true) {
-        await auth.signOut();
-        return alert("Your account is not yet approved. Please contact the admin.");
-      }
-
-      // Approved → redirect
-      window.location.href = "index.html";
-
-    } catch (error) {
-      console.error("Login Error:", error);
-      alert(error.message);
+    function showError(msg){ document.getElementById("error-msg").textContent = msg; }
+    function setLoading(on){
+      const btn = document.getElementById("login-btn");
+      btn.textContent = on ? "Signing in…" : "Sign in";
+      btn.classList.toggle("loading", on);
     }
-  }
 
-  function redirectToSignup() {
-    window.location.href = "sign_auth.html";
-  }
-</script>
+    async function login() {
+      const email    = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+      showError("");
+      if (!email || !password) return showError("Please enter your email and password.");
+      setLoading(true);
+      try {
+        const cred = await auth.signInWithEmailAndPassword(email, password);
+        const user = cred.user;
+        if (!user) throw new Error("No user returned");
+        const userDoc = await db.collection("users").doc(user.uid).get();
+        if (!userDoc.exists) { await auth.signOut(); setLoading(false); return showError("User record not found. Please contact admin."); }
+        const userData = userDoc.data();
+        if (userData.approved !== true) { await auth.signOut(); setLoading(false); return showError("Your account is pending approval. Please contact the admin."); }
+        window.location.href = "index.html";
+      } catch (error) {
+        setLoading(false);
+        const c = error.code || "";
+        if (c === "auth/user-not-found" || c === "auth/wrong-password" || c === "auth/invalid-credential") showError("Incorrect email or password. Please try again.");
+        else if (c === "auth/too-many-requests") showError("Too many attempts. Please wait a moment and try again.");
+        else if (c === "auth/invalid-email") showError("Please enter a valid email address.");
+        else showError(error.message);
+      }
+    }
 
+    function redirectToSignup() { window.location.href = "sign_auth.html"; }
+    document.addEventListener("keydown", e => { if (e.key === "Enter") login(); });
+  </script>
 </body>
 </html>

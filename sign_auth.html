@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BudgetMaster — Sign Up</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink:#132238; --muted:#66758a; --line:#dce7f3;
+      --blue:#2d6cdf; --blue-dark:#1d4fa8;
+      --white-glass:rgba(255,255,255,0.78);
+      --shadow-card:0 22px 50px rgba(49,91,137,0.16);
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{
+      font-family:'DM Sans',sans-serif;color:var(--ink);min-height:100vh;
+      display:grid;grid-template-columns:1fr 1fr;
+      background:
+        radial-gradient(circle at 10% 20%,rgba(186,219,255,.55),transparent 28%),
+        radial-gradient(circle at 85% 10%,rgba(222,244,255,.68),transparent 30%),
+        linear-gradient(135deg,#f7fbff 0%,#eef6fb 100%);
+    }
+    .orb{position:fixed;border-radius:50%;filter:blur(72px);pointer-events:none;z-index:0;}
+    .orb-a{width:320px;height:320px;bottom:-100px;left:-80px;background:rgba(169,221,232,.48);}
+    .orb-b{width:260px;height:260px;top:-80px;right:8%;background:rgba(171,197,244,.42);}
+    .orb-c{width:180px;height:180px;bottom:20%;right:52%;background:rgba(130,215,200,.28);}
+
+    /* LEFT */
+    .left-panel{position:relative;z-index:1;display:flex;flex-direction:column;justify-content:center;padding:60px 56px;overflow:hidden;}
+    .brand{display:flex;align-items:center;gap:12px;margin-bottom:64px;}
+    .brand-icon{width:44px;height:44px;background:var(--blue);border-radius:14px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px rgba(45,108,223,.28);flex-shrink:0;}
+    .brand-icon svg{width:22px;height:22px;color:white;}
+    .brand-name{font-size:22px;font-weight:700;color:var(--ink);letter-spacing:-0.02em;}
+    .brand-pill{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;background:#e9f2ff;color:#2b66b4;padding:4px 10px;border-radius:99px;}
+    .eyebrow{display:flex;align-items:center;gap:10px;margin-bottom:24px;}
+    .eyebrow-line{width:32px;height:1px;background:#8ca9c7;}
+    .eyebrow-text{font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#5d7898;}
+    .hero-title{font-family:'Fraunces',serif;font-size:clamp(32px,3.6vw,52px);font-weight:700;line-height:1.05;letter-spacing:-0.04em;color:#17304f;max-width:440px;margin-bottom:20px;}
+    .hero-title em{font-style:normal;color:var(--blue);}
+    .hero-sub{font-size:16px;line-height:1.65;color:var(--muted);max-width:380px;margin-bottom:48px;}
+
+    /* Steps list */
+    .steps{display:flex;flex-direction:column;gap:18px;}
+    .step{display:flex;align-items:flex-start;gap:14px;}
+    .step-dot{width:32px;height:32px;border-radius:50%;background:var(--white-glass);border:1px solid rgba(255,255,255,.72);box-shadow:0 4px 12px rgba(49,91,137,.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+    .step-dot svg{width:15px;height:15px;color:var(--blue);}
+    .step-text{padding-top:5px;}
+    .step-label{font-size:14px;font-weight:600;color:#17304f;margin-bottom:2px;}
+    .step-desc{font-size:13px;color:var(--muted);line-height:1.5;}
+
+    /* RIGHT */
+    .right-panel{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;padding:32px 48px;}
+    .signup-card{width:100%;max-width:460px;background:var(--white-glass);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.74);box-shadow:var(--shadow-card);border-radius:28px;padding:40px 36px;animation:fadeUp .4s ease forwards;}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    .card-eyebrow{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#5d7898;margin-bottom:8px;}
+    .card-title{font-family:'Fraunces',serif;font-size:26px;font-weight:700;letter-spacing:-0.03em;color:#17304f;line-height:1.1;margin-bottom:28px;}
+    .card-title span{color:var(--blue);}
+
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    .form-group{margin-bottom:14px;}
+    .form-group label{display:block;font-size:13px;font-weight:600;color:#21385a;margin-bottom:6px;}
+    .form-group input,
+    .form-group select{
+      width:100%;padding:12px 14px;
+      font-family:'DM Sans',sans-serif;font-size:14px;color:var(--ink);
+      background:#fbfdff;border:1.5px solid #d7e4f1;border-radius:12px;
+      transition:border-color .2s,box-shadow .2s,background .2s;outline:none;
+      -webkit-appearance:none;appearance:none;
+    }
+    .form-group input:focus,
+    .form-group select:focus{border-color:#7ea9ef;box-shadow:0 0 0 4px rgba(78,128,212,.13);background:#fff;}
+    .form-group input::placeholder{color:#a0b0c4;}
+    .select-wrap{position:relative;}
+    .select-wrap::after{content:"▾";position:absolute;right:13px;top:50%;transform:translateY(-50%);font-size:12px;color:#8ca4be;pointer-events:none;}
+
+    .form-error{min-height:18px;font-size:13px;color:#b54d4d;margin-bottom:12px;}
+
+    .btn-primary{width:100%;padding:14px;background:var(--blue);color:#fff;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:700;border:none;border-radius:14px;cursor:pointer;transition:transform .18s ease,box-shadow .18s ease,background .18s ease;margin-bottom:0;}
+    .btn-primary:hover{background:var(--blue-dark);transform:translateY(-1px);box-shadow:0 12px 24px rgba(45,108,223,.22);}
+    .btn-primary.loading{opacity:.75;cursor:not-allowed;pointer-events:none;}
+
+    .switch{text-align:center;margin-top:18px;font-size:13px;color:var(--muted);}
+    .switch a{color:var(--blue);font-weight:600;text-decoration:none;}
+    .switch a:hover{text-decoration:underline;}
+
+    /* Success state */
+    .success-panel{display:none;text-align:center;padding:20px 0 8px;}
+    .success-icon{width:52px;height:52px;background:#e3f7ee;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;}
+    .success-icon svg{width:24px;height:24px;color:#21865a;}
+    .success-title{font-family:'Fraunces',serif;font-size:22px;font-weight:700;color:#17304f;margin-bottom:8px;}
+    .success-sub{font-size:14px;color:var(--muted);line-height:1.6;}
+
+    @media(max-width:960px){
+      body{grid-template-columns:1fr;}
+      .left-panel{padding:36px 28px 28px;}
+      .brand{margin-bottom:28px;}
+      .hero-title{font-size:32px;margin-bottom:12px;}
+      .hero-sub{margin-bottom:20px;font-size:15px;}
+      .steps{display:none;}
+      .right-panel{padding:20px 16px 48px;}
+      .signup-card{padding:32px 24px;}
+    }
+  </style>
+</head>
+<body>
+
+  <div class="orb orb-a"></div>
+  <div class="orb orb-b"></div>
+  <div class="orb orb-c"></div>
+
+  <!-- LEFT PANEL -->
+  <div class="left-panel">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="5" width="20" height="14" rx="2"/>
+          <line x1="2" y1="10" x2="22" y2="10"/>
+        </svg>
+      </div>
+      <span class="brand-name">BudgetMaster</span>
+      <span class="brand-pill">Smart budgeting</span>
+    </div>
+
+    <div class="eyebrow">
+      <span class="eyebrow-line"></span>
+      <span class="eyebrow-text">Get started today</span>
+    </div>
+
+    <h1 class="hero-title">Your finances,<br><em>finally clear.</em></h1>
+
+    <p class="hero-sub">
+      Sign up to start managing your money with confidence — category tracking, rollover balances, and goals all in one place.
+    </p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-dot">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-8 0v2"/><circle cx="12" cy="7" r="4"/>
+          </svg>
+        </div>
+        <div class="step-text">
+          <div class="step-label">Create your account</div>
+          <div class="step-desc">Takes less than 2 minutes to set up</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <div class="step-text">
+          <div class="step-label">Admin approves you</div>
+          <div class="step-desc">You'll get access once approved</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-dot">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+        </div>
+        <div class="step-text">
+          <div class="step-label">Start budgeting</div>
+          <div class="step-desc">Track spending, set goals, roll over balances</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+    <div class="signup-card">
+
+      <!-- Form view -->
+      <div id="form-view">
+        <div class="card-eyebrow">New account</div>
+        <div class="card-title">Create your <span>profile</span></div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="firstName">First name</label>
+            <input type="text" id="firstName" placeholder="First name">
+          </div>
+          <div class="form-group">
+            <label for="lastName">Last name</label>
+            <input type="text" id="lastName" placeholder="Last name">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="email">Email address</label>
+          <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="Create a password" autocomplete="new-password">
+        </div>
+
+        <div class="form-group">
+          <label for="displayName">Display name</label>
+          <input type="text" id="displayName" placeholder="How you'll appear in BudgetMaster">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="dob">Date of birth</label>
+            <input type="date" id="dob">
+          </div>
+          <div class="form-group">
+            <label for="gender">Gender</label>
+            <div class="select-wrap">
+              <select id="gender">
+                <option value="">Select</option>
+                <option value="Female">Female</option>
+                <option value="Male">Male</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="currency">Default currency</label>
+          <div class="select-wrap">
+            <select id="currency">
+              <option value="PHP">PHP — Philippine Peso</option>
+              <option value="USD">USD — US Dollar</option>
+              <option value="JPY">JPY — Japanese Yen</option>
+              <option value="EUR">EUR — Euro</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-error" id="error-msg"></div>
+
+        <button class="btn-primary" id="signup-btn" onclick="signup()">Create account</button>
+
+        <div class="switch">
+          Already have an account? <a href="auth.html">Sign in</a>
+        </div>
+      </div>
+
+      <!-- Success view -->
+      <div class="success-panel" id="success-view">
+        <div class="success-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <div class="success-title">You're on the list</div>
+        <p class="success-sub">Your account has been created and is awaiting admin approval. You'll be able to sign in once approved.</p>
+        <div class="switch" style="margin-top:24px;">
+          <a href="auth.html">← Back to sign in</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyA1txE-ewGSTwVrNk7gVz3z8yLeYTdwYwk",
+      authDomain: "budget-monitoringv2.firebaseapp.com",
+      projectId: "budget-monitoringv2",
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db   = firebase.firestore();
+
+    function showError(msg){ document.getElementById("error-msg").textContent = msg; }
+    function setLoading(on){
+      const btn = document.getElementById("signup-btn");
+      btn.textContent = on ? "Creating account…" : "Create account";
+      btn.classList.toggle("loading", on);
+    }
+
+    async function signup() {
+      const firstName   = document.getElementById("firstName").value.trim();
+      const lastName    = document.getElementById("lastName").value.trim();
+      const email       = document.getElementById("email").value.trim();
+      const password    = document.getElementById("password").value;
+      const displayName = document.getElementById("displayName").value.trim();
+      const dob         = document.getElementById("dob").value;
+      const gender      = document.getElementById("gender").value;
+      const currency    = document.getElementById("currency").value;
+
+      showError("");
+
+      if (!firstName || !lastName || !email || !password || !displayName || !dob || !gender) {
+        return showError("Please fill in all fields before continuing.");
+      }
+      if (password.length < 6) {
+        return showError("Password must be at least 6 characters.");
+      }
+
+      setLoading(true);
+
+      try {
+        const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+        const uid = userCredential.user.uid;
+
+        await db.collection("users").doc(uid).set({
+          firstName, lastName, displayName, email,
+          dob, gender, currency,
+          approved: false,
+          createdAt: new Date().toISOString()
+        });
+
+        // Show success state instead of alert
+        document.getElementById("form-view").style.display = "none";
+        document.getElementById("success-view").style.display = "block";
+
+      } catch (e) {
+        setLoading(false);
+        const c = e.code || "";
+        if (c === "auth/email-already-in-use") showError("An account with this email already exists.");
+        else if (c === "auth/invalid-email")   showError("Please enter a valid email address.");
+        else if (c === "auth/weak-password")   showError("Password must be at least 6 characters.");
+        else showError(e.message);
+      }
+    }
+  </script>
+</body>
+</html>
