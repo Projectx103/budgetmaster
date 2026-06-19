@@ -1229,8 +1229,13 @@ async function proceedWithRollover() {
   await performRollover();
 }
 
-// Updated rollover function with tracking
-async function performRollover() {
+// ── A1: Rollover with per-category carry-forward and overspent review ──────
+//
+// Manual rollover   → shows review modal for overspent categories
+// Automatic rollover → silently defaults all overspent to "cover"
+//
+// @param {boolean} isAutomatic - true when called from checkAndPerformAutomaticRollover
+async function performRollover(isAutomatic = false) {
   if (!currentUser) return;
 
   const docRef = db.collection("budget").doc(currentUser.uid);
@@ -1238,93 +1243,227 @@ async function performRollover() {
   if (!docSnap.exists) return;
 
   const data = docSnap.data();
-  const baseMonthKey = data.currentMonth || new Date().toISOString().slice(0,7);
+  const baseMonthKey = data.currentMonth || new Date().toISOString().slice(0, 7);
 
-  // Load current month doc
+  // ── Load current month doc ─────────────────────────────────────────────
   const currentMonthDocRef = docRef.collection("months").doc(baseMonthKey);
-  const currentMonthSnap = await currentMonthDocRef.get();
-  if (!currentMonthSnap.exists) return alert("Current month data not found!");
+  const currentMonthSnap  = await currentMonthDocRef.get();
+  if (!currentMonthSnap.exists) return showToast("Current month data not found!", "error");
 
-  const currentMonthData = currentMonthSnap.data();
-  const categories = currentMonthData.categories || [];
-  
-// ✅ Use Available Balance instead of calculating from TBB
-  const availableBalance = currentMonthData.availableBalance || 0;
+  const currentMonthData      = currentMonthSnap.data();
+  const categories            = currentMonthData.categories || [];
+  const availableBalance      = currentMonthData.availableBalance || 0;
   const totalRemainingBalance = availableBalance;
 
-  // Save current month data
+  // ── Save current month with a timestamp ──────────────────────────────
   await currentMonthDocRef.set({ ...currentMonthData, savedAt: new Date().toISOString() });
 
-  // ✅ NEW: Reset all categories to zero (don't carry forward assigned amounts)
-  const newCategories = categories.map(c => ({
-    name: c.name,
-    assigned: 0,  // ✅ Start fresh, don't carry forward
-    spent: 0,
-    balance: 0
-  }));
+  // ── Compute carryForward per category ────────────────────────────────
+  const categoryRolloverData = categories.map(c => {
+    const carryForward = (c.assigned || 0) - (c.spent || 0);
+    const extras = {};
+    for (const [k, v] of Object.entries(c)) {
+      if (!["name", "assigned", "spent", "balance"].includes(k)) extras[k] = v;
+    }
+    return {
+      name:             c.name,
+      previousAssigned: c.assigned || 0,
+      previousSpent:    c.spent    || 0,
+      carryForward,
+      extras,
+    };
+  });
 
-  // Compute next month key
+  // ── Separate overspent categories ────────────────────────────────────
+  const overspentCategories = categoryRolloverData.filter(c => c.carryForward < 0);
+
+  // ── Resolve overspent categories ─────────────────────────────────────
+  let resolutions = {};
+
+  if (overspentCategories.length > 0) {
+    if (isAutomatic) {
+      overspentCategories.forEach(c => { resolutions[c.name] = "cover"; });
+      await db.collection("budget").doc(currentUser.uid).update({
+        pendingRolloverNotice: {
+          month:          baseMonthKey,
+          overspentCount: overspentCategories.length,
+          message:        `Automatic rollover ran for ${baseMonthKey}. ` +
+                          `${overspentCategories.length} overspent ` +
+                          `categor${overspentCategories.length === 1 ? "y was" : "ies were"} ` +
+                          `carried forward (Cover next month). Review your budget.`
+        }
+      });
+    } else {
+      resolutions = await showOverspentReviewModal(overspentCategories);
+    }
+  }
+
+  // ── Build next month categories and TBB adjustment ────────────────────
+  let tbbAdjustment = 0;
+  const rolloverLog = [];
+  const now = new Date().toISOString();
+
+  const newCategories = categoryRolloverData.map(c => {
+    let newAssigned;
+    let resolution;
+
+    if (c.carryForward >= 0) {
+      newAssigned = c.carryForward;
+      resolution  = "cover";
+    } else {
+      resolution = resolutions[c.name] || "cover";
+      if (resolution === "absorbed") {
+        newAssigned    = 0;
+        tbbAdjustment += c.carryForward;
+      } else {
+        newAssigned = c.carryForward;
+      }
+    }
+
+    rolloverLog.push({
+      categoryId:       c.name,
+      previousAssigned: c.previousAssigned,
+      previousSpent:    c.previousSpent,
+      carryForward:     c.carryForward,
+      resolution,
+      resolvedAt:       now,
+    });
+
+    return {
+      ...c.extras,
+      name:     c.name,
+      assigned: newAssigned,
+      spent:    0,
+      balance:  newAssigned,
+    };
+  });
+
+  // ── Next month key ────────────────────────────────────────────────────
   const [year, month] = baseMonthKey.split("-").map(Number);
   const nextMonthDate = new Date(year, month - 1, 1);
   nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
   const nextMonthKey = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, "0")}`;
 
   const rolloverDate = new Date().toISOString().slice(0, 10);
+  const nextMonthTbb = totalRemainingBalance + tbbAdjustment;
 
-  // ✅ Create rollover transaction showing what was carried forward
+  // ── Rollover transaction ──────────────────────────────────────────────
   const rolloverTransaction = {
-    id: `rollover-${Date.now()}`,
-    amount: totalRemainingBalance,
+    id:       `rollover-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    amount:   totalRemainingBalance,
     category: "BALANCE FROM LAST MONTH",
-    date: rolloverDate,
-    name: "ROLLOVER AMOUNT",
-    type: "income",
-    inflow: totalRemainingBalance,
-    outflow: 0
+    date:     rolloverDate,
+    name:     "ROLLOVER AMOUNT",
+    type:     "income",
+    inflow:   totalRemainingBalance,
+    outflow:  0,
   };
+  const transactions = totalRemainingBalance !== 0 ? [rolloverTransaction] : [];
 
-  const transactions = totalRemainingBalance > 0 ? [rolloverTransaction] : [];
-
-  // ✅ Create next month with only the remaining balance as TBB
+  // ── Write next month doc ──────────────────────────────────────────────
   const nextMonthDocRef = docRef.collection("months").doc(nextMonthKey);
   await nextMonthDocRef.set({
-    categories: newCategories,  // ✅ All categories start at zero
+    categories:   newCategories,
     transactions: transactions,
-    tbb: totalRemainingBalance,  // ✅ This is the ONLY money available
-    currentMonth: nextMonthKey
+    tbb:          nextMonthTbb,
+    currentMonth: nextMonthKey,
   });
 
-  // Update main doc pointer
+  // ── Write rollover history subcollection ─────────────────────────────
+  await db.collection("budget").doc(currentUser.uid)
+    .collection("rolloverHistory").doc(baseMonthKey)
+    .set({
+      rolledAt:      now,
+      fromMonth:     baseMonthKey,
+      toMonth:       nextMonthKey,
+      trigger:       isAutomatic ? "automatic" : "manual",
+      tbbBefore:     totalRemainingBalance,
+      tbbAfter:      nextMonthTbb,
+      tbbAdjustment,
+      categories:    rolloverLog,
+    });
+
+  // ── Update root doc and last rollover date ────────────────────────────
   await docRef.update({ currentMonth: nextMonthKey });
-  
-  // Update last rollover date
   lastRolloverDate = new Date().toISOString();
   await firebase.firestore().collection("users").doc(currentUser.uid).update({
     "rolloverSettings.lastRollover": lastRolloverDate
   });
 
-  // ✅ Reload available months and navigate to new month
+  // ── Reload UI ─────────────────────────────────────────────────────────
   await loadAvailableMonths();
-  
   currentMonthIndex = availableMonths.indexOf(nextMonthKey);
-  if (currentMonthIndex === -1) {
-    currentMonthIndex = availableMonths.length - 1;
-  }
-  
+  if (currentMonthIndex === -1) currentMonthIndex = availableMonths.length - 1;
   updateMonthDisplay();
   await loadMonthData(nextMonthKey);
 
-alert(
-    `✅ Rollover complete!\n\n` +
-    `Previous Month:\n` +
-    `- Available Balance: ${formatCurrency(availableBalance)}\n\n` +
-    `New Month (${nextMonthKey}):\n` +
-    `- Starting TBB: ${formatCurrency(totalRemainingBalance)}\n` +
-    `- All Categories Reset: ${formatCurrency(0)}\n\n` +
-    `You can now assign this money to your categories!`
-  );
-  
-  showToast("Rollover completed successfully!", "success");
+  // ── Summary toast ─────────────────────────────────────────────────────
+  const surplusCount = rolloverLog.filter(r => r.carryForward > 0).length;
+  const exactCount   = rolloverLog.filter(r => r.carryForward === 0).length;
+  const coverCount   = rolloverLog.filter(r => r.carryForward < 0 && r.resolution === "cover").length;
+  const absorbCount  = rolloverLog.filter(r => r.resolution === "absorbed").length;
+
+  const summaryParts = [`✅ Rollover to ${nextMonthKey} complete!`];
+  if (surplusCount) summaryParts.push(`${surplusCount} categor${surplusCount===1?"y":"ies"} carried surplus`);
+  if (exactCount)   summaryParts.push(`${exactCount} exactly spent`);
+  if (coverCount)   summaryParts.push(`${coverCount} overspent covering next month`);
+  if (absorbCount)  summaryParts.push(`${absorbCount} absorbed into TBB`);
+  if (tbbAdjustment < 0) summaryParts.push(`TBB reduced by ${formatCurrency(Math.abs(tbbAdjustment))}`);
+  showToast(summaryParts.join(" · "), "success");
+}
+
+// ── showOverspentReviewModal ──────────────────────────────────────────────
+function showOverspentReviewModal(overspentCategories) {
+  return new Promise((resolve) => {
+    const modal  = document.getElementById("overspentReviewModal");
+    const listEl = document.getElementById("overspentReviewList");
+
+    listEl.innerHTML = overspentCategories.map(c => {
+      const safeName = c.name.replace(/[^a-zA-Z0-9]/g, '_');
+      return `
+        <div class="overspent-row">
+          <div class="overspent-row-header">
+            <span class="overspent-cat-name">${c.name}</span>
+            <span class="overspent-deficit">${formatCurrency(Math.abs(c.carryForward))} overspent</span>
+          </div>
+          <div class="overspent-row-sub">
+            Assigned ${formatCurrency(c.previousAssigned)} · Spent ${formatCurrency(c.previousSpent)}
+          </div>
+          <div class="overspent-options">
+            <label class="overspent-option">
+              <input type="radio" name="res_${safeName}" value="cover" checked>
+              <span>
+                <strong>Cover next month</strong>
+                <small>Starts at ${formatCurrency(c.carryForward)} — assign money to clear it</small>
+              </span>
+            </label>
+            <label class="overspent-option">
+              <input type="radio" name="res_${safeName}" value="absorbed">
+              <span>
+                <strong>Absorb into pool</strong>
+                <small>Resets to ₱0 · TBB reduced by ${formatCurrency(Math.abs(c.carryForward))}</small>
+              </span>
+            </label>
+          </div>
+        </div>`;
+    }).join("");
+
+    function collectAndResolve() {
+      const resolutions = {};
+      overspentCategories.forEach(c => {
+        const safeName = c.name.replace(/[^a-zA-Z0-9]/g, '_');
+        const checked  = listEl.querySelector(`input[name="res_${safeName}"]:checked`);
+        resolutions[c.name] = (checked && checked.value === "absorbed") ? "absorbed" : "cover";
+      });
+      modal.style.display = "none";
+      resolve(resolutions);
+    }
+
+    document.getElementById("overspentReviewConfirmBtn").onclick = collectAndResolve;
+    document.getElementById("overspentReviewCloseBtn").onclick   = collectAndResolve;
+    modal.onclick = function(e) { if (e.target === this) collectAndResolve(); };
+    modal.style.display = "flex";
+  });
 }
 
 // Setup automatic rollover checking
@@ -1368,8 +1507,8 @@ async function checkAndPerformAutomaticRollover(rolloverDay) {
     }
   }
   
-  // Perform automatic rollover
-  await performRollover();
+  // Perform automatic rollover (silent — no review modal, defaults to "cover")
+  await performRollover(true);
 }
 
 // ✅ Load ALL months into filter (dynamic, works with rollover)
