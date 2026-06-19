@@ -763,6 +763,10 @@ auth.onAuthStateChanged(async (user) => {
       if (typeof loadCatColorsFromFirestore === "function") {
         await loadCatColorsFromFirestore();
       }
+      // A4: load theme from Firestore (currentUser is set here — safe to read)
+      if (window.themeManager && typeof window.themeManager.loadThemeFromFirestore === "function") {
+        await window.themeManager.loadThemeFromFirestore();
+      }
     } else {
       alert("Your account is not yet approved.");
       await auth.signOut();
@@ -5776,12 +5780,15 @@ function createGoalCard(goal) {
       }
 
       init() {
-        // A4: Apply localStorage theme instantly (no lag while Firestore loads)
+        // Apply localStorage theme instantly (no lag on return visits)
+        // On a new browser localStorage is empty → defaults to classic until
+        // loadThemeFromFirestore() is called from the auth listener after login
         const localTheme = localStorage.getItem('budgetmaster-theme') || 'classic';
         this.setTheme(localTheme);
 
-        // A4: Then sync from Firestore (authoritative) in background
-        this.loadThemeFromFirestore();
+        // NOTE: loadThemeFromFirestore() is called from the auth listener
+        // (after currentUser is set) — NOT here, because currentUser is null
+        // at this point and the Firestore read would silently fail.
 
         // Event listeners
         this.themeToggle.addEventListener('click', (e) => {
@@ -5821,44 +5828,51 @@ function createGoalCard(goal) {
         this.themeDropdown.classList.remove('open');
       }
 
-      setTheme(theme) {
+      // save=true  → user picked a theme manually → write to localStorage + Firestore
+      // save=false → loading from Firestore → only write to localStorage (avoid loop)
+      setTheme(theme, save = true) {
         // Remove current theme
         document.documentElement.removeAttribute('data-theme');
-        
+
         // Set new theme
         if (theme !== 'classic') {
           document.documentElement.setAttribute('data-theme', theme);
         }
-        
+
         this.currentTheme = theme;
-        
+
         // Update UI
         this.updateThemeDisplay();
         this.updateActiveOption();
-        
-        // A4: Save to localStorage (instant) + Firestore (persistent across devices)
+
+        // Always update localStorage so next visit is instant
         localStorage.setItem('budgetmaster-theme', theme);
-        this.saveThemeToFirestore(theme);
+
+        // Only write to Firestore when user manually picked the theme
+        if (save) {
+          this.saveThemeToFirestore(theme);
+        }
 
         // Emit theme change event for other parts of the app
         window.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme } }));
       }
 
-      // A4: Load theme from Firestore and sync to localStorage
+      // A4: Load theme from Firestore and apply it.
+      // Always applies the Firestore value — even if localStorage already has it —
+      // so a new browser (empty localStorage) always gets the correct theme.
       async loadThemeFromFirestore() {
         if (!currentUser) return;
         try {
           const snap = await db.collection("users").doc(currentUser.uid).get();
           if (!snap.exists) return;
           const savedTheme = snap.data().theme;
-          if (savedTheme && savedTheme !== localStorage.getItem('budgetmaster-theme')) {
-            // Firestore has a different theme — apply it
+          if (savedTheme) {
             localStorage.setItem('budgetmaster-theme', savedTheme);
-            this.setTheme(savedTheme);
+            this.setTheme(savedTheme, false); // false = don't re-save to Firestore
           }
         } catch (err) {
           console.warn("[A4] Could not load theme from Firestore:", err);
-          // Graceful fallback — localStorage theme already applied
+          // Graceful fallback — localStorage / default theme already applied
         }
       }
 
@@ -5926,6 +5940,7 @@ function createGoalCard(goal) {
 
     // Initialize theme manager
     const themeManager = new ThemeManager();
+    window.themeManager = themeManager; // A4: expose so auth listener can call loadThemeFromFirestore()
 
     // Make theme manager globally available
     window.ThemeManager = themeManager;
