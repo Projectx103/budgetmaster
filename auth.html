@@ -202,6 +202,7 @@
         if (!userDoc.exists) { await auth.signOut(); setLoading(false); return showError("User record not found. Please contact admin."); }
         const userData = userDoc.data();
         if (userData.approved !== true) { await auth.signOut(); setLoading(false); return showError("Your account is pending approval. Please contact the admin."); }
+        setLoading(false);
         window.location.href = "index.html";
       } catch (error) {
         setLoading(false);
@@ -227,9 +228,9 @@
       setLoading(false);
     }
     window.addEventListener('pageshow', (event) => {
-      if (event.persisted) {
-        resetLoginForm();
-      }
+      // Some browsers don't reliably set event.persisted for bfcache restores,
+      // so we reset unconditionally — it's a no-op if the form was already clean.
+      resetLoginForm();
     });
   </script>
 </body>
