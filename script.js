@@ -2839,15 +2839,17 @@ async function deleteTransaction(categoryName, txId) {
 
         // ── Reverse category effects ────────────────────────────────────────
         const cat = monthData.categories.find(c => c.name === categoryName);
-        if (cat) {
-          if (tx.type === "expense") {
-            // Reverse expense: restore category spent and balance
+
+        if (tx.type === "expense" && !tx.isAccountOnlyTxn) {
+          // Reverse expense: restore category spent and balance
+          if (cat) {
             cat.spent   = Math.max(0, (cat.spent || 0) - tx.amount);
             cat.balance = cat.assigned - cat.spent;
-          } else if (tx.type === "income" && !tx.isAccountOnlyTxn) {
-            // Reverse income: restore TBB (NOT cat.assigned — income goes to TBB, not categories)
-            monthData.tbb = Math.max(0, (monthData.tbb || 0) - tx.amount);
           }
+        } else if (tx.type === "income" && !tx.isAccountOnlyTxn) {
+          // A5 fix: income always goes to TBB — restore it regardless of whether
+          // categoryName matches a real budget category ("Income" is never in categories[])
+          monthData.tbb = Math.max(0, (monthData.tbb || 0) - tx.amount);
         }
 
         // ── Reverse account effects ─────────────────────────────────────────
@@ -2918,15 +2920,19 @@ async function deleteTransaction(categoryName, txId) {
   const tx = monthData.transactions[txIndex];
 
   const cat = monthData.categories.find((c) => c.name === categoryName);
-  if (cat) {
-    if (tx.type === "expense") {
+
+  if (tx.type === "expense" && !tx.isAccountOnlyTxn) {
+    // Reverse expense: restore category spent and balance
+    if (cat) {
       cat.spent -= tx.amount;
       if (cat.spent < 0) cat.spent = 0;
       cat.balance = cat.assigned - cat.spent;
-    } else if (tx.type === "income") {
-      cat.assigned -= tx.amount;
-      if (cat.assigned < 0) cat.assigned = 0;
     }
+  } else if (tx.type === "income" && !tx.isAccountOnlyTxn) {
+    // A5 fix: income goes to TBB — restore it directly, not via category
+    // (the old code reduced cat.assigned which was wrong and had no effect
+    //  since "Income" is never a real budget category)
+    monthData.tbb = Math.max(0, (monthData.tbb || 0) - tx.amount);
   }
 
   const rootSnap = await docRef.get();
