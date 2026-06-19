@@ -113,13 +113,13 @@
 // Flip individual flags to false to instantly revert to the old inline path.
 // All flags default OFF until the phase is verified on staging.
 const FEATURE_FLAGS = {
-  useEngineForIncome:          true,  // Phase 2 — set true after staging smoke test
-  useEngineForCategoryAssign:  true,  // Phase 3 — set true after staging smoke test
-  useEngineForExpense:         true,  // Phase 4 — set true after staging smoke test
-  useEngineForAssignEdit:      true,  // Phase 5 — set true after staging smoke test
-  useEngineForAccountTxn:      true,  // Phase 6 — set true after staging smoke test
-  useEngineForDelete:          true,  // Phase 7 — set true after staging smoke test
-  engineOwnsAvailableBalance:  true,  // Phase 8 — set true after staging smoke test
+  useEngineForIncome:          false,  // Phase 2 — set true after staging smoke test
+  useEngineForCategoryAssign:  false,  // Phase 3 — set true after staging smoke test
+  useEngineForExpense:         false,  // Phase 4 — set true after staging smoke test
+  useEngineForAssignEdit:      false,  // Phase 5 — set true after staging smoke test
+  useEngineForAccountTxn:      false,  // Phase 6 — set true after staging smoke test
+  useEngineForDelete:          false,  // Phase 7 — set true after staging smoke test
+  engineOwnsAvailableBalance:  false,  // Phase 8 — set true after staging smoke test
 };
 
 let currentSort = { column: 'date', direction: 'desc' };
@@ -220,31 +220,8 @@ function renderCategories(categories) {
   });
 }
 
-function formatCurrency(amount, isOutflow = false) {
-  if (isNaN(amount)) return "";
-  
-  const currencySymbols = {
-    "USD": "$",
-    "PHP": "₱",
-    "EUR": "€",
-    "JPY": "¥"
-  };
-  
-  const symbol = currencySymbols[userCurrency] || "$";
-  
-  const formatter = new Intl.NumberFormat("en", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  
-  const formattedAmount = formatter.format(Math.abs(amount));
-  
-  if (isOutflow) {
-    return `-${symbol}${formattedAmount}`;
-  }
-  
-  return `${symbol}${formattedAmount}`;
-}
+// formatCurrency is defined in helpers/currency.js (Phase 9 — single source of truth)
+// All calls below use the global formatCurrency loaded from helpers/currency.js
 
 function renderTransactions(transactions) {
   allTransactions = transactions; // Store for filtering
@@ -1735,31 +1712,7 @@ function updateNetWorthSummary(list) {
   document.getElementById('net-worth-summary').textContent = formatCurrency(netWorth);
 }
 
-function formatCurrency(amount, isOutflow = false) {
-  if (isNaN(amount)) return "";
-  
-  const currencySymbols = {
-    "USD": "$",
-    "PHP": "₱",
-    "EUR": "€",
-    "JPY": "¥"
-  };
-  
-  const symbol = currencySymbols[userCurrency] || "$";
-  
-  const formatter = new Intl.NumberFormat("en", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  
-  const formattedAmount = formatter.format(Math.abs(amount));
-  
-  if (isOutflow) {
-    return `-${symbol}${formattedAmount}`;
-  }
-  
-  return `${symbol}${formattedAmount}`;
-}
+
 
 
 
@@ -2646,31 +2599,7 @@ function formatDate(date) {
 }
 
 
-function formatCurrency(amount, isOutflow = false) {
-  if (isNaN(amount)) return "";
-  
-  const currencySymbols = {
-    "USD": "$",
-    "PHP": "₱",
-    "EUR": "€",
-    "JPY": "¥"
-  };
-  
-  const symbol = currencySymbols[userCurrency] || "$";
-  
-  const formatter = new Intl.NumberFormat("en", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  
-  const formattedAmount = formatter.format(Math.abs(amount));
-  
-  if (isOutflow) {
-    return `-${symbol}${formattedAmount}`;
-  }
-  
-  return `${symbol}${formattedAmount}`;
-}
+
 
 
 
@@ -4649,31 +4578,7 @@ function applyFilters() {
   
 
 
-  function formatCurrency(amount, isOutflow = false) {
-  if (isNaN(amount)) return "";
-  
-  const currencySymbols = {
-    "USD": "$",
-    "PHP": "₱",
-    "EUR": "€",
-    "JPY": "¥"
-  };
-  
-  const symbol = currencySymbols[userCurrency] || "$";
-  
-  const formatter = new Intl.NumberFormat("en", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  
-  const formattedAmount = formatter.format(Math.abs(amount));
-  
-  if (isOutflow) {
-    return `-${symbol}${formattedAmount}`;
-  }
-  
-  return `${symbol}${formattedAmount}`;
-}
+
 
    
 
