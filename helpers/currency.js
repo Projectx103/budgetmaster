@@ -44,7 +44,14 @@ const CURRENCY_SYMBOLS = {
  *   Math.abs(amount) — negatives are represented via isOutflow, never a bare minus
  *   isOutflow ? `-${symbol}${formattedAmount}` : `${symbol}${formattedAmount}`
  */
-function formatCurrency(amount, isOutflow = false, currency = "USD") {
+function formatCurrency(amount, isOutflow = false, currency) {
+  // When currency not explicitly passed, read from global userCurrency (set by script.js)
+  // Falls back to USD if neither is available (e.g. Node/test environment)
+  if (currency === undefined) {
+    currency = (typeof window !== "undefined" && window.userCurrency) ||
+               (typeof userCurrency !== "undefined" && userCurrency) ||
+               "USD";
+  }
   if (isNaN(amount)) return "";
 
   const symbol = CURRENCY_SYMBOLS[currency] || "$";
