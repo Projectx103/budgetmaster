@@ -396,6 +396,9 @@ function renderTransactionsTable() {
         sourceLabel = `To ${t.toAccount}`;
       }
       sourceBadgeClass += " txn-source-transfer";
+    } else if (t.type === "income") {
+      sourceLabel = `Added to Available Balance`;
+      sourceBadgeClass += " txn-source-available";
     } else {
       sourceLabel = `Deducted from Available Balance`;
       sourceBadgeClass += " txn-source-available";
