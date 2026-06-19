@@ -1414,6 +1414,38 @@
 
 
 
+<!-- ── Overspent Category Review Modal (A1) ─────────────────────────────── -->
+<div id="overspentReviewModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.55);z-index:10000;justify-content:center;align-items:center;">
+  <div style="background:white;border-radius:16px;padding:0;max-width:520px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,0.25);max-height:85vh;display:flex;flex-direction:column;">
+    <div style="padding:22px 24px 16px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+      <div>
+        <h3 style="margin:0;font-size:1.05rem;color:#2d3748;">⚠️ Overspent Categories — Rollover Review</h3>
+        <p style="margin:5px 0 0;font-size:0.82rem;color:#718096;">Choose how to handle each overspent category before rolling over.</p>
+      </div>
+      <button id="overspentReviewCloseBtn" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#a0aec0;line-height:1;padding:4px 8px;">×</button>
+    </div>
+    <div id="overspentReviewList" style="overflow-y:auto;flex:1;padding:16px 20px;display:flex;flex-direction:column;gap:14px;"></div>
+    <div style="padding:14px 20px;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;flex-shrink:0;">
+      <button id="overspentReviewConfirmBtn" class="btn btn-primary" style="min-width:160px;">Confirm &amp; Roll Over</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.overspent-row{border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;background:#fafafa;}
+.overspent-row-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+.overspent-cat-name{font-weight:600;font-size:0.92rem;color:#2d3748;}
+.overspent-deficit{font-weight:600;font-size:0.8rem;color:#e53e3e;background:#fff5f5;padding:2px 8px;border-radius:99px;}
+.overspent-row-sub{font-size:0.78rem;color:#718096;margin-bottom:10px;}
+.overspent-options{display:flex;flex-direction:column;gap:7px;}
+.overspent-option{display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:9px 11px;border-radius:8px;border:1.5px solid #e2e8f0;background:white;transition:border-color 0.15s,background 0.15s;}
+.overspent-option:has(input:checked){border-color:#3182ce;background:#ebf8ff;}
+.overspent-option input[type="radio"]{margin-top:3px;flex-shrink:0;accent-color:#3182ce;}
+.overspent-option span{display:flex;flex-direction:column;gap:2px;}
+.overspent-option strong{font-size:0.85rem;color:#2d3748;}
+.overspent-option small{font-size:0.75rem;color:#718096;line-height:1.4;}
+</style>
+
   <!-- Footer -->
   <footer>
     © 2025 BudgetMaster ·
