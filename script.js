@@ -107,6 +107,7 @@
   let editingGoalId = null;
   let userSettings = {};
   let userCurrency = "Php";
+  window.userCurrency = userCurrency; // expose to currency.js
   let lastRolloverDate = null; // Track last rollover to prevent multiple rollovers in same month
 
 // ==== Phase 2 Feature Flags ====
@@ -162,6 +163,14 @@ let filteredTransactions = []; // Store filtered results
       console.log("🔄 Reloading reports data...");
       await loadData(); // Refresh all report data
       console.log("✅ Reports reloaded");
+    }
+
+    // ✅ Load profile data when Settings section is opened
+    if (targetId === "settings" && currentUser) {
+      await loadProfileSection();
+      // Also activate the profile tab by default
+      const profileTab = document.querySelector('.settings-sidebar li[data-section="profileSection"]');
+      if (profileTab) profileTab.click();
     }
   });
 });
@@ -721,9 +730,11 @@ auth.onAuthStateChanged(async (user) => {
     // ✅ Set global currency from user profile
     if (userDoc.exists && userData?.currency) {
       userCurrency = userData.currency;
+      window.userCurrency = userCurrency; // keep in sync with currency.js
       //console.log("✅ Currency loaded:", userCurrency);
     } else {
       userCurrency = "USD";
+      window.userCurrency = userCurrency;
       console.log("⚠️ No currency found, using default: USD");
     }
     
@@ -1477,8 +1488,10 @@ auth.onAuthStateChanged(async (user) => {
     
     if (userDoc.exists && userData?.currency) {
       userCurrency = userData.currency;
+      window.userCurrency = userCurrency;
     } else {
       userCurrency = "USD";
+      window.userCurrency = userCurrency;
     }
     
     if (userDoc.exists && userData?.approved === true) {
@@ -5895,6 +5908,46 @@ function createGoalCard(goal) {
       }, 100); // Small delay to ensure CSS has updated
     });
 
+// ===== Profile Section Loader =====
+async function loadProfileSection() {
+  if (!currentUser) return;
+  try {
+    const doc = await firebase.firestore().collection("users").doc(currentUser.uid).get();
+    if (doc.exists) {
+      const data = doc.data();
+
+      // Name
+      const nameEl = document.getElementById("displayName");
+      if (nameEl) nameEl.value = data.displayName || currentUser.displayName || "";
+
+      // Email
+      const emailEl = document.getElementById("email");
+      if (emailEl) emailEl.value = currentUser.email || "";
+
+      // Email verified badge
+      const verifiedEl = document.getElementById("emailVerifiedStatus") ||
+                         document.querySelector(".email-verified-status") ||
+                         document.querySelector("[id*='verified']");
+      if (verifiedEl) {
+        verifiedEl.textContent = currentUser.emailVerified ? "✅ Verified" : "⚠️ Not Verified";
+        verifiedEl.style.color  = currentUser.emailVerified ? "#16a085" : "#e74c3c";
+      }
+
+      // Currency dropdown
+      const currencyEl = document.getElementById("currency");
+      if (currencyEl) {
+        const savedCurrency = data.currency || "USD";
+        currencyEl.value = savedCurrency;
+        // Also sync the global so dashboard reflects it immediately
+        userCurrency = savedCurrency;
+        window.userCurrency = savedCurrency;
+      }
+    }
+  } catch (err) {
+    console.error("Error loading profile section:", err);
+  }
+}
+
 // ===== Load user settings on login =====
 // Update the existing Firebase auth listener to load rollover settings
 // ===== Load Settings When Settings Section is Opened =====
@@ -5910,15 +5963,7 @@ document.querySelectorAll('.settings-sidebar li').forEach(item => {
     
     // ✅ Load user settings when opening settings section
     if (sectionToShow === 'profileSection' && currentUser) {
-      const doc = await firebase.firestore().collection("users").doc(currentUser.uid).get();
-      if (doc.exists) {
-        const data = doc.data();
-        document.getElementById("displayName").value = data.displayName || currentUser.displayName || "";
-        document.getElementById("email").value = currentUser.email || "";
-        
-        const savedCurrency = data.currency || "USD";
-        document.getElementById("currency").value = savedCurrency;
-      }
+      await loadProfileSection();
     }
     
     // ✅ Load rollover settings when opening rollover section
@@ -5959,32 +6004,37 @@ document.getElementById("saveBtn").addEventListener("click", async () => {
 
     // ✅ Update global currency variable immediately
     userCurrency = currency;
-    
+    window.userCurrency = userCurrency; // keep in sync with currency.js
     console.log("💰 Currency updated to:", userCurrency);
     
     // ✅ Reload all data with new currency format
     await loadBudget();
     await loadAccounts();
     await loadBudgetSection();
-    await loadGoals(); // This reloads goals with new currency
-    
+    await loadGoals();
+
     // ✅ Force re-render of goals UI
     renderGoals();
-    
-    // ✅ Re-render budget data
+
+    // ✅ Re-render budget with new currency
     const docRef = db.collection("budget").doc(currentUser.uid);
     const docSnap = await docRef.get();
     const data = docSnap.data();
     if (data) {
-      const currentMonth = data.currentMonth || new Date().toISOString().slice(0, 7);
-      const monthDocRef = docRef.collection("months").doc(currentMonth);
-      const monthSnap = await monthDocRef.get();
+      const currentMonthKey = availableMonths[currentMonthIndex] ||
+                              data.currentMonth ||
+                              new Date().toISOString().slice(0, 7);
+      const monthDocRef = docRef.collection("months").doc(currentMonthKey);
+      const monthSnap  = await monthDocRef.get();
       if (monthSnap.exists) {
         renderBudget(monthSnap.data());
       }
     }
-    
-    alert("✅ Settings saved! Currency updated to " + currency);
+
+    // ✅ Re-render accounts with new currency
+    renderAccounts(accounts);
+
+    showToast("✅ Settings saved! Currency updated to " + currency, "success");
   } catch (error) {
     console.error("Error saving settings:", error);
     alert("❌ Failed to save settings. Please try again.");
