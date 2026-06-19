@@ -110,6 +110,21 @@
   window.userCurrency = userCurrency; // expose to currency.js
   let lastRolloverDate = null; // Track last rollover to prevent multiple rollovers in same month
 
+  // ==== Guard against stale page shown via browser back/forward (bfcache) ====
+  // After logout, hitting the browser "back" button can restore index.html
+  // from the bfcache as a frozen snapshot, without re-running auth checks.
+  // This forces a fresh auth check (and reload) whenever that happens.
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) {
+      const user = firebase.auth().currentUser;
+      if (!user) {
+        window.location.replace("auth.html");
+      } else {
+        window.location.reload();
+      }
+    }
+  });
+
 // ==== Phase 2 Feature Flags ====
 // Flip individual flags to false to instantly revert to the old inline path.
 // All flags default OFF until the phase is verified on staging.
@@ -6045,7 +6060,10 @@ document.getElementById("saveBtn").addEventListener("click", async () => {
     e.preventDefault(); // prevent jumping to #logout
     firebase.auth().signOut()
       .then(() => {
-        window.location.href = "auth.html"; // redirect after logout
+        currentUser = null;
+        // replace() instead of href so index.html is removed from history —
+        // back button can't return to it, it goes further back instead
+        window.location.replace("auth.html");
       })
       .catch((error) => {
         console.error("Logout error:", error);
