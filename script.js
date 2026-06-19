@@ -138,30 +138,6 @@ const FEATURE_FLAGS = {
   engineOwnsAvailableBalance:  true,  // Phase 8 — set true after staging smoke test
 };
 
-// ── A2: Collision-proof transaction ID generator ─────────────────────────
-// Uses crypto.randomUUID() when available (all modern browsers + Node 14.17+).
-// Falls back to timestamp + 128-bit random hex so IDs remain unique even if
-// two transactions are created in the same millisecond.
-//
-// Format:  txn-<timestamp_base36>-<uuid_without_dashes>   (e.g. engine path)
-//          tx-<timestamp_base36>-<uuid_without_dashes>    (e.g. account panel)
-//          rollover-<timestamp_base36>-<uuid_without_dashes>
-//
-function generateTxnId(prefix = "txn") {
-  const ts = Date.now().toString(36); // base-36 timestamp (shorter than decimal)
-  let rand;
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    // crypto.randomUUID() → "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx" → strip dashes
-    rand = crypto.randomUUID().replace(/-/g, "");
-  } else {
-    // Fallback: 4 × Math.random() → 32 hex chars
-    rand = Array.from({ length: 4 }, () =>
-      Math.floor(Math.random() * 0x100000000).toString(16).padStart(8, "0")
-    ).join("");
-  }
-  return `${prefix}-${ts}-${rand}`;
-}
-
 let currentSort = { column: 'date', direction: 'desc' };
 let allTransactions = []; // Store all transactions for filtering
 let filteredTransactions = []; // Store filtered results
@@ -675,17 +651,17 @@ async function saveAssigned(index, newValue) {
   // No change — nothing to do
   if (diff === 0) { renderBudget(monthData); return; }
 
-  // ── Negative TBB warning — stays in UI layer for both paths ─────────────
+  // ── A3: Hard block on over-assignment ───────────────────────────────────
+  // Assigning more than TBB = budgeting money you don't have. Hard stop.
   if (newTBB < 0 && diff > 0) {
-    const proceed = confirm(
-      `⚠️ WARNING: This will make your "To Be Budgeted" negative!\n\n` +
-      `Current TBB: ${formatCurrency(monthData.tbb)}\n` +
-      `Adding: ${formatCurrency(diff)}\n` +
-      `New TBB: ${formatCurrency(newTBB)}\n\n` +
-      `This means you're budgeting more money than you have.\n\n` +
-      `Do you want to continue?`
+    const maxCanAssign = (monthData.tbb || 0) + (oldValue || 0);
+    showToast(
+      `❌ Cannot assign ${formatCurrency(val)} — only ${formatCurrency(maxCanAssign)} available. ` +
+      `Add more income first, or assign a smaller amount.`,
+      "error"
     );
-    if (!proceed) { renderBudget(monthData); return; }
+    renderBudget(monthData); // resets the input field
+    return;
   }
 
   // ── Engine path (Phase 5) ────────────────────────────────────────────────
@@ -728,10 +704,6 @@ async function saveAssigned(index, newValue) {
     renderBudget(monthData);
   }
 
-  // Show warning toast if TBB went negative (runs for both paths)
-  if (newTBB < 0) {
-    showToast("⚠️ Warning: You've over-budgeted! TBB is now negative.", "error");
-  }
 }
 
   // ==== Update Budget ====
@@ -923,18 +895,16 @@ async function addCategory() {
   if (!monthData.categories)   monthData.categories = [];
   if (!monthData.transactions)  monthData.transactions = [];
 
-  // ── Negative TBB warning — stays in UI layer for both paths ─────────────
+  // ── A3: Hard block on over-assignment ───────────────────────────────────
   const newTBB = monthData.tbb - assignAmount;
   if (newTBB < 0) {
-    const proceed = confirm(
-      `⚠️ WARNING: This will make your "To Be Budgeted" negative!\n\n` +
-      `Current TBB: ${formatCurrency(monthData.tbb)}\n` +
-      `Assigning: ${formatCurrency(assignAmount)}\n` +
-      `New TBB: ${formatCurrency(newTBB)}\n\n` +
-      `This means you're budgeting more money than you have.\n\n` +
-      `Do you want to continue?`
+    showToast(
+      `❌ Cannot assign ${formatCurrency(assignAmount)} to "${name}" — ` +
+      `only ${formatCurrency(monthData.tbb || 0)} available in To Be Budgeted. ` +
+      `Add more income first, or assign a smaller amount.`,
+      "error"
     );
-    if (!proceed) return;
+    return;
   }
 
   // ── Duplicate-name check — stays in UI layer for both paths ─────────────
@@ -983,9 +953,6 @@ async function addCategory() {
   document.getElementById("categoryName").value = "";
   document.getElementById("categoryBudget").value = "";
 
-  if (newTBB < 0) {
-    showToast("⚠️ Warning: You've over-budgeted! TBB is now negative.", "error");
-  }
 }
 
 async function addTransaction() {
@@ -1050,8 +1017,8 @@ async function addTransaction() {
         monthData.categories[catIndex].assigned - monthData.categories[catIndex].spent;
     }
 
-    // Add transaction with unique ID (A2: collision-proof)
-    const transactionId = generateTxnId("txn");
+    // Add transaction with unique ID
+    const transactionId = Date.now().toString();
     monthData.transactions.push({
       id:       transactionId,
       name,
@@ -1253,13 +1220,8 @@ async function proceedWithRollover() {
   await performRollover();
 }
 
-// ── A1: Rollover with per-category carry-forward and overspent review ──────
-//
-// Manual rollover   → shows review modal for overspent categories
-// Automatic rollover → silently defaults all overspent to "cover"
-//
-// @param {boolean} isAutomatic - true when called from checkAndPerformAutomaticRollover
-async function performRollover(isAutomatic = false) {
+// Updated rollover function with tracking
+async function performRollover() {
   if (!currentUser) return;
 
   const docRef = db.collection("budget").doc(currentUser.uid);
@@ -1267,227 +1229,93 @@ async function performRollover(isAutomatic = false) {
   if (!docSnap.exists) return;
 
   const data = docSnap.data();
-  const baseMonthKey = data.currentMonth || new Date().toISOString().slice(0, 7);
+  const baseMonthKey = data.currentMonth || new Date().toISOString().slice(0,7);
 
-  // ── Load current month doc ─────────────────────────────────────────────
+  // Load current month doc
   const currentMonthDocRef = docRef.collection("months").doc(baseMonthKey);
-  const currentMonthSnap  = await currentMonthDocRef.get();
-  if (!currentMonthSnap.exists) return showToast("Current month data not found!", "error");
+  const currentMonthSnap = await currentMonthDocRef.get();
+  if (!currentMonthSnap.exists) return alert("Current month data not found!");
 
-  const currentMonthData      = currentMonthSnap.data();
-  const categories            = currentMonthData.categories || [];
-  const availableBalance      = currentMonthData.availableBalance || 0;
+  const currentMonthData = currentMonthSnap.data();
+  const categories = currentMonthData.categories || [];
+  
+// ✅ Use Available Balance instead of calculating from TBB
+  const availableBalance = currentMonthData.availableBalance || 0;
   const totalRemainingBalance = availableBalance;
 
-  // ── Save current month with a timestamp ──────────────────────────────
+  // Save current month data
   await currentMonthDocRef.set({ ...currentMonthData, savedAt: new Date().toISOString() });
 
-  // ── Compute carryForward per category ────────────────────────────────
-  const categoryRolloverData = categories.map(c => {
-    const carryForward = (c.assigned || 0) - (c.spent || 0);
-    const extras = {};
-    for (const [k, v] of Object.entries(c)) {
-      if (!["name", "assigned", "spent", "balance"].includes(k)) extras[k] = v;
-    }
-    return {
-      name:             c.name,
-      previousAssigned: c.assigned || 0,
-      previousSpent:    c.spent    || 0,
-      carryForward,
-      extras,
-    };
-  });
+  // ✅ NEW: Reset all categories to zero (don't carry forward assigned amounts)
+  const newCategories = categories.map(c => ({
+    name: c.name,
+    assigned: 0,  // ✅ Start fresh, don't carry forward
+    spent: 0,
+    balance: 0
+  }));
 
-  // ── Separate overspent categories ────────────────────────────────────
-  const overspentCategories = categoryRolloverData.filter(c => c.carryForward < 0);
-
-  // ── Resolve overspent categories ─────────────────────────────────────
-  let resolutions = {};
-
-  if (overspentCategories.length > 0) {
-    if (isAutomatic) {
-      overspentCategories.forEach(c => { resolutions[c.name] = "cover"; });
-      await db.collection("budget").doc(currentUser.uid).update({
-        pendingRolloverNotice: {
-          month:          baseMonthKey,
-          overspentCount: overspentCategories.length,
-          message:        `Automatic rollover ran for ${baseMonthKey}. ` +
-                          `${overspentCategories.length} overspent ` +
-                          `categor${overspentCategories.length === 1 ? "y was" : "ies were"} ` +
-                          `carried forward (Cover next month). Review your budget.`
-        }
-      });
-    } else {
-      resolutions = await showOverspentReviewModal(overspentCategories);
-    }
-  }
-
-  // ── Build next month categories and TBB adjustment ────────────────────
-  let tbbAdjustment = 0;
-  const rolloverLog = [];
-  const now = new Date().toISOString();
-
-  const newCategories = categoryRolloverData.map(c => {
-    let newAssigned;
-    let resolution;
-
-    if (c.carryForward >= 0) {
-      newAssigned = c.carryForward;
-      resolution  = "cover";
-    } else {
-      resolution = resolutions[c.name] || "cover";
-      if (resolution === "absorbed") {
-        newAssigned    = 0;
-        tbbAdjustment += c.carryForward;
-      } else {
-        newAssigned = c.carryForward;
-      }
-    }
-
-    rolloverLog.push({
-      categoryId:       c.name,
-      previousAssigned: c.previousAssigned,
-      previousSpent:    c.previousSpent,
-      carryForward:     c.carryForward,
-      resolution,
-      resolvedAt:       now,
-    });
-
-    return {
-      ...c.extras,
-      name:     c.name,
-      assigned: newAssigned,
-      spent:    0,
-      balance:  newAssigned,
-    };
-  });
-
-  // ── Next month key ────────────────────────────────────────────────────
+  // Compute next month key
   const [year, month] = baseMonthKey.split("-").map(Number);
   const nextMonthDate = new Date(year, month - 1, 1);
   nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
   const nextMonthKey = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, "0")}`;
 
   const rolloverDate = new Date().toISOString().slice(0, 10);
-  const nextMonthTbb = totalRemainingBalance + tbbAdjustment;
 
-  // ── Rollover transaction ──────────────────────────────────────────────
+  // ✅ Create rollover transaction showing what was carried forward
   const rolloverTransaction = {
-    id:       generateTxnId("rollover"),
-    amount:   totalRemainingBalance,
+    id: `rollover-${Date.now()}`,
+    amount: totalRemainingBalance,
     category: "BALANCE FROM LAST MONTH",
-    date:     rolloverDate,
-    name:     "ROLLOVER AMOUNT",
-    type:     "income",
-    inflow:   totalRemainingBalance,
-    outflow:  0,
+    date: rolloverDate,
+    name: "ROLLOVER AMOUNT",
+    type: "income",
+    inflow: totalRemainingBalance,
+    outflow: 0
   };
-  const transactions = totalRemainingBalance !== 0 ? [rolloverTransaction] : [];
 
-  // ── Write next month doc ──────────────────────────────────────────────
+  const transactions = totalRemainingBalance > 0 ? [rolloverTransaction] : [];
+
+  // ✅ Create next month with only the remaining balance as TBB
   const nextMonthDocRef = docRef.collection("months").doc(nextMonthKey);
   await nextMonthDocRef.set({
-    categories:   newCategories,
+    categories: newCategories,  // ✅ All categories start at zero
     transactions: transactions,
-    tbb:          nextMonthTbb,
-    currentMonth: nextMonthKey,
+    tbb: totalRemainingBalance,  // ✅ This is the ONLY money available
+    currentMonth: nextMonthKey
   });
 
-  // ── Write rollover history subcollection ─────────────────────────────
-  await db.collection("budget").doc(currentUser.uid)
-    .collection("rolloverHistory").doc(baseMonthKey)
-    .set({
-      rolledAt:      now,
-      fromMonth:     baseMonthKey,
-      toMonth:       nextMonthKey,
-      trigger:       isAutomatic ? "automatic" : "manual",
-      tbbBefore:     totalRemainingBalance,
-      tbbAfter:      nextMonthTbb,
-      tbbAdjustment,
-      categories:    rolloverLog,
-    });
-
-  // ── Update root doc and last rollover date ────────────────────────────
+  // Update main doc pointer
   await docRef.update({ currentMonth: nextMonthKey });
+  
+  // Update last rollover date
   lastRolloverDate = new Date().toISOString();
   await firebase.firestore().collection("users").doc(currentUser.uid).update({
     "rolloverSettings.lastRollover": lastRolloverDate
   });
 
-  // ── Reload UI ─────────────────────────────────────────────────────────
+  // ✅ Reload available months and navigate to new month
   await loadAvailableMonths();
+  
   currentMonthIndex = availableMonths.indexOf(nextMonthKey);
-  if (currentMonthIndex === -1) currentMonthIndex = availableMonths.length - 1;
+  if (currentMonthIndex === -1) {
+    currentMonthIndex = availableMonths.length - 1;
+  }
+  
   updateMonthDisplay();
   await loadMonthData(nextMonthKey);
 
-  // ── Summary toast ─────────────────────────────────────────────────────
-  const surplusCount = rolloverLog.filter(r => r.carryForward > 0).length;
-  const exactCount   = rolloverLog.filter(r => r.carryForward === 0).length;
-  const coverCount   = rolloverLog.filter(r => r.carryForward < 0 && r.resolution === "cover").length;
-  const absorbCount  = rolloverLog.filter(r => r.resolution === "absorbed").length;
-
-  const summaryParts = [`✅ Rollover to ${nextMonthKey} complete!`];
-  if (surplusCount) summaryParts.push(`${surplusCount} categor${surplusCount===1?"y":"ies"} carried surplus`);
-  if (exactCount)   summaryParts.push(`${exactCount} exactly spent`);
-  if (coverCount)   summaryParts.push(`${coverCount} overspent covering next month`);
-  if (absorbCount)  summaryParts.push(`${absorbCount} absorbed into TBB`);
-  if (tbbAdjustment < 0) summaryParts.push(`TBB reduced by ${formatCurrency(Math.abs(tbbAdjustment))}`);
-  showToast(summaryParts.join(" · "), "success");
-}
-
-// ── showOverspentReviewModal ──────────────────────────────────────────────
-function showOverspentReviewModal(overspentCategories) {
-  return new Promise((resolve) => {
-    const modal  = document.getElementById("overspentReviewModal");
-    const listEl = document.getElementById("overspentReviewList");
-
-    listEl.innerHTML = overspentCategories.map(c => {
-      const safeName = c.name.replace(/[^a-zA-Z0-9]/g, '_');
-      return `
-        <div class="overspent-row">
-          <div class="overspent-row-header">
-            <span class="overspent-cat-name">${c.name}</span>
-            <span class="overspent-deficit">${formatCurrency(Math.abs(c.carryForward))} overspent</span>
-          </div>
-          <div class="overspent-row-sub">
-            Assigned ${formatCurrency(c.previousAssigned)} · Spent ${formatCurrency(c.previousSpent)}
-          </div>
-          <div class="overspent-options">
-            <label class="overspent-option">
-              <input type="radio" name="res_${safeName}" value="cover" checked>
-              <span>
-                <strong>Cover next month</strong>
-                <small>Starts at ${formatCurrency(c.carryForward)} — assign money to clear it</small>
-              </span>
-            </label>
-            <label class="overspent-option">
-              <input type="radio" name="res_${safeName}" value="absorbed">
-              <span>
-                <strong>Absorb into pool</strong>
-                <small>Resets to ₱0 · TBB reduced by ${formatCurrency(Math.abs(c.carryForward))}</small>
-              </span>
-            </label>
-          </div>
-        </div>`;
-    }).join("");
-
-    function collectAndResolve() {
-      const resolutions = {};
-      overspentCategories.forEach(c => {
-        const safeName = c.name.replace(/[^a-zA-Z0-9]/g, '_');
-        const checked  = listEl.querySelector(`input[name="res_${safeName}"]:checked`);
-        resolutions[c.name] = (checked && checked.value === "absorbed") ? "absorbed" : "cover";
-      });
-      modal.style.display = "none";
-      resolve(resolutions);
-    }
-
-    document.getElementById("overspentReviewConfirmBtn").onclick = collectAndResolve;
-    document.getElementById("overspentReviewCloseBtn").onclick   = collectAndResolve;
-    modal.onclick = function(e) { if (e.target === this) collectAndResolve(); };
-    modal.style.display = "flex";
-  });
+alert(
+    `✅ Rollover complete!\n\n` +
+    `Previous Month:\n` +
+    `- Available Balance: ${formatCurrency(availableBalance)}\n\n` +
+    `New Month (${nextMonthKey}):\n` +
+    `- Starting TBB: ${formatCurrency(totalRemainingBalance)}\n` +
+    `- All Categories Reset: ${formatCurrency(0)}\n\n` +
+    `You can now assign this money to your categories!`
+  );
+  
+  showToast("Rollover completed successfully!", "success");
 }
 
 // Setup automatic rollover checking
@@ -1531,8 +1359,8 @@ async function checkAndPerformAutomaticRollover(rolloverDay) {
     }
   }
   
-  // Perform automatic rollover (silent — no review modal, defaults to "cover")
-  await performRollover(true);
+  // Perform automatic rollover
+  await performRollover();
 }
 
 // ✅ Load ALL months into filter (dynamic, works with rollover)
@@ -2293,7 +2121,7 @@ async function openTransactionPanel(index) {
     let data      = docSnap.exists ? docSnap.data() : null;
     if (!data) return;
 
-    const transactionId  = generateTxnId("tx");  // A2: collision-proof ID
+    const transactionId  = `tx-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const sourceAccount  = data.accounts[transactionAccountIndex];
     const currentMonth   = availableMonths[currentMonthIndex] || data.currentMonth || new Date().toISOString().slice(0, 7);
 
