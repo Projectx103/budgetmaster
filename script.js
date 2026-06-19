@@ -138,6 +138,30 @@ const FEATURE_FLAGS = {
   engineOwnsAvailableBalance:  true,  // Phase 8 — set true after staging smoke test
 };
 
+// ── A2: Collision-proof transaction ID generator ─────────────────────────
+// Uses crypto.randomUUID() when available (all modern browsers + Node 14.17+).
+// Falls back to timestamp + 128-bit random hex so IDs remain unique even if
+// two transactions are created in the same millisecond.
+//
+// Format:  txn-<timestamp_base36>-<uuid_without_dashes>   (e.g. engine path)
+//          tx-<timestamp_base36>-<uuid_without_dashes>    (e.g. account panel)
+//          rollover-<timestamp_base36>-<uuid_without_dashes>
+//
+function generateTxnId(prefix = "txn") {
+  const ts = Date.now().toString(36); // base-36 timestamp (shorter than decimal)
+  let rand;
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    // crypto.randomUUID() → "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx" → strip dashes
+    rand = crypto.randomUUID().replace(/-/g, "");
+  } else {
+    // Fallback: 4 × Math.random() → 32 hex chars
+    rand = Array.from({ length: 4 }, () =>
+      Math.floor(Math.random() * 0x100000000).toString(16).padStart(8, "0")
+    ).join("");
+  }
+  return `${prefix}-${ts}-${rand}`;
+}
+
 let currentSort = { column: 'date', direction: 'desc' };
 let allTransactions = []; // Store all transactions for filtering
 let filteredTransactions = []; // Store filtered results
@@ -1026,8 +1050,8 @@ async function addTransaction() {
         monthData.categories[catIndex].assigned - monthData.categories[catIndex].spent;
     }
 
-    // Add transaction with unique ID
-    const transactionId = Date.now().toString();
+    // Add transaction with unique ID (A2: collision-proof)
+    const transactionId = generateTxnId("txn");
     monthData.transactions.push({
       id:       transactionId,
       name,
@@ -1349,7 +1373,7 @@ async function performRollover(isAutomatic = false) {
 
   // ── Rollover transaction ──────────────────────────────────────────────
   const rolloverTransaction = {
-    id:       `rollover-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    id:       generateTxnId("rollover"),
     amount:   totalRemainingBalance,
     category: "BALANCE FROM LAST MONTH",
     date:     rolloverDate,
@@ -2269,7 +2293,7 @@ async function openTransactionPanel(index) {
     let data      = docSnap.exists ? docSnap.data() : null;
     if (!data) return;
 
-    const transactionId  = `tx-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const transactionId  = generateTxnId("tx");  // A2: collision-proof ID
     const sourceAccount  = data.accounts[transactionAccountIndex];
     const currentMonth   = availableMonths[currentMonthIndex] || data.currentMonth || new Date().toISOString().slice(0, 7);
 
