@@ -5776,9 +5776,12 @@ function createGoalCard(goal) {
       }
 
       init() {
-        // Load saved theme
-        const savedTheme = localStorage.getItem('budgetmaster-theme') || 'classic';
-        this.setTheme(savedTheme);
+        // A4: Apply localStorage theme instantly (no lag while Firestore loads)
+        const localTheme = localStorage.getItem('budgetmaster-theme') || 'classic';
+        this.setTheme(localTheme);
+
+        // A4: Then sync from Firestore (authoritative) in background
+        this.loadThemeFromFirestore();
 
         // Event listeners
         this.themeToggle.addEventListener('click', (e) => {
@@ -5833,11 +5836,38 @@ function createGoalCard(goal) {
         this.updateThemeDisplay();
         this.updateActiveOption();
         
-        // Save theme preference
+        // A4: Save to localStorage (instant) + Firestore (persistent across devices)
         localStorage.setItem('budgetmaster-theme', theme);
-        
+        this.saveThemeToFirestore(theme);
+
         // Emit theme change event for other parts of the app
         window.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme } }));
+      }
+
+      // A4: Load theme from Firestore and sync to localStorage
+      async loadThemeFromFirestore() {
+        if (!currentUser) return;
+        try {
+          const snap = await db.collection("users").doc(currentUser.uid).get();
+          if (!snap.exists) return;
+          const savedTheme = snap.data().theme;
+          if (savedTheme && savedTheme !== localStorage.getItem('budgetmaster-theme')) {
+            // Firestore has a different theme — apply it
+            localStorage.setItem('budgetmaster-theme', savedTheme);
+            this.setTheme(savedTheme);
+          }
+        } catch (err) {
+          console.warn("[A4] Could not load theme from Firestore:", err);
+          // Graceful fallback — localStorage theme already applied
+        }
+      }
+
+      // A4: Save theme to Firestore (fire-and-forget)
+      saveThemeToFirestore(theme) {
+        if (!currentUser) return;
+        db.collection("users").doc(currentUser.uid)
+          .update({ theme })
+          .catch(err => console.warn("[A4] Failed to save theme to Firestore:", err));
       }
 
       updateThemeDisplay() {
