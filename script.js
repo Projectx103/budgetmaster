@@ -759,6 +759,10 @@ auth.onAuthStateChanged(async (user) => {
       await loadAccounts();
       await loadRolloverSettings();
       await loadGoals();
+      // A4: load category colors from Firestore and sync to localStorage
+      if (typeof loadCatColorsFromFirestore === "function") {
+        await loadCatColorsFromFirestore();
+      }
     } else {
       alert("Your account is not yet approved.");
       await auth.signOut();
@@ -6399,12 +6403,11 @@ function openModal(id) {
     closeCatColorModal();
   };
 
+  // ── A4: applyColor — writes to localStorage (instant) + Firestore (persistent) ──
   function applyColor(bg, text, index, name, all) {
-    // Persist in localStorage keyed by category name
     const store = JSON.parse(localStorage.getItem('catColors') || '{}');
 
     if (all) {
-      // Apply same color to every visible card
       document.querySelectorAll('.budget-item').forEach(card => {
         const n = card.dataset.catName;
         if (bg) {
@@ -6420,7 +6423,6 @@ function openModal(id) {
           delete card.dataset.catText;
           if (n) delete store[n];
         }
-        // Recolor nested text elements that have explicit inline colors
         recolorInnerText(card, text, bg);
       });
     } else {
@@ -6441,7 +6443,21 @@ function openModal(id) {
       }
       recolorInnerText(card, text, bg);
     }
+
+    // 1. Write to localStorage immediately (keeps UI snappy)
     localStorage.setItem('catColors', JSON.stringify(store));
+
+    // 2. Write to Firestore in the background (survives cache clear + works on any device)
+    saveCatColorsToFirestore(store);
+  }
+
+  // Persist the full color store to Firestore under budget/{uid}.catColors
+  // Fire-and-forget — UI never waits for this
+  function saveCatColorsToFirestore(store) {
+    if (!currentUser) return;
+    db.collection("budget").doc(currentUser.uid)
+      .update({ catColors: store })
+      .catch(err => console.warn("[A4] Failed to save cat colors to Firestore:", err));
   }
 
   // Recolor inner spans whose colors are set via style (balance colors)
@@ -6460,7 +6476,9 @@ function openModal(id) {
     card.querySelectorAll('.assigned-value').forEach(el => { el.style.color = textColor; });
   }
 
-  // --- Restore saved colors after renderCategories rebuilds DOM ---
+  // ── A4: restoreSavedColors — applies colors from localStorage (instant) ──
+  // Firestore is the source of truth; localStorage is the local cache.
+  // loadCatColorsFromFirestore() syncs them once on login.
   function restoreSavedColors() {
     const store = JSON.parse(localStorage.getItem('catColors') || '{}');
     document.querySelectorAll('.budget-item').forEach(card => {
@@ -6475,6 +6493,27 @@ function openModal(id) {
       }
     });
   }
+
+  // ── A4: Load colors from Firestore on login, sync to localStorage ────────
+  // Called once after auth resolves. After sync, restoreSavedColors() picks
+  // up the fresh data automatically on every renderCategories() call.
+  window.loadCatColorsFromFirestore = async function() {
+    if (!currentUser) return;
+    try {
+      const snap = await db.collection("budget").doc(currentUser.uid).get();
+      if (!snap.exists) return;
+      const data = snap.data();
+      if (data.catColors && typeof data.catColors === "object") {
+        // Firestore is authoritative — overwrite localStorage with it
+        localStorage.setItem('catColors', JSON.stringify(data.catColors));
+        // Re-apply immediately if categories are already rendered
+        restoreSavedColors();
+      }
+    } catch (err) {
+      console.warn("[A4] Could not load cat colors from Firestore:", err);
+      // Graceful fallback — localStorage colors still apply
+    }
+  };
 
   // Patch renderCategories to attach click handlers + restore colors
   const _origRenderCategories = window.renderCategories;
