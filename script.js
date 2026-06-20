@@ -3357,6 +3357,20 @@ function _createDialogOverlay() {
 
 
 
+// ── A2: Collision-proof transaction ID (needed by Onboarding and engine paths)
+function generateTxnId(prefix = "txn") {
+  const ts = Date.now().toString(36);
+  let rand;
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    rand = crypto.randomUUID().replace(/-/g, "");
+  } else {
+    rand = Array.from({ length: 4 }, () =>
+      Math.floor(Math.random() * 0x100000000).toString(16).padStart(8, "0")
+    ).join("");
+  }
+  return `${prefix}-${ts}-${rand}`;
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // ONBOARDING WIZARD v2 — 2 steps: Categories → Income
 // Accounts setup handled separately via AccountsPrompt banner.
@@ -3443,12 +3457,12 @@ const Onboarding = (() => {
 
   function _updateHeader(step) {
     const cfg = {
-      1: { eyebrow:"Step 1 of 2 — Budget Categories",
+      1: { eyebrow:"Step 1 of 2 — Monthly Income",
+           title:"Add your <span>income</span>",
+           sub:"Tell BudgetMaster what you earn this month so it can calculate how much you have to assign." },
+      2: { eyebrow:"Step 2 of 2 — Budget Categories",
            title:"Create your <span>budget envelopes</span>",
-           sub:"Add categories for your spending. You can always edit these later." },
-      2: { eyebrow:"Step 2 of 2 — Monthly Income",
-           title:"Add your <span>income sources</span>",
-           sub:"Tell BudgetMaster what you earn so it knows how much you have to assign." },
+           sub:"Add categories for your spending — Groceries, Rent, Transport, etc. You can always add more later." },
     };
     const c = cfg[step];
     const ey = document.getElementById("ob-eyebrow");
@@ -3462,28 +3476,11 @@ const Onboarding = (() => {
   function _updateBody(step) {
     const body = document.getElementById("ob-body");
     if (!body) return;
-    body.innerHTML = step === 1 ? _step1HTML() : _step2HTML();
+    body.innerHTML = step === 1 ? _stepIncomeHTML() : _stepCategoriesHTML();
   }
 
-  function _step1HTML() {
-    const chips = ["Groceries","Rent","Transport","Utilities","Dining Out","Entertainment","Savings","Healthcare","Education","Personal Care"]
-      .map(s => '<button type="button" class="ob-chip" data-chip="' + _esc(s) + '">' + _esc(s) + "</button>").join("");
-    return '<div class="ob-quick-add"><div class="ob-section-label">Quick add</div>'
-      + '<div class="ob-chips" id="ob-chips">' + chips + "</div></div>"
-      + '<div id="ob-cat-list" class="ob-item-list"></div>'
-      + '<div class="ob-input-row">'
-      + '<div class="ob-field"><label for="ob-cat-name">Category name</label>'
-      + '<input id="ob-cat-name" type="text" placeholder="e.g. Groceries" maxlength="40" autocomplete="off">'
-      + '<span class="ob-field-error" id="ob-cat-name-err" style="display:none"></span></div>'
-      + '<div class="ob-field ob-field-narrow"><label for="ob-cat-budget">Monthly budget <span class="ob-optional">(optional)</span></label>'
-      + '<input id="ob-cat-budget" type="number" min="0" placeholder="0.00" step="0.01">'
-      + '<span class="ob-field-error" id="ob-cat-budget-err" style="display:none"></span></div>'
-      + '<button type="button" class="ob-inline-add" id="ob-cat-add" aria-label="Add">+'
-      + "</button></div>"
-      + '<span class="ob-field-error" id="ob-step1-err" style="display:none;margin-top:4px"></span>';
-  }
-
-  function _step2HTML() {
+  // Step 1: Income
+  function _stepIncomeHTML() {
     return '<div id="ob-income-list" class="ob-item-list"></div>'
       + '<div class="ob-input-row">'
       + '<div class="ob-field"><label for="ob-income-name">Income source</label>'
@@ -3492,7 +3489,27 @@ const Onboarding = (() => {
       + '<div class="ob-field ob-field-narrow"><label for="ob-income-amount">Amount</label>'
       + '<input id="ob-income-amount" type="number" min="0.01" placeholder="0.00" step="0.01">'
       + '<span class="ob-field-error" id="ob-income-amount-err" style="display:none"></span></div>'
-      + '<button type="button" class="ob-inline-add" id="ob-income-add" aria-label="Add">+'
+      + '<button type="button" class="ob-inline-add" id="ob-income-add" aria-label="Add income">+'
+      + "</button></div>"
+      + '<span class="ob-field-error" id="ob-step1-err" style="display:none;margin-top:4px"></span>';
+  }
+
+  // Step 2: Categories — chips + manual entry + budget allocation per chip
+  function _stepCategoriesHTML() {
+    const chips = ["Groceries","Rent","Transport","Utilities","Dining Out","Entertainment","Savings","Healthcare","Education","Personal Care"]
+      .map(s => '<button type="button" class="ob-chip" data-chip="' + _esc(s) + '">' + _esc(s) + "</button>").join("");
+    return '<div class="ob-quick-add">'
+      + '<div class="ob-section-label">Quick add — tap to add, then set a budget amount in the list below</div>'
+      + '<div class="ob-chips" id="ob-chips">' + chips + "</div></div>"
+      + '<div id="ob-cat-list" class="ob-item-list"></div>'
+      + '<div class="ob-input-row">'
+      + '<div class="ob-field"><label for="ob-cat-name">Custom category</label>'
+      + '<input id="ob-cat-name" type="text" placeholder="e.g. Pet Care" maxlength="40" autocomplete="off">'
+      + '<span class="ob-field-error" id="ob-cat-name-err" style="display:none"></span></div>'
+      + '<div class="ob-field ob-field-narrow"><label for="ob-cat-budget">Budget <span class="ob-optional">(optional)</span></label>'
+      + '<input id="ob-cat-budget" type="number" min="0" placeholder="0.00" step="0.01">'
+      + '<span class="ob-field-error" id="ob-cat-budget-err" style="display:none"></span></div>'
+      + '<button type="button" class="ob-inline-add" id="ob-cat-add" aria-label="Add category">+'
       + "</button></div>"
       + '<span class="ob-field-error" id="ob-step2-err" style="display:none;margin-top:4px"></span>';
   }
@@ -3513,18 +3530,20 @@ const Onboarding = (() => {
 
   function _wireInputs(step) {
     if (step === 1) {
+      // Income step
+      const addBtn = document.getElementById("ob-income-add");
+      const amtEl  = document.getElementById("ob-income-amount");
+      if (addBtn) addBtn.addEventListener("click", _addIncome);
+      if (amtEl)  amtEl.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); _addIncome(); } });
+    }
+    if (step === 2) {
+      // Categories step
       document.querySelectorAll(".ob-chip").forEach(btn =>
         btn.addEventListener("click", () => _addCategoryChip(btn.dataset.chip)));
       const addBtn = document.getElementById("ob-cat-add");
       const nameEl = document.getElementById("ob-cat-name");
       if (addBtn) addBtn.addEventListener("click", _addCategory);
       if (nameEl) nameEl.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); _addCategory(); } });
-    }
-    if (step === 2) {
-      const addBtn = document.getElementById("ob-income-add");
-      const amtEl  = document.getElementById("ob-income-amount");
-      if (addBtn) addBtn.addEventListener("click", _addIncome);
-      if (amtEl)  amtEl.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); _addIncome(); } });
     }
     const back = document.getElementById("ob-back-btn");
     const skip = document.getElementById("ob-skip-btn");
@@ -3535,21 +3554,36 @@ const Onboarding = (() => {
   }
 
   function _renderList(step) {
-    if (step === 1) _renderCatList();
-    if (step === 2) _renderIncList();
+    if (step === 1) _renderIncList();
+    if (step === 2) _renderCatList();
   }
 
   function _renderCatList() {
     const list = document.getElementById("ob-cat-list");
     if (!list) return;
-    list.innerHTML = wizardState.categories.map((c, i) =>
-      '<div class="ob-item">'
-      + '<div class="ob-item-icon">📂</div>'
-      + '<div class="ob-item-info"><div class="ob-item-name">' + _esc(c.name) + "</div>"
-      + '<div class="ob-item-sub">' + (c.budget > 0 ? "Budget: " + formatCurrency(c.budget) : "No budget set") + "</div></div>"
-      + '<button type="button" class="ob-item-remove" onclick="Onboarding._removeItem(&quot;categories&quot;,' + i + ')">\u00d7</button>'
-      + "</div>"
-    ).join("");
+    if (wizardState.categories.length === 0) { list.innerHTML = ""; return; }
+    list.innerHTML = wizardState.categories.map((c, i) => {
+      const budgetVal = c.budget > 0 ? c.budget : "";
+      return '<div class="ob-item ob-item-cat">'
+        + '<div class="ob-item-icon">\uD83D\uDCC2</div>'
+        + '<div class="ob-item-info">'
+        + '<div class="ob-item-name">' + _esc(c.name) + '</div>'
+        + '<div class="ob-item-budget-row">'
+        + '<span class="ob-item-budget-label">Budget:</span>'
+        + '<input type="number" min="0" step="0.01" placeholder="0.00"'
+        + ' class="ob-item-budget-input"'
+        + ' value="' + budgetVal + '"'
+        + ' onchange="Onboarding._updateBudget(' + i + ',this.value)"'
+        + ' oninput="Onboarding._updateBudget(' + i + ',this.value)"'
+        + ' aria-label="Monthly budget for ' + _esc(c.name) + '">'
+        + '<span class="ob-item-budget-hint">/&nbsp;month</span>'
+        + '</div>'
+        + '</div>'
+        + '<button type="button" class="ob-item-remove"'
+        + ' onclick="Onboarding._removeItem(&quot;categories&quot;,' + i + ')"'
+        + ' aria-label="Remove ' + _esc(c.name) + '">×</button>'
+        + '</div>';
+    }).join("");
   }
 
   function _renderIncList() {
@@ -3616,6 +3650,14 @@ const Onboarding = (() => {
     _renderList(wizardState.step);
   }
 
+  function _updateBudget(index, value) {
+    const amt = parseFloat(value);
+    if (wizardState.categories[index] !== undefined) {
+      wizardState.categories[index].budget = (!isNaN(amt) && amt >= 0) ? amt : 0;
+    }
+    // No re-render — input is live-edited in place
+  }
+
   function _handleBack() { if (wizardState.step > 1) _renderStep(wizardState.step - 1); }
   function _handleSkip() {
     if (wizardState.step < TOTAL_STEPS) _renderStep(wizardState.step + 1);
@@ -3623,11 +3665,11 @@ const Onboarding = (() => {
   }
   function _handleNext() {
     _clearErrors();
-    if (wizardState.step === 1 && wizardState.categories.length === 0) {
-      _setError("ob-step1-err","Add at least one category, or tap \"Skip step\" to continue."); return;
+    if (wizardState.step === 1 && wizardState.income.length === 0) {
+      _setError("ob-step1-err","Add at least one income source, or tap \"Skip step\" to continue."); return;
     }
-    if (wizardState.step === 2 && wizardState.income.length === 0) {
-      _setError("ob-step2-err","Add at least one income source, or tap \"Skip step\" to finish."); return;
+    if (wizardState.step === 2 && wizardState.categories.length === 0) {
+      _setError("ob-step2-err","Add at least one category, or tap \"Skip step\" to finish."); return;
     }
     if (wizardState.step < TOTAL_STEPS) _renderStep(wizardState.step + 1);
     else _finish();
@@ -3703,7 +3745,7 @@ const Onboarding = (() => {
     }
   }
 
-  return { checkAndShow, _removeItem, _addCategoryChip: _addCategoryChip };
+  return { checkAndShow, _removeItem, _updateBudget, _addCategoryChip: _addCategoryChip };
 })();
 
 // ════════════════════════════════════════════════════════════════════════════
