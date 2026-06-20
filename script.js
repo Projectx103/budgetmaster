@@ -187,6 +187,12 @@ let filteredTransactions = []; // Store filtered results
       const profileTab = document.querySelector('.settings-sidebar li[data-section="profileSection"]');
       if (profileTab) profileTab.click();
     }
+
+    // Launch accounts tour on first visit to Accounts section
+    if (targetId === "accounts" && currentUser && typeof AccountsTour !== "undefined") {
+      // Small delay so the section is fully visible before tour positions tooltips
+      setTimeout(() => AccountsTour.checkAndStart(), 400);
+    }
   });
 });
   });
@@ -1788,17 +1794,12 @@ document.getElementById("account-type").addEventListener("change", (e) => {
 // Open modal for Add or Edit
 document.getElementById("add-account-btn").addEventListener("click", () => {
   editingIndex = null;
-  document.getElementById("account-modal-title").innerText = "Add Account";
-  document.getElementById("account-type").value = "checking";
-  document.getElementById("account-name").value = "";
-  document.getElementById("account-balance").value = "";
-  document.getElementById("account-notes").value = "";
-  document.getElementById("account-credit-limit").value = "";
-  document.getElementById("account-due-date").value = "";
-  document.getElementById("credit-card-fields").style.display = "none";
-  document.getElementById("account-balance-label").textContent = "Current Balance";
-  document.getElementById("balance-hint").textContent = "Enter the current balance of this account";
-  document.getElementById("balance-hint").style.color = "var(--text-light)";
+  // resetAccountModal clears all fields, errors, type grid, char counter, CC fields
+  if (typeof resetAccountModal === "function") resetAccountModal();
+  const titleEl  = document.getElementById("account-modal-title");
+  const eyebrowEl = document.getElementById("account-modal-eyebrow");
+  if (titleEl)   titleEl.innerText   = "Add Account";
+  if (eyebrowEl) eyebrowEl.textContent = "New account";
   openModal("account-modal");
 });
 
@@ -1808,37 +1809,28 @@ async function editAccount(index) {
   if (!account) return;
 
   editingIndex = index;
-  document.getElementById("account-modal-title").innerText = "Edit Account";
-  document.getElementById("account-type").value = account.type || "checking";
-  document.getElementById("account-name").value = account.name;
+  if (typeof resetAccountModal === "function") resetAccountModal();
+
+  const titleEl   = document.getElementById("account-modal-title");
+  const eyebrowEl = document.getElementById("account-modal-eyebrow");
+  if (titleEl)   titleEl.innerText    = "Edit Account";
+  if (eyebrowEl) eyebrowEl.textContent = "Editing account";
+
+  document.getElementById("account-type").value    = account.type || "checking";
+  document.getElementById("account-name").value    = account.name;
   document.getElementById("account-balance").value = Math.abs(account.balance || 0);
-  document.getElementById("account-notes").value = account.notes || "";
+  document.getElementById("account-notes").value   = account.notes || "";
   document.getElementById("account-credit-limit").value = account.creditLimit || "";
-  document.getElementById("account-due-date").value = account.dueDay || "";
-  
-  // Update hint based on type
-  const typeInfo = ACCOUNT_TYPES[account.type];
-  const hint = document.getElementById("balance-hint");
-  const balLabel = document.getElementById("account-balance-label");
-  const ccFields = document.getElementById("credit-card-fields");
-  
-  if (account.type === 'credit-card') {
-    hint.textContent = "Enter current amount owed";
-    hint.style.color = "var(--ynab-red)";
-    balLabel.textContent = "Current Amount Owed";
-    ccFields.style.display = "block";
-  } else if (typeInfo && typeInfo.category === 'liability') {
-    hint.textContent = "For debts, enter as positive number (e.g., 5000 for ₱5,000 owed)";
-    hint.style.color = "var(--ynab-red)";
-    balLabel.textContent = "Current Balance";
-    ccFields.style.display = "none";
-  } else {
-    hint.textContent = "Enter the current balance of this account";
-    hint.style.color = "var(--text-light)";
-    balLabel.textContent = "Current Balance";
-    ccFields.style.display = "none";
-  }
-  
+  document.getElementById("account-due-date").value     = account.dueDay || "";
+
+  // Sync segmented control to match the account type
+  if (typeof syncAccountTypeGrid === "function") syncAccountTypeGrid(account.type || "checking");
+
+  // Update char counter
+  const nameEl  = document.getElementById("account-name");
+  const counter = document.getElementById("acct-name-count");
+  if (nameEl && counter) counter.textContent = `${nameEl.value.length} / 40`;
+
   openModal("account-modal");
 }
 
@@ -1851,6 +1843,9 @@ document.getElementById("save-account-btn").addEventListener("click", async () =
   const creditLimitRaw = document.getElementById("account-credit-limit").value;
   const dueDayRaw = document.getElementById("account-due-date").value;
   
+  // Use inline modal validation (shows errors inside the modal, not toast)
+  if (typeof validateAccountModal === "function" && !validateAccountModal()) return;
+
   if (!type) { showToast("Please select an account type.", "error"); return; }
   if (!name) { showToast("Please enter an account name.", "error"); return; }
   if (isNaN(balance)) { showToast("Please enter a valid balance.", "error"); return; }
@@ -3789,9 +3784,13 @@ const AccountsPrompt = (() => {
       + '<button type="button" class="acct-prompt-dismiss" id="acct-prompt-dismiss-btn">Not now</button>'
       + '</div></div>';
     document.getElementById("acct-prompt-add-btn").addEventListener("click", () => {
+      // Same flow as clicking "Add Account" button
+      if (typeof resetAccountModal === "function") resetAccountModal();
+      const titleEl   = document.getElementById("account-modal-title");
+      const eyebrowEl = document.getElementById("account-modal-eyebrow");
+      if (titleEl)   titleEl.innerText    = "Add Account";
+      if (eyebrowEl) eyebrowEl.textContent = "New account";
       openModal("account-modal");
-      const titleEl = document.getElementById("account-modal-title");
-      if (titleEl) titleEl.innerText = "Add Account";
     });
     document.getElementById("acct-prompt-dismiss-btn").addEventListener("click", _dismiss);
   }
@@ -3815,6 +3814,262 @@ const AccountsPrompt = (() => {
   }
 
   return { checkAndRender, syncWithAccounts };
+})();
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// FEATURE 2 — Account Modal: segmented type control + inline validation
+// ════════════════════════════════════════════════════════════════════════════
+
+(function initAccountModal() {
+
+  function _wireTypeGrid() {
+    const grid = document.getElementById("acct-type-grid");
+    if (!grid) return;
+    grid.querySelectorAll(".acct-type-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        grid.querySelectorAll(".acct-type-btn").forEach(b => {
+          b.classList.remove("selected");
+          b.setAttribute("aria-checked", "false");
+        });
+        btn.classList.add("selected");
+        btn.setAttribute("aria-checked", "true");
+        const val = btn.dataset.value;
+        const sel = document.getElementById("account-type");
+        if (sel) sel.value = val;
+        const cc = document.getElementById("credit-card-fields");
+        if (cc) cc.style.display = val === "credit-card" ? "block" : "none";
+        const balLabel = document.getElementById("account-balance-label");
+        const hint     = document.getElementById("balance-hint");
+        const isLiab   = ["credit-card","loan","mortgage","line-of-credit","other-liability"].includes(val);
+        if (balLabel) balLabel.textContent = val === "credit-card" ? "Current amount owed" : isLiab ? "Current balance owed" : "Starting balance";
+        if (hint) hint.textContent = val === "credit-card" ? "Enter how much you currently owe on this card" : isLiab ? "Enter as a positive number — e.g. 5000 for ₱5,000 owed" : "Enter your current balance (leave blank for 0)";
+        _hideErr("acct-type-err");
+      });
+    });
+  }
+
+  function _wireNameCounter() {
+    const input   = document.getElementById("account-name");
+    const counter = document.getElementById("acct-name-count");
+    if (!input || !counter) return;
+    input.addEventListener("input", () => {
+      const len = input.value.length;
+      counter.textContent = `${len} / 40`;
+      counter.style.color = len >= 36 ? "#ef4444" : "#94a3b8";
+    });
+  }
+
+  function _updateCurrencyPrefix() {
+    const el = document.getElementById("acct-currency-prefix");
+    if (!el) return;
+    const symbols = { PHP:"₱", USD:"$", JPY:"¥", EUR:"€", GBP:"£" };
+    el.textContent = symbols[window.userCurrency] || "₱";
+  }
+
+  function _showErr(id, msg) { const el = document.getElementById(id); if (!el) return; el.textContent = msg; el.style.display = "block"; }
+  function _hideErr(id)      { const el = document.getElementById(id); if (!el) return; el.textContent = ""; el.style.display = "none"; }
+  function _clearAllErrs()   { ["acct-type-err","acct-name-err","acct-balance-err"].forEach(_hideErr); }
+
+  window.validateAccountModal = function() {
+    _clearAllErrs();
+    const type    = document.getElementById("account-type").value;
+    const name    = (document.getElementById("account-name").value || "").trim();
+    const balance = document.getElementById("account-balance").value;
+    let ok = true;
+    if (!type) { _showErr("acct-type-err","Please select an account type."); ok = false; }
+    if (!name) { _showErr("acct-name-err","Account name is required."); if (ok) document.getElementById("account-name").focus(); ok = false; }
+    else if (name.length > 40) { _showErr("acct-name-err","Max 40 characters."); ok = false; }
+    if (balance !== "" && isNaN(parseFloat(balance))) { _showErr("acct-balance-err","Enter a valid number."); ok = false; }
+    return ok;
+  };
+
+  window.syncAccountTypeGrid = function(value) {
+    const grid = document.getElementById("acct-type-grid");
+    if (!grid) return;
+    grid.querySelectorAll(".acct-type-btn").forEach(btn => {
+      const match = btn.dataset.value === value;
+      btn.classList.toggle("selected", match);
+      btn.setAttribute("aria-checked", match ? "true" : "false");
+    });
+    const cc = document.getElementById("credit-card-fields");
+    if (cc) cc.style.display = value === "credit-card" ? "block" : "none";
+  };
+
+  window.resetAccountModal = function() {
+    _clearAllErrs();
+    const grid = document.getElementById("acct-type-grid");
+    if (grid) grid.querySelectorAll(".acct-type-btn").forEach(b => { b.classList.remove("selected"); b.setAttribute("aria-checked","false"); });
+    ["account-type","account-name","account-balance","account-notes","account-credit-limit","account-due-date"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.tagName === "SELECT" ? (el.selectedIndex = 0) : (el.value = ""); }
+    });
+    const counter = document.getElementById("acct-name-count");
+    if (counter) counter.textContent = "0 / 40";
+    const cc = document.getElementById("credit-card-fields");
+    if (cc) cc.style.display = "none";
+    const balLabel = document.getElementById("account-balance-label");
+    if (balLabel) balLabel.textContent = "Starting balance";
+    const hint = document.getElementById("balance-hint");
+    if (hint) hint.textContent = "Enter your current balance (leave blank for 0)";
+    _updateCurrencyPrefix();
+  };
+
+  document.addEventListener("DOMContentLoaded", () => {
+    _wireTypeGrid();
+    _wireNameCounter();
+    _updateCurrencyPrefix();
+  });
+})();
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// FEATURE 1 — Accounts Tooltip Tour
+// ════════════════════════════════════════════════════════════════════════════
+
+const AccountsTour = (() => {
+  const TOTAL = 8;
+  const STEPS = [
+    { sel: () => document.getElementById("add-account-btn"),
+      title: "Add your first account",
+      body: "Tap here to add a bank account, cash wallet, GCash, Maya, or credit card." },
+    { sel: () => document.querySelector(".nw-cell:nth-child(1)"),
+      title: "Total assets",
+      body: "The total value of all your asset accounts — savings, cash, and e-wallets." },
+    { sel: () => document.querySelector(".nw-cell:nth-child(2)"),
+      title: "Total liabilities",
+      body: "The total amount you owe across credit cards, loans, and other debts." },
+    { sel: () => document.querySelector(".nw-cell:nth-child(3)"),
+      title: "Net worth",
+      body: "Assets minus Liabilities. The single most important number in your financial life." },
+    { sel: () => document.querySelector('.txn-pop-tab[data-type="deposit"]'),
+      fb:   () => document.querySelector(".txn-pop-tabs"),
+      title: "Deposit",
+      body: "Record money coming into this account — salary, transfers in, or cash top-ups." },
+    { sel: () => document.querySelector('.txn-pop-tab[data-type="withdrawal"]'),
+      fb:   () => document.querySelector(".txn-pop-tabs"),
+      title: "Withdrawal",
+      body: "Record money leaving this account — ATM withdrawals or cash out." },
+    { sel: () => document.querySelector('.txn-pop-tab[data-type="expense"]') || document.querySelector('.txn-pop-tab[data-type="pay"]'),
+      fb:   () => document.querySelector(".txn-pop-tabs"),
+      title: "Pay / Expense",
+      body: "Log a purchase or bill payment charged to this account." },
+    { sel: () => document.querySelector('.txn-pop-tab[data-type="transfer"]'),
+      fb:   () => document.querySelector(".txn-pop-tabs"),
+      title: "Transfer",
+      body: "Move money between your own accounts — e.g. Savings to GCash." },
+  ];
+
+  let _step = 0, _on = false;
+  let _ov, _hl, _tt;
+
+  async function _readState() {
+    if (!currentUser) return { done: false, step: 0 };
+    try {
+      const s = await db.collection("users").doc(currentUser.uid).get();
+      const d = s.exists ? s.data() : {};
+      return { done: !!d.accountsTourComplete, step: d.accountsTourStep || 0 };
+    } catch(_) { return { done: false, step: 0 }; }
+  }
+  async function _saveStep(n) {
+    if (!currentUser) return;
+    try { await db.collection("users").doc(currentUser.uid).set({ accountsTourStep: n }, { merge: true }); } catch(_) {}
+  }
+  async function _markDone() {
+    if (!currentUser) return;
+    try { await db.collection("users").doc(currentUser.uid).set({ accountsTourComplete: true, accountsTourStep: TOTAL }, { merge: true }); } catch(_) {}
+  }
+
+  async function checkAndStart() {
+    const st = await _readState();
+    if (st.done) return;
+    _step = Math.min(st.step, TOTAL - 1);
+    _boot();
+  }
+
+  function _boot() {
+    if (_on) return;
+    _on = true;
+    _ov = document.getElementById("tour-overlay");
+    _hl = document.getElementById("tour-highlight");
+    _tt = document.getElementById("tour-tooltip");
+    if (!_ov) return;
+    _ov.style.display = "block";
+    _wire();
+    _go(_step);
+  }
+
+  function _stop() {
+    _on = false;
+    if (_ov) _ov.style.display = "none";
+    _ov = _hl = _tt = null;
+  }
+
+  function _wire() {
+    ["tour-next-btn","tour-back-btn","tour-skip-btn"].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const clone = el.cloneNode(true); el.replaceWith(clone);
+    });
+    document.getElementById("tour-next-btn")?.addEventListener("click", _next);
+    document.getElementById("tour-back-btn")?.addEventListener("click", _back);
+    document.getElementById("tour-skip-btn")?.addEventListener("click", _skip);
+  }
+
+  async function _next() {
+    await _saveStep(_step + 1);
+    if (_step >= TOTAL - 1) { await _markDone(); _stop(); showToast("Tour complete! You know your way around. 🎉","success"); }
+    else { _step++; _go(_step); }
+  }
+  function _back() { if (_step > 0) { _step--; _go(_step); } }
+  function _skip() { _saveStep(_step); _stop(); }
+
+  function _go(idx) {
+    const s = STEPS[idx];
+    if (!s) return;
+    let tgt = s.sel();
+    if (!tgt && s.fb) tgt = s.fb();
+
+    document.getElementById("tour-step-count").textContent = `Step ${idx+1} of ${TOTAL}`;
+    document.getElementById("tour-title").textContent      = s.title;
+    document.getElementById("tour-body").textContent       = s.body;
+    const nb = document.getElementById("tour-next-btn");
+    if (nb) nb.textContent = idx === TOTAL-1 ? "Finish \u2713" : "Next \u2192";
+    const bb = document.getElementById("tour-back-btn");
+    if (bb) bb.style.visibility = idx === 0 ? "hidden" : "visible";
+
+    if (!tgt) { if (idx < TOTAL-1) { _step++; _go(_step); } return; }
+
+    tgt.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => _place(tgt), 360);
+  }
+
+  function _place(tgt) {
+    if (!_hl || !_tt) return;
+    const P = 8, r = tgt.getBoundingClientRect();
+    _hl.style.cssText = `left:${r.left-P}px;top:${r.top-P}px;width:${r.width+P*2}px;height:${r.height+P*2}px;`;
+    const vp = window.innerHeight, TW = Math.min(300, window.innerWidth-32);
+    const below = vp - r.bottom >= 200 || vp - r.bottom >= r.top;
+    const arr = document.getElementById("tour-arrow");
+    if (arr) arr.className = below ? "arrow-up" : "arrow-down";
+    let lx = r.left;
+    if (lx + TW > window.innerWidth - 16) lx = window.innerWidth - TW - 16;
+    if (lx < 16) lx = 16;
+    _tt.style.left = `${lx}px`;
+    _tt.style.width = `${TW}px`;
+    if (below) { _tt.style.top = `${r.bottom+P+14+12}px`; _tt.style.bottom = "auto"; }
+    else        { _tt.style.bottom = `${vp-r.top+P+14+12}px`; _tt.style.top = "auto"; }
+    if (arr) arr.style.left = `${Math.max(10, Math.min(r.left+r.width/2-lx-10, TW-30))}px`;
+  }
+
+  let _rsz;
+  window.addEventListener("resize", () => {
+    if (!_on) return;
+    clearTimeout(_rsz);
+    _rsz = setTimeout(() => { const s = STEPS[_step]; if (!s) return; let t = s.sel(); if (!t&&s.fb) t=s.fb(); if(t) _place(t); }, 120);
+  });
+
+  return { checkAndStart };
 })();
 
 
