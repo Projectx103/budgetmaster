@@ -190,8 +190,12 @@ let filteredTransactions = []; // Store filtered results
 
     // Launch accounts tour on first visit to Accounts section
     if (targetId === "accounts" && currentUser && typeof AccountsTour !== "undefined") {
-      // Small delay so the section is fully visible before tour positions tooltips
       setTimeout(() => AccountsTour.checkAndStart(), 400);
+    }
+
+    // Launch dashboard tour on first visit to Dashboard section
+    if (targetId === "dashboard" && currentUser && typeof DashboardTour !== "undefined") {
+      setTimeout(() => DashboardTour.checkAndStart(), 400);
     }
   });
 });
@@ -3530,7 +3534,11 @@ const Onboarding = (() => {
 
   // Step 1: Income
   function _stepIncomeHTML() {
-    return '<div id="ob-income-list" class="ob-item-list"></div>'
+    const hint = wizardState.income.length === 0
+      ? '<div class="ob-step-hint">Fill in a name and amount, then tap <strong>+</strong> to add it to your list.</div>'
+      : '';
+    return hint
+      + '<div id="ob-income-list" class="ob-item-list"></div>'
       + '<div class="ob-input-row">'
       + '<div class="ob-field"><label for="ob-income-name">Income source</label>'
       + '<input id="ob-income-name" type="text" placeholder="e.g. Monthly Salary" maxlength="50" autocomplete="off">'
@@ -3538,7 +3546,7 @@ const Onboarding = (() => {
       + '<div class="ob-field ob-field-narrow"><label for="ob-income-amount">Amount</label>'
       + '<input id="ob-income-amount" type="number" min="0.01" placeholder="0.00" step="0.01">'
       + '<span class="ob-field-error" id="ob-income-amount-err" style="display:none"></span></div>'
-      + '<button type="button" class="ob-inline-add" id="ob-income-add" aria-label="Add income">+'
+      + '<button type="button" class="ob-inline-add" id="ob-income-add" aria-label="Add income" title="Add to list">+'
       + "</button></div>"
       + '<span class="ob-field-error" id="ob-step1-err" style="display:none;margin-top:4px"></span>';
   }
@@ -3547,18 +3555,24 @@ const Onboarding = (() => {
   function _stepCategoriesHTML() {
     const chips = ["Groceries","Rent","Transport","Utilities","Dining Out","Entertainment","Savings","Healthcare","Education","Personal Care"]
       .map(s => '<button type="button" class="ob-chip" data-chip="' + _esc(s) + '">' + _esc(s) + "</button>").join("");
-    return '<div class="ob-quick-add">'
-      + '<div class="ob-section-label">Quick add — tap to add, then set a budget amount in the list below</div>'
+
+    const hint = wizardState.categories.length === 0
+      ? '<div class="ob-step-hint">Tap a suggestion below to add it instantly, or type a custom name and tap <strong>+</strong>. Set a monthly budget amount in each row.</div>'
+      : '<div class="ob-step-hint">Tap the <strong>Budget</strong> field on any row to set a monthly spending limit.</div>';
+
+    return hint
+      + '<div class="ob-quick-add">'
+      + '<div class="ob-section-label">Suggestions — tap to add</div>'
       + '<div class="ob-chips" id="ob-chips">' + chips + "</div></div>"
       + '<div id="ob-cat-list" class="ob-item-list"></div>'
       + '<div class="ob-input-row">'
-      + '<div class="ob-field"><label for="ob-cat-name">Custom category</label>'
+      + '<div class="ob-field"><label for="ob-cat-name">Custom category name</label>'
       + '<input id="ob-cat-name" type="text" placeholder="e.g. Pet Care" maxlength="40" autocomplete="off">'
       + '<span class="ob-field-error" id="ob-cat-name-err" style="display:none"></span></div>'
       + '<div class="ob-field ob-field-narrow"><label for="ob-cat-budget">Budget <span class="ob-optional">(optional)</span></label>'
       + '<input id="ob-cat-budget" type="number" min="0" placeholder="0.00" step="0.01">'
       + '<span class="ob-field-error" id="ob-cat-budget-err" style="display:none"></span></div>'
-      + '<button type="button" class="ob-inline-add" id="ob-cat-add" aria-label="Add category">+'
+      + '<button type="button" class="ob-inline-add" id="ob-cat-add" aria-label="Add category" title="Add to list">+'
       + "</button></div>"
       + '<span class="ob-field-error" id="ob-step2-err" style="display:none;margin-top:4px"></span>';
   }
@@ -3664,6 +3678,11 @@ const Onboarding = (() => {
     wizardState.categories.push({ name, budget });
     if (nameEl) nameEl.value = "";
     if (budgetEl) budgetEl.value = "";
+    // Update hint after first item added
+    const hintEl = document.querySelector(".ob-step-hint");
+    if (hintEl && wizardState.categories.length === 1) {
+      hintEl.innerHTML = 'Tap the <strong>Budget</strong> field on any row to set a monthly spending limit.';
+    }
     _renderCatList();
     if (nameEl) nameEl.focus();
   }
@@ -3690,6 +3709,9 @@ const Onboarding = (() => {
     wizardState.income.push({ name, amount });
     if (nameEl) nameEl.value = "";
     if (amtEl)  amtEl.value  = "";
+    // Refresh the hint text now that list has items
+    const hintEl = document.querySelector(".ob-step-hint");
+    if (hintEl && wizardState.income.length === 1) hintEl.style.display = "none";
     _renderIncList();
     if (nameEl) nameEl.focus();
   }
@@ -3715,10 +3737,10 @@ const Onboarding = (() => {
   function _handleNext() {
     _clearErrors();
     if (wizardState.step === 1 && wizardState.income.length === 0) {
-      _setError("ob-step1-err","Add at least one income source, or tap \"Skip step\" to continue."); return;
+      _setError("ob-step1-err","Fill in a name and amount above, then tap + to add it — or tap \"Skip step\" to continue."); return;
     }
     if (wizardState.step === 2 && wizardState.categories.length === 0) {
-      _setError("ob-step2-err","Add at least one category, or tap \"Skip step\" to finish."); return;
+      _setError("ob-step2-err","Tap a suggestion above or type a name and tap + to add a category — or tap \"Skip step\" to finish."); return;
     }
     if (wizardState.step < TOTAL_STEPS) _renderStep(wizardState.step + 1);
     else _finish();
@@ -3778,6 +3800,11 @@ const Onboarding = (() => {
       await loadAccounts();
       await loadBudgetSection();
       showToast("Welcome to BudgetMaster! Your budget is ready. 🎉", "success");
+
+      // Auto-start the dashboard tour right after onboarding completes
+      if (typeof DashboardTour !== "undefined") {
+        setTimeout(() => DashboardTour.checkAndStart(), 800);
+      }
 
     } catch (err) {
       console.error("[Onboarding] _finish error:", err);
@@ -3976,6 +4003,186 @@ const AccountsPrompt = (() => {
   });
 })();
 
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// DASHBOARD TOOLTIP TOUR
+// Guides new users through the dashboard cards and action buttons.
+// Stored in users/{uid}: dashboardTourComplete, dashboardTourStep
+// ════════════════════════════════════════════════════════════════════════════
+
+const DashboardTour = (() => {
+  const TOTAL = 8;
+  const STEPS = [
+    {
+      sel: () => document.getElementById("tbb"),
+      title: "To Be Budgeted",
+      body:  "This is the money you\'ve received but haven\'t assigned to a category yet. Your goal is to get this to ₱0 by assigning every peso.",
+    },
+    {
+      sel: () => document.getElementById("assigned"),
+      title: "Total Assigned",
+      body:  "The total amount you\'ve budgeted across all your categories this month.",
+    },
+    {
+      sel: () => document.getElementById("remaining"),
+      title: "Available Balance",
+      body:  "Your real spendable balance — total income minus total spending. This is what you actually have left.",
+    },
+    {
+      sel: () => document.getElementById("spent"),
+      title: "Total Spent",
+      body:  "Every expense you\'ve recorded this month, across all budget categories.",
+    },
+    {
+      sel: () => document.getElementById("overspent"),
+      title: "Overspent",
+      body:  "Categories where you spent more than you assigned. At month-end rollover, you\'ll decide how to handle each one.",
+    },
+    {
+      sel: () => document.querySelector(".actions button:nth-child(1)"),
+      title: "+ Income",
+      body:  "Tap here to record your salary, allowance, or any money coming in. Income fills up your To Be Budgeted amount.",
+    },
+    {
+      sel: () => document.querySelector(".actions button:nth-child(2)"),
+      title: "+ Category",
+      body:  "Add a new budget envelope — like Groceries, Rent, or Entertainment. Assign money from TBB to each one.",
+    },
+    {
+      sel: () => document.querySelector(".actions button:nth-child(3)"),
+      title: "+ Transaction",
+      body:  "Record a purchase or expense. It will be deducted from the matching budget category.",
+    },
+  ];
+
+  let _step = 0, _on = false;
+  let _ov, _hl, _tt;
+
+  async function _readState() {
+    if (!currentUser) return { done: false, step: 0 };
+    try {
+      const s = await db.collection("users").doc(currentUser.uid).get();
+      const d = s.exists ? s.data() : {};
+      return { done: !!d.dashboardTourComplete, step: d.dashboardTourStep || 0 };
+    } catch (_) { return { done: false, step: 0 }; }
+  }
+  async function _saveStep(n) {
+    if (!currentUser) return;
+    try { await db.collection("users").doc(currentUser.uid).set({ dashboardTourStep: n }, { merge: true }); } catch (_) {}
+  }
+  async function _markDone() {
+    if (!currentUser) return;
+    try { await db.collection("users").doc(currentUser.uid).set({ dashboardTourComplete: true, dashboardTourStep: TOTAL }, { merge: true }); } catch (_) {}
+  }
+
+  async function checkAndStart() {
+    const st = await _readState();
+    if (st.done) return;
+    _step = Math.min(st.step, TOTAL - 1);
+    _boot();
+  }
+
+  function _boot() {
+    if (_on) return;
+    _on = true;
+    _ov = document.getElementById("tour-overlay");
+    _hl = document.getElementById("tour-highlight");
+    _tt = document.getElementById("tour-tooltip");
+    if (!_ov) return;
+    _ov.style.display = "block";
+    _wire();
+    _go(_step);
+  }
+
+  function _stop() {
+    _on = false;
+    if (_ov) _ov.style.display = "none";
+    _ov = _hl = _tt = null;
+  }
+
+  function _wire() {
+    ["tour-next-btn","tour-back-btn","tour-skip-btn"].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const clone = el.cloneNode(true);
+      el.replaceWith(clone);
+    });
+    document.getElementById("tour-next-btn")?.addEventListener("click", _next);
+    document.getElementById("tour-back-btn")?.addEventListener("click", _back);
+    document.getElementById("tour-skip-btn")?.addEventListener("click", _skip);
+  }
+
+  async function _next() {
+    await _saveStep(_step + 1);
+    if (_step >= TOTAL - 1) {
+      await _markDone();
+      _stop();
+      showToast("Dashboard tour complete! You know your way around. 🎉", "success");
+    } else {
+      _step++; _go(_step);
+    }
+  }
+  function _back() { if (_step > 0) { _step--; _go(_step); } }
+  function _skip() { _saveStep(_step); _stop(); }
+
+  function _go(idx) {
+    const s = STEPS[idx];
+    if (!s) return;
+    const tgt = s.sel();
+
+    document.getElementById("tour-step-count").textContent = `Step ${idx + 1} of ${TOTAL}`;
+    document.getElementById("tour-title").textContent      = s.title;
+    document.getElementById("tour-body").textContent       = s.body;
+
+    const nb = document.getElementById("tour-next-btn");
+    if (nb) nb.textContent = idx === TOTAL - 1 ? "Finish ✓" : "Next →";
+    const bb = document.getElementById("tour-back-btn");
+    if (bb) bb.style.visibility = idx === 0 ? "hidden" : "visible";
+
+    if (!tgt) {
+      if (idx < TOTAL - 1) { _step++; _go(_step); }
+      return;
+    }
+
+    tgt.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => _place(tgt), 360);
+  }
+
+  function _place(tgt) {
+    if (!_hl || !_tt) return;
+    const P = 8;
+    const r = tgt.getBoundingClientRect();
+    _hl.style.cssText = `left:${r.left - P}px;top:${r.top - P}px;width:${r.width + P * 2}px;height:${r.height + P * 2}px;`;
+    const vp = window.innerHeight;
+    const TW = Math.min(300, window.innerWidth - 32);
+    const below = (vp - r.bottom >= 200) || (vp - r.bottom >= r.top);
+    const arr = document.getElementById("tour-arrow");
+    if (arr) arr.className = below ? "arrow-up" : "arrow-down";
+    let lx = r.left;
+    if (lx + TW > window.innerWidth - 16) lx = window.innerWidth - TW - 16;
+    if (lx < 16) lx = 16;
+    _tt.style.left  = `${lx}px`;
+    _tt.style.width = `${TW}px`;
+    if (below) { _tt.style.top = `${r.bottom + P + 14 + 12}px`; _tt.style.bottom = "auto"; }
+    else        { _tt.style.bottom = `${vp - r.top + P + 14 + 12}px`; _tt.style.top = "auto"; }
+    if (arr) arr.style.left = `${Math.max(10, Math.min(r.left + r.width / 2 - lx - 10, TW - 30))}px`;
+  }
+
+  let _rsz;
+  window.addEventListener("resize", () => {
+    if (!_on) return;
+    clearTimeout(_rsz);
+    _rsz = setTimeout(() => {
+      const s = STEPS[_step];
+      if (!s) return;
+      const t = s.sel();
+      if (t) _place(t);
+    }, 120);
+  });
+
+  return { checkAndStart };
+})();
 
 // ════════════════════════════════════════════════════════════════════════════
 // FEATURE 1 — Accounts Tooltip Tour
