@@ -6545,7 +6545,7 @@ function openModal(id) {
     closeCatColorModal();
   };
 
-  window.applyCatColorAll = function() {
+  window.applyCatColorAll = async function() {
     const bg   = getBgColor();
     const text = getTextColor(bg);
     const _okColorAll = await showConfirm(
