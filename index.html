@@ -236,117 +236,13 @@
     display: flex; align-items: center; justify-content: center; width: 40px;
   }
   .ob-inline-add:hover { background: #1d4ed8; }
-  /* Back button */
-  .ob-back {
-    background: none; border: none; cursor: pointer;
-    font-size: 13px; color: #94a3b8; font-weight: 600;
-    padding: 8px 12px; border-radius: 8px;
-    transition: color 0.15s, background 0.15s;
-    display: inline-flex; align-items: center; gap: 4px;
-  }
-  .ob-back:hover { color: #475569; background: #f1f5f9; }
-
-  /* Footer layout: back left, skip+next right */
-  .ob-footer { justify-content: space-between; align-items: center; }
-  .ob-footer-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-
-  /* Finish button variant */
-  .ob-next-finish { background: #10b981 !important; }
-  .ob-next-finish:hover { background: #059669 !important; }
-
-  /* Field error messages */
-  .ob-field-error {
-    font-size: 11px; color: #ef4444; font-weight: 500;
-    margin-top: 3px; line-height: 1.4;
-  }
-
-  /* Optional label */
-  .ob-optional { font-size: 11px; font-weight: 400; color: #94a3b8; }
-
-  /* Narrow field for amounts */
-  .ob-field-narrow { flex: 0 0 140px; }
-
-  /* Quick add chips section */
-  .ob-quick-add { margin-bottom: 12px; }
-  .ob-section-label { font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
-  .ob-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .ob-chip {
-    padding: 5px 12px; background: #f1f5f9;
-    border: 1.5px solid #e2e8f0; border-radius: 99px;
-    font-family: "DM Sans", sans-serif;
-    font-size: 12px; font-weight: 600; color: #475569;
-    cursor: pointer; transition: all 0.15s;
-  }
-  .ob-chip:hover { background: #e8f0fe; border-color: var(--primary,#2563eb); color: var(--primary,#2563eb); }
-
-  /* Input row — name + amount + add button */
-  .ob-input-row {
-    display: flex; gap: 8px; align-items: flex-end;
-    margin-top: 4px;
-  }
-  .ob-input-row .ob-field { flex: 1; }
-
-  /* Accounts section zero-state prompt banner */
-  #accounts-setup-prompt {
-    margin-bottom: 16px;
-  }
-  .acct-prompt-inner {
-    display: flex; align-items: center; gap: 16px;
-    background: rgba(37,99,235,0.06);
-    border: 1.5px dashed rgba(37,99,235,0.25);
-    border-radius: 14px; padding: 16px 20px;
-  }
-  .acct-prompt-icon { font-size: 28px; flex-shrink: 0; }
-  .acct-prompt-text { flex: 1; min-width: 0; }
-  .acct-prompt-title { font-size: 14px; font-weight: 700; color: #1e3a8a; margin-bottom: 2px; }
-  .acct-prompt-sub   { font-size: 12px; color: #475569; line-height: 1.5; }
-  .acct-prompt-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
-  .acct-prompt-cta {
-    padding: 8px 16px; background: var(--primary,#2563eb); color: #fff;
-    border: none; border-radius: 8px; font-family: "DM Sans",sans-serif;
-    font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap;
-    transition: background 0.15s, transform 0.15s;
-  }
-  .acct-prompt-cta:hover { background: #1d4ed8; transform: translateY(-1px); }
-  .acct-prompt-dismiss {
-    background: none; border: none; cursor: pointer;
-    font-size: 12px; color: #94a3b8; font-weight: 500;
-    padding: 4px; text-align: center;
-    transition: color 0.15s;
-  }
-  .acct-prompt-dismiss:hover { color: #64748b; }
-
-  /* Inline budget input inside category list items */
-  .ob-item-cat { flex-wrap: wrap; align-items: flex-start; }
-  .ob-item-budget-row {
-    display: flex; align-items: center; gap: 5px; margin-top: 5px;
-  }
-  .ob-item-budget-label {
-    font-size: 11px; font-weight: 600; color: #94a3b8; white-space: nowrap;
-  }
-  .ob-item-budget-input {
-    width: 90px; padding: 4px 8px;
-    font-family: "DM Sans", sans-serif; font-size: 13px; font-weight: 600;
-    color: #1e3a8a;
-    background: #f0f7ff; border: 1.5px solid #bdd7f5;
-    border-radius: 7px; outline: none;
-    transition: border-color 0.15s, box-shadow 0.15s;
-  }
-  .ob-item-budget-input:focus {
-    border-color: var(--primary,#2563eb);
-    box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
-    background: #fff;
-  }
-  .ob-item-budget-hint {
-    font-size: 11px; color: #94a3b8; white-space: nowrap;
-  }
-
   @media (max-width: 560px) {
     .ob-card { border-radius: 20px; }
     .ob-header, .ob-body, .ob-footer { padding-left: 20px; padding-right: 20px; }
-    .ob-field-narrow { flex: 0 0 110px; }
-    .acct-prompt-inner { flex-direction: column; text-align: center; }
-    .acct-prompt-actions { flex-direction: row; justify-content: center; }
+    .ob-row { grid-template-columns: 1fr; }
+    .ob-input-row { grid-template-columns: 1fr auto; }
+    .ob-input-row .ob-field:nth-child(2),
+    .ob-input-row .ob-field:nth-child(3) { display: none; }
   }
   </style>
 
@@ -1914,34 +1810,29 @@
 </div>
 
   <!-- Phase 0 helpers -->
-  <!-- ── Onboarding Wizard v2 (2 steps: Categories → Income) ──────────── -->
-  <div id="onboardingOverlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="ob-title">
+  <!-- ── Onboarding Wizard ─────────────────────────────────────────────── -->
+  <div id="onboardingOverlay" style="display:none;">
     <div class="ob-card">
 
       <!-- Header -->
       <div class="ob-header">
-        <div class="ob-steps" role="list" aria-label="Setup progress">
-          <div class="ob-step-dot active" id="ob-dot-1" role="listitem" aria-label="Step 1"></div>
-          <div class="ob-step-dot"        id="ob-dot-2" role="listitem" aria-label="Step 2"></div>
+        <div class="ob-steps">
+          <div class="ob-step-dot active" id="ob-dot-1"></div>
+          <div class="ob-step-dot" id="ob-dot-2"></div>
+          <div class="ob-step-dot" id="ob-dot-3"></div>
         </div>
-        <div class="ob-eyebrow" id="ob-eyebrow">Step 1 of 2 — Monthly Income</div>
-        <div class="ob-title"   id="ob-title">Add your <span>income</span></div>
-        <p   class="ob-subtitle" id="ob-subtitle">Tell BudgetMaster what you earn this month so it knows how much you have to assign.</p>
+        <div class="ob-eyebrow" id="ob-eyebrow">Step 1 of 3</div>
+        <div class="ob-title" id="ob-title">Add your <span>accounts</span></div>
+        <p class="ob-subtitle" id="ob-subtitle">Start by adding the accounts you use — bank accounts, cash, or credit cards.</p>
       </div>
 
-      <!-- Body — injected by JS per step -->
+      <!-- Body — steps injected by JS -->
       <div class="ob-body" id="ob-body"></div>
 
       <!-- Footer -->
       <div class="ob-footer">
-        <!-- Back button (hidden on step 1) -->
-        <button class="ob-back" id="ob-back-btn" style="display:none;" aria-label="Go back">
-          ← Back
-        </button>
-        <div class="ob-footer-right">
-          <button class="ob-skip" id="ob-skip-btn">Skip step</button>
-          <button class="ob-next" id="ob-next-btn">Continue →</button>
-        </div>
+        <button class="ob-skip" id="ob-skip-btn">Skip this step</button>
+        <button class="ob-next" id="ob-next-btn">Next →</button>
       </div>
 
     </div>
