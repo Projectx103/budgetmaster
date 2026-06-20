@@ -5756,6 +5756,19 @@ th.sorted .ie-sort-icon { color: var(--primary); }
 .ob-inline-add   { padding: 10px 14px; background: var(--primary,#2563eb); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-size: 18px; font-weight: 700; line-height: 1; transition: background .15s; align-self: flex-end; height: 40px; display: flex; align-items: center; justify-content: center; width: 40px; flex-shrink: 0; }
 .ob-inline-add:hover { background: #1d4ed8; }
 
+/* Step hint — contextual instruction inside each wizard step */
+.ob-step-hint {
+  font-size: 13px;
+  color: #475569;
+  background: #f0f7ff;
+  border: 1px solid #bdd7f5;
+  border-radius: 10px;
+  padding: 10px 14px;
+  line-height: 1.55;
+  margin-bottom: 12px;
+}
+.ob-step-hint strong { color: #1e3a8a; }
+
 /* Item list */
 .ob-item-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
 .ob-item      { display: flex; align-items: center; gap: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; }
