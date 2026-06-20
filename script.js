@@ -2810,7 +2810,11 @@ document.getElementById("delete-category-btn").addEventListener("click", async (
   await monthRef.set(monthData);
 
   closeModal("category-modal");
+
+  // Refresh both Budget section AND Dashboard so deletion reflects everywhere immediately
   await loadBudgetSection();
+  await loadMonthData(availableMonths[currentMonthIndex] || currentMonth);
+  await loadBudget();
 
   showToast(`Category "${catName}" deleted successfully`, "success");
 });
