@@ -994,6 +994,45 @@ async function addTransaction() {
   const data    = docSnap.data();
   const targetMonth = selectedMonth || data.currentMonth || new Date().toISOString().slice(0, 7);
 
+  // ── Available Balance guard ───────────────────────────────────────────────
+  // Compute the real available balance from live Firestore data rather than
+  // trusting a potentially stale availableBalance field. This is the same
+  // formula used by renderBudget: totalIncome - totalBudgetExpenses.
+  const _monthSnap = await docRef.collection("months").doc(targetMonth).get();
+  const _monthData = _monthSnap.exists ? _monthSnap.data() : {};
+  const _txns      = _monthData.transactions || [];
+  const _cats      = _monthData.categories   || [];
+
+  // Sum all income inflows
+  const _totalIncome = _txns
+    .filter(t => t.type === "income" || (t.inflow && t.inflow > 0))
+    .reduce((s, t) => s + (t.amount || t.inflow || 0), 0);
+
+  // Sum all budget-category spending (excludes asset/account-only txns)
+  const _totalSpent = _txns
+    .filter(t => t.type === "expense" && !t.isAccountOnlyTxn && !t.fromAsset && !t.fromLiability)
+    .reduce((s, t) => s + (t.amount || 0), 0);
+
+  // Prefer stored availableBalance if it exists and is recent; fall back to computed
+  const _storedAvail = typeof _monthData.availableBalance === "number"
+    ? _monthData.availableBalance : null;
+  const _computedAvail = _totalIncome - _totalSpent;
+
+  // Use stored value if it's there, otherwise compute it live
+  // (stored value is written by the engine after every transaction)
+  const _avail = _storedAvail !== null ? _storedAvail : _computedAvail;
+
+  if (_avail - amount < 0) {
+    const shortfall = amount - Math.max(0, _avail);
+    showToast(
+      `❌ Not enough budget. Available Balance is ${formatCurrency(Math.max(0, _avail))} — ` +
+      `this expense is ${formatCurrency(shortfall)} over your available budget. ` +
+      `Add income first or reduce your category assignments.`,
+      "error"
+    );
+    return;
+  }
+
   // ── Engine path (Phase 4) ────────────────────────────────────────────────
   if (FEATURE_FLAGS.useEngineForExpense) {
     try {
