@@ -771,6 +771,9 @@ auth.onAuthStateChanged(async (user) => {
       // Show onboarding wizard if this is a new user
       await Onboarding.checkAndShow();
 
+      // Show accounts setup prompt if user has no accounts
+      if (typeof AccountsPrompt !== "undefined") await AccountsPrompt.checkAndRender();
+
     } else {
       showToast("Your account is pending approval. Please contact the admin.", "error");
       await auth.signOut();
@@ -1611,6 +1614,9 @@ function renderAccounts(list) {
   }
 
   updateNetWorthSummary(list);
+
+  // Update the zero-accounts prompt banner
+  if (typeof AccountsPrompt !== "undefined") AccountsPrompt.syncWithAccounts();
 }
 
 // Create account card HTML — compact row design
@@ -3350,465 +3356,470 @@ function _createDialogOverlay() {
 }
 
 
+
+// ── A2: Collision-proof transaction ID (needed by Onboarding and engine paths)
+function generateTxnId(prefix = "txn") {
+  const ts = Date.now().toString(36);
+  let rand;
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    rand = crypto.randomUUID().replace(/-/g, "");
+  } else {
+    rand = Array.from({ length: 4 }, () =>
+      Math.floor(Math.random() * 0x100000000).toString(16).padStart(8, "0")
+    ).join("");
+  }
+  return `${prefix}-${ts}-${rand}`;
+}
+
 // ════════════════════════════════════════════════════════════════════════════
-// ONBOARDING WIZARD
-// Shows once per user when they have no accounts, categories, or income.
-// Stores onboardingComplete:true in users/{uid} when finished or fully skipped.
+// ONBOARDING WIZARD v2 — 2 steps: Categories → Income
+// Accounts setup handled separately via AccountsPrompt banner.
 // ════════════════════════════════════════════════════════════════════════════
 
 const Onboarding = (() => {
-  // In-memory state collected across all 3 steps
-  let _state = {
-    accounts:   [],   // [{ name, type, balance }]
-    categories: [],   // [{ name, budget }]
-    incomes:    [],   // [{ name, amount }]
-  };
+  const TOTAL_STEPS = 2;
+  const wizardState = { step: 1, categories: [], income: [] };
+  let _beforeUnloadActive = false;
 
-  let _currentStep = 1;
-  const TOTAL_STEPS = 3;
-
-  // ── Public API ──────────────────────────────────────────────────────────
+  function _setError(id, msg) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = msg;
+    el.style.display = msg ? "block" : "none";
+  }
+  function _clearErrors() {
+    document.querySelectorAll(".ob-field-error").forEach(el => {
+      el.textContent = ""; el.style.display = "none";
+    });
+  }
+  function _esc(s) {
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
 
   async function checkAndShow() {
     if (!currentUser) return;
     try {
-      const userDoc = await db.collection("users").doc(currentUser.uid).get();
-      if (userDoc.exists && userDoc.data().onboardingComplete) return; // already done
-
-      // Check if user already has data (returning user who cleared flag, etc.)
-      const budgetDoc = await db.collection("budget").doc(currentUser.uid).get();
+      const [userDoc, budgetDoc] = await Promise.all([
+        db.collection("users").doc(currentUser.uid).get(),
+        db.collection("budget").doc(currentUser.uid).get(),
+      ]);
+      if (userDoc.exists && userDoc.data().onboardingComplete) return;
       if (budgetDoc.exists) {
         const d = budgetDoc.data();
-        const hasAccounts    = d.accounts && d.accounts.length > 0;
-        const hasCategories  = d.categories && d.categories.length > 0;
-        if (hasAccounts && hasCategories) {
-          // User already set up — mark complete silently and skip
-          await _markComplete();
-          return;
+        if (Array.isArray(d.categories) && d.categories.length > 0) {
+          await _markComplete(); return;
         }
       }
-
       _show();
-    } catch (err) {
-      console.warn("[Onboarding] checkAndShow error:", err);
-    }
+    } catch (err) { console.warn("[Onboarding] checkAndShow:", err); }
   }
 
   function _show() {
-    _state = { accounts: [], categories: [], incomes: [] };
-    _currentStep = 1;
+    wizardState.step = 1;
+    wizardState.categories = [];
+    wizardState.income = [];
     document.getElementById("onboardingOverlay").style.display = "flex";
     _renderStep(1);
-    _wireFooter();
+    if (!_beforeUnloadActive) {
+      _beforeUnloadActive = true;
+      window.addEventListener("beforeunload", _onBeforeUnload);
+    }
   }
-
   function _hide() {
     document.getElementById("onboardingOverlay").style.display = "none";
+    _beforeUnloadActive = false;
+    window.removeEventListener("beforeunload", _onBeforeUnload);
   }
-
-  // ── Step renderer ───────────────────────────────────────────────────────
+  function _onBeforeUnload(e) {
+    e.preventDefault(); e.returnValue = "Your setup is not complete yet.";
+  }
 
   function _renderStep(step) {
-    _currentStep = step;
-    _updateHeader(step);
+    wizardState.step = step;
+    _clearErrors();
     _updateDots(step);
-
-    const body = document.getElementById("ob-body");
-    if (step === 1) body.innerHTML = _step1HTML();
-    if (step === 2) body.innerHTML = _step2HTML();
-    if (step === 3) body.innerHTML = _step3HTML();
-
+    _updateHeader(step);
+    _updateBody(step);
     _updateFooter(step);
-    _renderLists();
-    _wireStepInputs(step);
-  }
-
-  function _updateHeader(step) {
-    const eyebrow  = document.getElementById("ob-eyebrow");
-    const title    = document.getElementById("ob-title");
-    const subtitle = document.getElementById("ob-subtitle");
-
-    const config = {
-      1: {
-        eyebrow:  "Step 1 of 3",
-        title:    'Add your <span>accounts</span>',
-        subtitle: "Start by adding the accounts you use — bank, cash, e-wallets, or credit cards.",
-      },
-      2: {
-        eyebrow:  "Step 2 of 3",
-        title:    'Set up <span>categories</span>',
-        subtitle: "Create budget envelopes for your spending — Groceries, Rent, Transport, etc.",
-      },
-      3: {
-        eyebrow:  "Step 3 of 3",
-        title:    'Add your <span>income</span>',
-        subtitle: "Tell BudgetMaster how much money you have to budget this month.",
-      },
-    };
-
-    const c = config[step];
-    eyebrow.textContent  = c.eyebrow;
-    title.innerHTML      = c.title;
-    subtitle.textContent = c.subtitle;
+    _wireInputs(step);
+    _renderList(step);
   }
 
   function _updateDots(step) {
     for (let i = 1; i <= TOTAL_STEPS; i++) {
-      const dot = document.getElementById(`ob-dot-${i}`);
-      dot.classList.remove("active", "done");
-      if (i < step)  dot.classList.add("done");
-      if (i === step) dot.classList.add("active");
+      const d = document.getElementById("ob-dot-" + i);
+      if (!d) continue;
+      d.classList.remove("active","done");
+      if (i < step) d.classList.add("done");
+      if (i === step) d.classList.add("active");
     }
+  }
+
+  function _updateHeader(step) {
+    const cfg = {
+      1: { eyebrow:"Step 1 of 2 — Monthly Income",
+           title:"Add your <span>income</span>",
+           sub:"Tell BudgetMaster what you earn this month so it can calculate how much you have to assign." },
+      2: { eyebrow:"Step 2 of 2 — Budget Categories",
+           title:"Create your <span>budget envelopes</span>",
+           sub:"Add categories for your spending — Groceries, Rent, Transport, etc. You can always add more later." },
+    };
+    const c = cfg[step];
+    const ey = document.getElementById("ob-eyebrow");
+    const ti = document.getElementById("ob-title");
+    const su = document.getElementById("ob-subtitle");
+    if (ey) ey.textContent = c.eyebrow;
+    if (ti) ti.innerHTML   = c.title;
+    if (su) su.textContent = c.sub;
+  }
+
+  function _updateBody(step) {
+    const body = document.getElementById("ob-body");
+    if (!body) return;
+    body.innerHTML = step === 1 ? _stepIncomeHTML() : _stepCategoriesHTML();
+  }
+
+  // Step 1: Income
+  function _stepIncomeHTML() {
+    return '<div id="ob-income-list" class="ob-item-list"></div>'
+      + '<div class="ob-input-row">'
+      + '<div class="ob-field"><label for="ob-income-name">Income source</label>'
+      + '<input id="ob-income-name" type="text" placeholder="e.g. Monthly Salary" maxlength="50" autocomplete="off">'
+      + '<span class="ob-field-error" id="ob-income-name-err" style="display:none"></span></div>'
+      + '<div class="ob-field ob-field-narrow"><label for="ob-income-amount">Amount</label>'
+      + '<input id="ob-income-amount" type="number" min="0.01" placeholder="0.00" step="0.01">'
+      + '<span class="ob-field-error" id="ob-income-amount-err" style="display:none"></span></div>'
+      + '<button type="button" class="ob-inline-add" id="ob-income-add" aria-label="Add income">+'
+      + "</button></div>"
+      + '<span class="ob-field-error" id="ob-step1-err" style="display:none;margin-top:4px"></span>';
+  }
+
+  // Step 2: Categories — chips + manual entry + budget allocation per chip
+  function _stepCategoriesHTML() {
+    const chips = ["Groceries","Rent","Transport","Utilities","Dining Out","Entertainment","Savings","Healthcare","Education","Personal Care"]
+      .map(s => '<button type="button" class="ob-chip" data-chip="' + _esc(s) + '">' + _esc(s) + "</button>").join("");
+    return '<div class="ob-quick-add">'
+      + '<div class="ob-section-label">Quick add — tap to add, then set a budget amount in the list below</div>'
+      + '<div class="ob-chips" id="ob-chips">' + chips + "</div></div>"
+      + '<div id="ob-cat-list" class="ob-item-list"></div>'
+      + '<div class="ob-input-row">'
+      + '<div class="ob-field"><label for="ob-cat-name">Custom category</label>'
+      + '<input id="ob-cat-name" type="text" placeholder="e.g. Pet Care" maxlength="40" autocomplete="off">'
+      + '<span class="ob-field-error" id="ob-cat-name-err" style="display:none"></span></div>'
+      + '<div class="ob-field ob-field-narrow"><label for="ob-cat-budget">Budget <span class="ob-optional">(optional)</span></label>'
+      + '<input id="ob-cat-budget" type="number" min="0" placeholder="0.00" step="0.01">'
+      + '<span class="ob-field-error" id="ob-cat-budget-err" style="display:none"></span></div>'
+      + '<button type="button" class="ob-inline-add" id="ob-cat-add" aria-label="Add category">+'
+      + "</button></div>"
+      + '<span class="ob-field-error" id="ob-step2-err" style="display:none;margin-top:4px"></span>';
   }
 
   function _updateFooter(step) {
-    const skipBtn = document.getElementById("ob-skip-btn");
-    const nextBtn = document.getElementById("ob-next-btn");
-
+    const back = document.getElementById("ob-back-btn");
+    const skip = document.getElementById("ob-skip-btn");
+    const next = document.getElementById("ob-next-btn");
+    if (back) back.style.display = step > 1 ? "inline-flex" : "none";
     if (step === TOTAL_STEPS) {
-      skipBtn.textContent = "Skip & Finish";
-      nextBtn.textContent = "Finish Setup ✓";
+      if (skip) skip.textContent = "Skip & Finish";
+      if (next) { next.textContent = "Finish Setup ✓"; next.classList.add("ob-next-finish"); }
     } else {
-      skipBtn.textContent = "Skip this step";
-      nextBtn.textContent = "Next →";
+      if (skip) skip.textContent = "Skip step";
+      if (next) { next.textContent = "Continue →"; next.classList.remove("ob-next-finish"); }
     }
   }
 
-  // ── Step 1: Accounts ────────────────────────────────────────────────────
-
-  function _step1HTML() {
-    return `
-      <div id="ob-account-list" class="ob-item-list"></div>
-      <div class="ob-input-row three" id="ob-acct-inputs">
-        <div class="ob-field">
-          <label>Account name</label>
-          <input id="ob-acct-name" type="text" placeholder="e.g. BDO Savings" maxlength="40">
-        </div>
-        <div class="ob-field">
-          <label>Type</label>
-          <select id="ob-acct-type">
-            <option value="checking">Bank / Savings</option>
-            <option value="cash">Cash / E-wallet</option>
-            <option value="credit-card">Credit Card</option>
-            <option value="loan">Loan</option>
-          </select>
-        </div>
-        <div class="ob-field">
-          <label>Balance</label>
-          <input id="ob-acct-balance" type="number" min="0" placeholder="0.00" step="0.01">
-        </div>
-        <button class="ob-inline-add" id="ob-acct-add" title="Add account">+</button>
-      </div>`;
-  }
-
-  // ── Step 2: Categories ──────────────────────────────────────────────────
-
-  function _step2HTML() {
-    const suggestions = ["Groceries","Rent","Transport","Utilities","Dining Out","Entertainment","Savings","Healthcare"];
-    const chips = suggestions.map(s =>
-      `<button class="ob-chip" onclick="Onboarding._addCategoryChip('${s}')">${s}</button>`
-    ).join("");
-
-    return `
-      <div style="margin-bottom:10px;">
-        <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:8px;">Quick add:</div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;">${chips}</div>
-      </div>
-      <div id="ob-cat-list" class="ob-item-list"></div>
-      <div class="ob-input-row" id="ob-cat-inputs">
-        <div class="ob-field">
-          <label>Category name</label>
-          <input id="ob-cat-name" type="text" placeholder="e.g. Groceries" maxlength="40">
-        </div>
-        <div class="ob-field">
-          <label>Monthly budget (optional)</label>
-          <input id="ob-cat-budget" type="number" min="0" placeholder="0.00" step="0.01">
-        </div>
-        <button class="ob-inline-add" id="ob-cat-add" title="Add category">+</button>
-      </div>
-      <style>
-        .ob-chip{padding:5px 12px;background:#f1f5f9;border:1.5px solid #e2e8f0;
-          border-radius:99px;font-size:12px;font-weight:600;color:#475569;cursor:pointer;
-          transition:background 0.15s,border-color 0.15s,color 0.15s;}
-        .ob-chip:hover{background:#e8f0fe;border-color:var(--primary,#2563eb);color:var(--primary,#2563eb);}
-      </style>`;
-  }
-
-  // ── Step 3: Income ──────────────────────────────────────────────────────
-
-  function _step3HTML() {
-    return `
-      <div id="ob-income-list" class="ob-item-list"></div>
-      <div class="ob-input-row" id="ob-income-inputs">
-        <div class="ob-field">
-          <label>Income source</label>
-          <input id="ob-income-name" type="text" placeholder="e.g. Monthly Salary" maxlength="50">
-        </div>
-        <div class="ob-field">
-          <label>Amount</label>
-          <input id="ob-income-amount" type="number" min="0.01" placeholder="0.00" step="0.01">
-        </div>
-        <button class="ob-inline-add" id="ob-income-add" title="Add income">+</button>
-      </div>`;
-  }
-
-  // ── Item lists ──────────────────────────────────────────────────────────
-
-  function _renderLists() {
-    if (_currentStep === 1) _renderAccountList();
-    if (_currentStep === 2) _renderCategoryList();
-    if (_currentStep === 3) _renderIncomeList();
-  }
-
-  function _accountIcon(type) {
-    return type === "cash" ? "💵" : type === "credit-card" ? "💳" : type === "loan" ? "🏦" : "🏧";
-  }
-
-  function _renderAccountList() {
-    const list = document.getElementById("ob-account-list");
-    if (!list) return;
-    list.innerHTML = _state.accounts.map((a, i) => `
-      <div class="ob-item">
-        <div class="ob-item-icon">${_accountIcon(a.type)}</div>
-        <div class="ob-item-info">
-          <div class="ob-item-name">${a.name}</div>
-          <div class="ob-item-sub">${a.type} · ${formatCurrency(a.balance)}</div>
-        </div>
-        <button class="ob-item-remove" onclick="Onboarding._removeItem('accounts',${i})">×</button>
-      </div>`).join("");
-  }
-
-  function _renderCategoryList() {
-    const list = document.getElementById("ob-cat-list");
-    if (!list) return;
-    list.innerHTML = _state.categories.map((c, i) => `
-      <div class="ob-item">
-        <div class="ob-item-icon">📂</div>
-        <div class="ob-item-info">
-          <div class="ob-item-name">${c.name}</div>
-          <div class="ob-item-sub">${c.budget > 0 ? "Budget: " + formatCurrency(c.budget) : "No budget set"}</div>
-        </div>
-        <button class="ob-item-remove" onclick="Onboarding._removeItem('categories',${i})">×</button>
-      </div>`).join("");
-  }
-
-  function _renderIncomeList() {
-    const list = document.getElementById("ob-income-list");
-    if (!list) return;
-    list.innerHTML = _state.incomes.map((inc, i) => `
-      <div class="ob-item">
-        <div class="ob-item-icon">💰</div>
-        <div class="ob-item-info">
-          <div class="ob-item-name">${inc.name}</div>
-          <div class="ob-item-sub">${formatCurrency(inc.amount)} / month</div>
-        </div>
-        <button class="ob-item-remove" onclick="Onboarding._removeItem('incomes',${i})">×</button>
-      </div>`).join("");
-  }
-
-  // ── Wire input handlers ─────────────────────────────────────────────────
-
-  function _wireStepInputs(step) {
+  function _wireInputs(step) {
     if (step === 1) {
-      document.getElementById("ob-acct-add").onclick = _addAccount;
-      document.getElementById("ob-acct-name").onkeydown = e => { if (e.key === "Enter") _addAccount(); };
+      // Income step
+      const addBtn = document.getElementById("ob-income-add");
+      const amtEl  = document.getElementById("ob-income-amount");
+      if (addBtn) addBtn.addEventListener("click", _addIncome);
+      if (amtEl)  amtEl.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); _addIncome(); } });
     }
     if (step === 2) {
-      document.getElementById("ob-cat-add").onclick = _addCategory;
-      document.getElementById("ob-cat-name").onkeydown = e => { if (e.key === "Enter") _addCategory(); };
+      // Categories step
+      document.querySelectorAll(".ob-chip").forEach(btn =>
+        btn.addEventListener("click", () => _addCategoryChip(btn.dataset.chip)));
+      const addBtn = document.getElementById("ob-cat-add");
+      const nameEl = document.getElementById("ob-cat-name");
+      if (addBtn) addBtn.addEventListener("click", _addCategory);
+      if (nameEl) nameEl.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); _addCategory(); } });
     }
-    if (step === 3) {
-      document.getElementById("ob-income-add").onclick = _addIncome;
-      document.getElementById("ob-income-amount").onkeydown = e => { if (e.key === "Enter") _addIncome(); };
-    }
+    const back = document.getElementById("ob-back-btn");
+    const skip = document.getElementById("ob-skip-btn");
+    const next = document.getElementById("ob-next-btn");
+    if (back) back.onclick = _handleBack;
+    if (skip) skip.onclick = _handleSkip;
+    if (next) next.onclick = _handleNext;
   }
 
-  function _wireFooter() {
-    document.getElementById("ob-next-btn").onclick  = _handleNext;
-    document.getElementById("ob-skip-btn").onclick  = _handleSkip;
+  function _renderList(step) {
+    if (step === 1) _renderIncList();
+    if (step === 2) _renderCatList();
   }
 
-  // ── Add / remove item actions ───────────────────────────────────────────
+  function _renderCatList() {
+    const list = document.getElementById("ob-cat-list");
+    if (!list) return;
+    if (wizardState.categories.length === 0) { list.innerHTML = ""; return; }
+    list.innerHTML = wizardState.categories.map((c, i) => {
+      const budgetVal = c.budget > 0 ? c.budget : "";
+      return '<div class="ob-item ob-item-cat">'
+        + '<div class="ob-item-icon">\uD83D\uDCC2</div>'
+        + '<div class="ob-item-info">'
+        + '<div class="ob-item-name">' + _esc(c.name) + '</div>'
+        + '<div class="ob-item-budget-row">'
+        + '<span class="ob-item-budget-label">Budget:</span>'
+        + '<input type="number" min="0" step="0.01" placeholder="0.00"'
+        + ' class="ob-item-budget-input"'
+        + ' value="' + budgetVal + '"'
+        + ' onchange="Onboarding._updateBudget(' + i + ',this.value)"'
+        + ' oninput="Onboarding._updateBudget(' + i + ',this.value)"'
+        + ' aria-label="Monthly budget for ' + _esc(c.name) + '">'
+        + '<span class="ob-item-budget-hint">/&nbsp;month</span>'
+        + '</div>'
+        + '</div>'
+        + '<button type="button" class="ob-item-remove"'
+        + ' onclick="Onboarding._removeItem(&quot;categories&quot;,' + i + ')"'
+        + ' aria-label="Remove ' + _esc(c.name) + '">×</button>'
+        + '</div>';
+    }).join("");
+  }
 
-  function _addAccount() {
-    const name    = (document.getElementById("ob-acct-name").value || "").trim();
-    const type    = document.getElementById("ob-acct-type").value;
-    const balance = parseFloat(document.getElementById("ob-acct-balance").value) || 0;
-    if (!name) { document.getElementById("ob-acct-name").focus(); return; }
-    _state.accounts.push({ name, type, balance });
-    document.getElementById("ob-acct-name").value    = "";
-    document.getElementById("ob-acct-balance").value = "";
-    _renderAccountList();
-    document.getElementById("ob-acct-name").focus();
+  function _renderIncList() {
+    const list = document.getElementById("ob-income-list");
+    if (!list) return;
+    list.innerHTML = wizardState.income.map((inc, i) =>
+      '<div class="ob-item">'
+      + '<div class="ob-item-icon">💰</div>'
+      + '<div class="ob-item-info"><div class="ob-item-name">' + _esc(inc.name) + "</div>"
+      + '<div class="ob-item-sub">' + formatCurrency(inc.amount) + " / month</div></div>"
+      + '<button type="button" class="ob-item-remove" onclick="Onboarding._removeItem(&quot;income&quot;,' + i + ')">\u00d7</button>'
+      + "</div>"
+    ).join("");
   }
 
   function _addCategory() {
-    const name   = (document.getElementById("ob-cat-name").value || "").trim();
-    const budget = parseFloat(document.getElementById("ob-cat-budget").value) || 0;
-    if (!name) { document.getElementById("ob-cat-name").focus(); return; }
-    if (_state.categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
-      showToast("Category already added.", "error"); return;
+    _clearErrors();
+    const nameEl   = document.getElementById("ob-cat-name");
+    const budgetEl = document.getElementById("ob-cat-budget");
+    const name     = (nameEl ? nameEl.value : "").trim();
+    const budget   = parseFloat(budgetEl ? budgetEl.value : "") || 0;
+    let ok = true;
+    if (!name) { _setError("ob-cat-name-err","Category name is required."); if(nameEl) nameEl.focus(); ok = false; }
+    else if (wizardState.categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+      _setError("ob-cat-name-err","Already added."); if(nameEl) nameEl.focus(); ok = false;
     }
-    _state.categories.push({ name, budget });
-    document.getElementById("ob-cat-name").value   = "";
-    document.getElementById("ob-cat-budget").value = "";
-    _renderCategoryList();
-    document.getElementById("ob-cat-name").focus();
+    if (budget < 0) { _setError("ob-cat-budget-err","Cannot be negative."); ok = false; }
+    if (!ok) return;
+    wizardState.categories.push({ name, budget });
+    if (nameEl) nameEl.value = "";
+    if (budgetEl) budgetEl.value = "";
+    _renderCatList();
+    if (nameEl) nameEl.focus();
   }
 
   function _addCategoryChip(name) {
-    if (_state.categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
-      showToast(`${name} already added.`, "error"); return;
+    _clearErrors();
+    if (wizardState.categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+      _setError("ob-step1-err", '"' + name + '" is already in your list.'); return;
     }
-    _state.categories.push({ name, budget: 0 });
-    _renderCategoryList();
+    wizardState.categories.push({ name, budget: 0 });
+    _renderCatList();
   }
 
   function _addIncome() {
-    const name   = (document.getElementById("ob-income-name").value || "").trim();
-    const amount = parseFloat(document.getElementById("ob-income-amount").value);
-    if (!name)            { document.getElementById("ob-income-name").focus(); return; }
-    if (!amount || amount <= 0) { document.getElementById("ob-income-amount").focus(); return; }
-    _state.incomes.push({ name, amount });
-    document.getElementById("ob-income-name").value   = "";
-    document.getElementById("ob-income-amount").value = "";
-    _renderIncomeList();
-    document.getElementById("ob-income-name").focus();
+    _clearErrors();
+    const nameEl = document.getElementById("ob-income-name");
+    const amtEl  = document.getElementById("ob-income-amount");
+    const name   = (nameEl ? nameEl.value : "").trim();
+    const amount = parseFloat(amtEl ? amtEl.value : "");
+    let ok = true;
+    if (!name) { _setError("ob-income-name-err","Name is required."); if(nameEl) nameEl.focus(); ok = false; }
+    if (!amount || amount <= 0) { _setError("ob-income-amount-err","Enter a valid amount."); if(ok && amtEl) amtEl.focus(); ok = false; }
+    if (!ok) return;
+    wizardState.income.push({ name, amount });
+    if (nameEl) nameEl.value = "";
+    if (amtEl)  amtEl.value  = "";
+    _renderIncList();
+    if (nameEl) nameEl.focus();
   }
 
   function _removeItem(key, index) {
-    _state[key].splice(index, 1);
-    _renderLists();
+    wizardState[key].splice(index, 1);
+    _renderList(wizardState.step);
   }
 
-  // ── Navigation ──────────────────────────────────────────────────────────
-
-  function _handleNext() {
-    if (_currentStep < TOTAL_STEPS) {
-      _renderStep(_currentStep + 1);
-    } else {
-      _finish();
+  function _updateBudget(index, value) {
+    const amt = parseFloat(value);
+    if (wizardState.categories[index] !== undefined) {
+      wizardState.categories[index].budget = (!isNaN(amt) && amt >= 0) ? amt : 0;
     }
+    // No re-render — input is live-edited in place
   }
 
+  function _handleBack() { if (wizardState.step > 1) _renderStep(wizardState.step - 1); }
   function _handleSkip() {
-    if (_currentStep < TOTAL_STEPS) {
-      _renderStep(_currentStep + 1);
-    } else {
-      _finish();
-    }
+    if (wizardState.step < TOTAL_STEPS) _renderStep(wizardState.step + 1);
+    else _finish();
   }
-
-  // ── Write to Firestore ──────────────────────────────────────────────────
+  function _handleNext() {
+    _clearErrors();
+    if (wizardState.step === 1 && wizardState.income.length === 0) {
+      _setError("ob-step1-err","Add at least one income source, or tap \"Skip step\" to continue."); return;
+    }
+    if (wizardState.step === 2 && wizardState.categories.length === 0) {
+      _setError("ob-step2-err","Add at least one category, or tap \"Skip step\" to finish."); return;
+    }
+    if (wizardState.step < TOTAL_STEPS) _renderStep(wizardState.step + 1);
+    else _finish();
+  }
 
   async function _finish() {
     const btn = document.getElementById("ob-next-btn");
-    btn.disabled = true;
-    btn.textContent = "Saving…";
-
+    if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
     try {
       const uid      = currentUser.uid;
-      const docRef   = db.collection("budget").doc(uid);
+      const budgetRef = db.collection("budget").doc(uid);
       const monthKey = new Date().toISOString().slice(0, 7);
       const today    = new Date().toISOString().slice(0, 10);
       const now      = new Date().toISOString();
 
-      // ── 1. Write accounts ─────────────────────────────────────────────
-      let totalTbb = 0;
-      const accountsToWrite = _state.accounts.map(a => ({
-        name:      a.name,
-        type:      a.type,
-        balance:   a.balance,
-        notes:     "",
-        createdAt: now,
-        updatedAt: now,
-      }));
-
-      // ── 2. Build categories with assigned amounts ─────────────────────
       let totalAssigned = 0;
-      const categoriesToWrite = _state.categories.map(c => {
+      const catsToWrite = wizardState.categories.map(c => {
         totalAssigned += c.budget;
-        return {
-          name:     c.name,
-          assigned: c.budget,
-          spent:    0,
-          balance:  c.budget,
-        };
+        return { name: c.name, assigned: c.budget, spent: 0, balance: c.budget };
       });
 
-      // ── 3. Build income transactions and compute TBB ──────────────────
-      const incomeTransactions = _state.incomes.map(inc => ({
-        id:       generateTxnId("txn"),
-        name:     inc.name,
-        amount:   inc.amount,
-        category: "Income",
-        type:     "income",
-        date:     today,
-        inflow:   inc.amount,
-        outflow:  0,
-        source:   "onboarding",
+      const totalIncome = wizardState.income.reduce((s, i) => s + i.amount, 0);
+      const incomeTxns  = wizardState.income.map(inc => ({
+        id: generateTxnId("txn"), name: inc.name, amount: inc.amount,
+        category:"Income", type:"income", date:today,
+        inflow:inc.amount, outflow:0, source:"onboarding",
       }));
 
-      // TBB = total income - total assigned to categories
-      const totalIncome = _state.incomes.reduce((s, i) => s + i.amount, 0);
-      totalTbb = totalIncome - totalAssigned;
+      const tbb   = totalIncome - totalAssigned;
+      const avail = tbb;
 
-      // ── 4. Write root budget doc ──────────────────────────────────────
-      await docRef.set({
-        accounts:     accountsToWrite,
-        categories:   categoriesToWrite,
-        transactions: [],
-        tbb:          totalTbb,
-        currentMonth: monthKey,
+      const existingSnap = await budgetRef.get();
+      const existingData = existingSnap.exists ? existingSnap.data() : {};
+
+      await runWithRetry(db, async (txn) => {
+        const monthRef = budgetRef.collection("months").doc(monthKey);
+        txn.set(budgetRef, {
+          ...existingData,
+          categories:   catsToWrite,
+          transactions: existingData.transactions || [],
+          tbb:          tbb,
+          currentMonth: monthKey,
+        });
+        txn.set(monthRef, {
+          currentMonth:     monthKey,
+          tbb:              tbb,
+          availableBalance: avail,
+          categories:       catsToWrite,
+          transactions:     incomeTxns,
+        });
       });
 
-      // ── 5. Write month doc ────────────────────────────────────────────
-      const availBal = totalIncome - totalAssigned;
-      await docRef.collection("months").doc(monthKey).set({
-        currentMonth:     monthKey,
-        tbb:              totalTbb,
-        availableBalance: availBal,
-        categories:       categoriesToWrite,
-        transactions:     incomeTransactions,
-      });
-
-      // ── 6. Mark onboarding complete ───────────────────────────────────
       await _markComplete();
-
-      // ── 7. Reload app ─────────────────────────────────────────────────
-      accounts = accountsToWrite;
       _hide();
       await loadAvailableMonths();
       await loadBudget();
       await loadAccounts();
       await loadBudgetSection();
-      renderAccounts(accounts);
-
       showToast("Welcome to BudgetMaster! Your budget is ready. 🎉", "success");
 
     } catch (err) {
       console.error("[Onboarding] _finish error:", err);
-      showToast("Failed to save your setup. Please try again.", "error");
-      btn.disabled    = false;
-      btn.textContent = "Finish Setup ✓";
+      showToast("Failed to save. Please try again.", "error");
+      if (btn) { btn.disabled = false; btn.textContent = "Finish Setup ✓"; }
     }
   }
 
   async function _markComplete() {
-    await db.collection("users").doc(currentUser.uid).update({
-      onboardingComplete: true
-    });
+    try {
+      await db.collection("users").doc(currentUser.uid).update({ onboardingComplete: true });
+    } catch (_) {
+      await db.collection("users").doc(currentUser.uid).set({ onboardingComplete: true }, { merge: true });
+    }
   }
 
-  // ── Expose internals needed by inline onclick handlers ──────────────────
-  return {
-    checkAndShow,
-    _addCategoryChip,
-    _removeItem,
-  };
+  return { checkAndShow, _removeItem, _updateBudget, _addCategoryChip: _addCategoryChip };
 })();
 
-// Automatically load budget section after login
+// ════════════════════════════════════════════════════════════════════════════
+// ACCOUNTS SETUP PROMPT BANNER
+// Shown in the Accounts section when user has zero accounts.
+// Auto-dismisses when first account is added.
+// Dismissal stored in users/{uid}.accountsPromptDismissed.
+// ════════════════════════════════════════════════════════════════════════════
+
+const AccountsPrompt = (() => {
+  let _dismissed = false;
+
+  async function checkAndRender() {
+    if (!currentUser || _dismissed) return;
+    try {
+      const snap = await db.collection("users").doc(currentUser.uid).get();
+      if (snap.exists && snap.data().accountsPromptDismissed) { _dismissed = true; return; }
+    } catch (_) {}
+    _render();
+  }
+
+  function _render() {
+    if (accounts && accounts.length > 0) { _hide(); return; }
+    let banner = document.getElementById("accounts-setup-prompt");
+    if (!banner) {
+      banner = document.createElement("div");
+      banner.id = "accounts-setup-prompt";
+      const target = document.querySelector(".accounts-two-col");
+      if (target) target.parentNode.insertBefore(banner, target);
+      else return;
+    }
+    banner.innerHTML =
+      '<div class="acct-prompt-inner">'
+      + '<div class="acct-prompt-icon">🏦</div>'
+      + '<div class="acct-prompt-text">'
+      + '<div class="acct-prompt-title">Set up your first account</div>'
+      + '<div class="acct-prompt-sub">Track your cash, bank accounts, e-wallets, and credit cards in one place.</div>'
+      + '</div>'
+      + '<div class="acct-prompt-actions">'
+      + '<button type="button" class="acct-prompt-cta" id="acct-prompt-add-btn">+ Add Account</button>'
+      + '<button type="button" class="acct-prompt-dismiss" id="acct-prompt-dismiss-btn">Not now</button>'
+      + '</div></div>';
+    document.getElementById("acct-prompt-add-btn").addEventListener("click", () => {
+      openModal("account-modal");
+      const titleEl = document.getElementById("account-modal-title");
+      if (titleEl) titleEl.innerText = "Add Account";
+    });
+    document.getElementById("acct-prompt-dismiss-btn").addEventListener("click", _dismiss);
+  }
+
+  function _hide() {
+    const el = document.getElementById("accounts-setup-prompt");
+    if (el) el.remove();
+  }
+
+  async function _dismiss() {
+    _dismissed = true; _hide();
+    try {
+      await db.collection("users").doc(currentUser.uid).set({ accountsPromptDismissed: true }, { merge: true });
+    } catch (err) { console.warn("[AccountsPrompt] dismiss:", err); }
+  }
+
+  function syncWithAccounts() {
+    if (!currentUser || _dismissed) return;
+    if (accounts && accounts.length > 0) { _hide(); return; }
+    _render();
+  }
+
+  return { checkAndRender, syncWithAccounts };
+})();
+
+
+
+
 auth.onAuthStateChanged(async (user) => {
   if (!user) return window.location.href = "auth.html";
   currentUser = user;
