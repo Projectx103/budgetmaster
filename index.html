@@ -316,6 +316,31 @@
   }
   .acct-prompt-dismiss:hover { color: #64748b; }
 
+  /* Inline budget input inside category list items */
+  .ob-item-cat { flex-wrap: wrap; align-items: flex-start; }
+  .ob-item-budget-row {
+    display: flex; align-items: center; gap: 5px; margin-top: 5px;
+  }
+  .ob-item-budget-label {
+    font-size: 11px; font-weight: 600; color: #94a3b8; white-space: nowrap;
+  }
+  .ob-item-budget-input {
+    width: 90px; padding: 4px 8px;
+    font-family: "DM Sans", sans-serif; font-size: 13px; font-weight: 600;
+    color: #1e3a8a;
+    background: #f0f7ff; border: 1.5px solid #bdd7f5;
+    border-radius: 7px; outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .ob-item-budget-input:focus {
+    border-color: var(--primary,#2563eb);
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+    background: #fff;
+  }
+  .ob-item-budget-hint {
+    font-size: 11px; color: #94a3b8; white-space: nowrap;
+  }
+
   @media (max-width: 560px) {
     .ob-card { border-radius: 20px; }
     .ob-header, .ob-body, .ob-footer { padding-left: 20px; padding-right: 20px; }
@@ -1899,9 +1924,9 @@
           <div class="ob-step-dot active" id="ob-dot-1" role="listitem" aria-label="Step 1"></div>
           <div class="ob-step-dot"        id="ob-dot-2" role="listitem" aria-label="Step 2"></div>
         </div>
-        <div class="ob-eyebrow" id="ob-eyebrow">Step 1 of 2</div>
-        <div class="ob-title"   id="ob-title">Create your <span>budget envelopes</span></div>
-        <p   class="ob-subtitle" id="ob-subtitle">Add categories for your spending — Groceries, Rent, Transport, etc.</p>
+        <div class="ob-eyebrow" id="ob-eyebrow">Step 1 of 2 — Monthly Income</div>
+        <div class="ob-title"   id="ob-title">Add your <span>income</span></div>
+        <p   class="ob-subtitle" id="ob-subtitle">Tell BudgetMaster what you earn this month so it knows how much you have to assign.</p>
       </div>
 
       <!-- Body — injected by JS per step -->
