@@ -3547,7 +3547,7 @@ const Onboarding = (() => {
       + '<div class="ob-item-icon">📂</div>'
       + '<div class="ob-item-info"><div class="ob-item-name">' + _esc(c.name) + "</div>"
       + '<div class="ob-item-sub">' + (c.budget > 0 ? "Budget: " + formatCurrency(c.budget) : "No budget set") + "</div></div>"
-      + '<button type="button" class="ob-item-remove" onclick="Onboarding._removeItem('categories',' + i + ')">×</button>'
+      + '<button type="button" class="ob-item-remove" onclick="Onboarding._removeItem(&quot;categories&quot;,' + i + ')">\u00d7</button>'
       + "</div>"
     ).join("");
   }
@@ -3560,7 +3560,7 @@ const Onboarding = (() => {
       + '<div class="ob-item-icon">💰</div>'
       + '<div class="ob-item-info"><div class="ob-item-name">' + _esc(inc.name) + "</div>"
       + '<div class="ob-item-sub">' + formatCurrency(inc.amount) + " / month</div></div>"
-      + '<button type="button" class="ob-item-remove" onclick="Onboarding._removeItem('income',' + i + ')">×</button>'
+      + '<button type="button" class="ob-item-remove" onclick="Onboarding._removeItem(&quot;income&quot;,' + i + ')">\u00d7</button>'
       + "</div>"
     ).join("");
   }
@@ -3624,10 +3624,10 @@ const Onboarding = (() => {
   function _handleNext() {
     _clearErrors();
     if (wizardState.step === 1 && wizardState.categories.length === 0) {
-      _setError("ob-step1-err","Add at least one category, or tap "Skip step" to continue."); return;
+      _setError("ob-step1-err","Add at least one category, or tap \"Skip step\" to continue."); return;
     }
     if (wizardState.step === 2 && wizardState.income.length === 0) {
-      _setError("ob-step2-err","Add at least one income source, or tap "Skip step" to finish."); return;
+      _setError("ob-step2-err","Add at least one income source, or tap \"Skip step\" to finish."); return;
     }
     if (wizardState.step < TOTAL_STEPS) _renderStep(wizardState.step + 1);
     else _finish();
