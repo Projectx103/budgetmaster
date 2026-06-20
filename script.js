@@ -627,7 +627,7 @@ async function saveAssigned(index, newValue) {
 
   // ── Validation (unchanged) ───────────────────────────────────────────────
   const val = parseFloat(newValue);
-  if (isNaN(val) || val < 0) return alert("Enter valid number");
+  if (isNaN(val) || val < 0) { showToast("Please enter a valid number.", "error"); return; }
 
   // ── Load root + month data (needed for both paths) ───────────────────────
   const docRef = db.collection("budget").doc(currentUser.uid);
@@ -690,7 +690,7 @@ async function saveAssigned(index, newValue) {
       renderBudget(refreshed.exists ? refreshed.data() : monthData);
     } catch (err) {
       console.error("[Phase 5] Engine saveAssigned error:", err);
-      alert("Failed to update budget. Please try again.");
+      showToast("Failed to update budget. Please try again.", "error");
       renderBudget(monthData);
       return;
     }
@@ -768,7 +768,7 @@ auth.onAuthStateChanged(async (user) => {
         await window.themeManager.loadThemeFromFirestore();
       }
     } else {
-      alert("Your account is not yet approved.");
+      showToast("Your account is pending approval. Please contact the admin.", "error");
       await auth.signOut();
     }
   } catch (err) {
@@ -810,7 +810,7 @@ async function addIncome() {
   const selectedMonth = availableMonths[currentMonthIndex] || null;
 
   // ── Validation (unchanged) ───────────────────────────────────────────────
-  if (isNaN(amount) || amount <= 0) return alert("Enter valid income");
+  if (isNaN(amount) || amount <= 0) { showToast("Please enter a valid income amount.", "error"); return; }
 
   // ── Determine target month (unchanged) ──────────────────────────────────
   const docRef  = db.collection("budget").doc(currentUser.uid);
@@ -836,7 +836,7 @@ async function addIncome() {
       );
     } catch (err) {
       console.error("[Phase 2] Engine income error:", err);
-      alert("Failed to save income. Please try again.");
+      showToast("Failed to save income. Please try again.", "error");
       return;
     }
   } else {
@@ -883,7 +883,7 @@ async function addCategory() {
   const selectedMonth = availableMonths[currentMonthIndex] || null;
 
   // ── Validation (unchanged) ───────────────────────────────────────────────
-  if (!name || isNaN(assignAmount) || assignAmount < 0) return alert("Enter valid category");
+  if (!name || isNaN(assignAmount) || assignAmount < 0) { showToast("Please enter a category name and valid amount.", "error"); return; }
 
   // ── Load root + month data (needed for both paths) ───────────────────────
   const docRef  = db.collection("budget").doc(currentUser.uid);
@@ -918,7 +918,7 @@ async function addCategory() {
   // ── Duplicate-name check — stays in UI layer for both paths ─────────────
   // (engine doesn't know "duplicate category" as a business rule)
   if (monthData.categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
-    return alert("Category already exists. Please use a different name!");
+    { showToast("Category already exists. Please use a different name.", "error"); return; }
   }
 
   // ── Engine path (Phase 3) ────────────────────────────────────────────────
@@ -938,7 +938,7 @@ async function addCategory() {
       );
     } catch (err) {
       console.error("[Phase 3] Engine category error:", err);
-      alert("Failed to save category. Please try again.");
+      showToast("Failed to save category. Please try again.", "error");
       return;
     }
   } else {
@@ -972,8 +972,8 @@ async function addTransaction() {
   const selectedMonth = availableMonths[currentMonthIndex] || null;
 
   // ── Validation (unchanged) ───────────────────────────────────────────────
-  if (!name || isNaN(amount) || amount <= 0) return alert("Enter valid transaction");
-  if (!date) return alert("Please select a date");
+  if (!name || isNaN(amount) || amount <= 0) { showToast("Please enter a valid transaction name and amount.", "error"); return; }
+  if (!date) { showToast("Please select a date.", "error"); return; }
 
   // ── Resolve target month (unchanged) ─────────────────────────────────────
   const docRef  = db.collection("budget").doc(currentUser.uid);
@@ -1000,7 +1000,7 @@ async function addTransaction() {
       );
     } catch (err) {
       console.error("[Phase 4] Engine expense error:", err);
-      alert("Failed to save transaction. Please try again.");
+      showToast("Failed to save transaction. Please try again.", "error");
       return;
     }
   } else {
@@ -1187,10 +1187,10 @@ document.getElementById("saveRolloverBtn").addEventListener("click", async () =>
       setupAutomaticRollover(settings.automaticDay);
     }
     
-    alert("✅ Rollover settings saved!");
+    showToast("Rollover settings saved.", "success");
   } catch (error) {
     console.error("Error saving rollover settings:", error);
-    alert("❌ Failed to save settings. Please try again.");
+    showToast("Failed to save settings. Please try again.", "error");
   }
 });
 
@@ -1202,7 +1202,7 @@ function initiateRollover() {
     const now = new Date();
     if (lastRollover.getFullYear() === now.getFullYear() && 
         lastRollover.getMonth() === now.getMonth()) {
-      alert("⚠️ You have already performed a rollover this month. Rollover is only available once per month.");
+      showToast("Rollover already performed this month. Only one rollover per month is allowed.", "warning");
       return;
     }
   }
@@ -1242,7 +1242,7 @@ async function performRollover() {
   // Load current month doc
   const currentMonthDocRef = docRef.collection("months").doc(baseMonthKey);
   const currentMonthSnap = await currentMonthDocRef.get();
-  if (!currentMonthSnap.exists) return alert("Current month data not found!");
+  if (!currentMonthSnap.exists) { showToast("Current month data not found.", "error"); return; }
 
   const currentMonthData = currentMonthSnap.data();
   const categories = currentMonthData.categories || [];
@@ -1313,17 +1313,7 @@ async function performRollover() {
   updateMonthDisplay();
   await loadMonthData(nextMonthKey);
 
-alert(
-    `✅ Rollover complete!\n\n` +
-    `Previous Month:\n` +
-    `- Available Balance: ${formatCurrency(availableBalance)}\n\n` +
-    `New Month (${nextMonthKey}):\n` +
-    `- Starting TBB: ${formatCurrency(totalRemainingBalance)}\n` +
-    `- All Categories Reset: ${formatCurrency(0)}\n\n` +
-    `You can now assign this money to your categories!`
-  );
-  
-  showToast("Rollover completed successfully!", "success");
+showToast("Rollover completed successfully!", "success");
 }
 
 // Setup automatic rollover checking
@@ -1517,7 +1507,7 @@ auth.onAuthStateChanged(async (user) => {
       await loadBudget();
       await loadAccounts();  
     } else {
-      alert("Your account is not yet approved.");
+      showToast("Your account is pending approval. Please contact the admin.", "error");
       await auth.signOut();
     }
   } catch (err) {
@@ -1851,17 +1841,17 @@ document.getElementById("save-account-btn").addEventListener("click", async () =
   const creditLimitRaw = document.getElementById("account-credit-limit").value;
   const dueDayRaw = document.getElementById("account-due-date").value;
   
-  if (!type) return alert("Please select an account type");
-  if (!name) return alert("Please enter an account name");
-  if (isNaN(balance)) return alert("Please enter a valid balance");
+  if (!type) { showToast("Please select an account type.", "error"); return; }
+  if (!name) { showToast("Please enter an account name.", "error"); return; }
+  if (isNaN(balance)) { showToast("Please enter a valid balance.", "error"); return; }
   
   // Credit card validation
   if (type === 'credit-card') {
     if (!creditLimitRaw || isNaN(parseFloat(creditLimitRaw)) || parseFloat(creditLimitRaw) <= 0) {
-      return alert("Please enter a valid Credit Limit for this credit card.");
+      { showToast("Please enter a valid Credit Limit for this credit card.", "error"); return; }
     }
     if (!dueDayRaw) {
-      return alert("Please select a Due Date for this credit card so you know when payments are due.");
+      { showToast("Please select a Due Date for this credit card.", "error"); return; }
     }
   }
   
@@ -1883,7 +1873,7 @@ document.getElementById("save-account-btn").addEventListener("click", async () =
   );
   
   if (isDuplicate) {
-    return alert("An account with this name already exists!");
+    { showToast("An account with this name already exists.", "error"); return; }
   }
 
 // ✅ Check if balance changed during edit
@@ -1894,13 +1884,13 @@ document.getElementById("save-account-btn").addEventListener("click", async () =
 
     if (balanceChanged) {
       // ✅ Show warning
-      const confirmChange = confirm(
-        "⚠️ WARNING: Manually changing the account balance is NOT recommended!\n\n" +
-        `Current Balance: ${formatCurrency(Math.abs(oldBalance))}\n` +
-        `New Balance: ${formatCurrency(newBalanceValue)}\n\n` +
-        "This will forcefully override your account balance and may cause discrepancies with your transaction history.\n\n" +
-        "💡 TIP: Use 'Add Transaction' instead to properly track deposits/withdrawals.\n\n" +
-        "Do you still want to proceed?"
+      const confirmChange = await showConfirm(
+        `⚠️ Manually changing the account balance is not recommended.<br><br>` +
+        `Current Balance: <strong>${formatCurrency(Math.abs(oldBalance))}</strong><br>` +
+        `New Balance: <strong>${formatCurrency(newBalanceValue)}</strong><br><br>` +
+        `Tip: Use "Add Transaction" instead to properly track deposits and withdrawals.<br><br>` +
+        `Do you still want to proceed?`,
+        { confirmText: "Override Balance", cancelText: "Cancel", type: "warning" }
       );
 
       if (!confirmChange) {
@@ -1910,7 +1900,7 @@ document.getElementById("save-account-btn").addEventListener("click", async () =
       // ✅ Require password verification
       const authenticated = await reauthenticateUserModal();
       if (!authenticated) {
-        return alert("❌ Password verification failed. Balance change cancelled.");
+        return showToast("Incorrect password. Balance change cancelled.", "error");
       }
     }
   }
@@ -1956,7 +1946,11 @@ async function deleteAccount(index) {
   const account = accounts[index];
   if (!account) return;
   
-  if (!confirm(`Delete "${account.name}"?\n\nThis will also delete all transactions for this account. This cannot be undone.`)) return;
+  const _confirmDelAccount = await showConfirm(
+    `Delete <strong>${account.name}</strong>?<br><br>This will also delete all transactions for this account. This cannot be undone.`,
+    { confirmText: "Delete", cancelText: "Cancel", type: "danger" }
+  );
+  if (!_confirmDelAccount) return;
   
   const docRef = db.collection("budget").doc(currentUser.uid);
   const docSnap = await docRef.get();
@@ -2117,11 +2111,11 @@ async function openTransactionPanel(index) {
     const date      = dateInput || new Date().toISOString().slice(0, 10);
     const reason    = wrapper.querySelector('#transaction-reason').value.trim();
 
-    if (isNaN(amount) || amount <= 0) return alert("Enter a valid amount.");
+    if (isNaN(amount) || amount <= 0) { showToast("Please enter a valid amount.", "error"); return; }
 
     if (type === "expense") {
       const catIndexVal = wrapper.querySelector('#expense-category').value;
-      if (catIndexVal === "") return alert("Please select a budget category for this expense.");
+      if (catIndexVal === "") { showToast("Please select a budget category for this expense.", "error"); return; }
     }
 
     const docRef  = db.collection("budget").doc(currentUser.uid);
@@ -2145,7 +2139,11 @@ async function openTransactionPanel(index) {
           const monthData   = monthSnap.exists ? monthSnap.data() : { availableBalance: 0 };
           const currentAvailableBalance = monthData.availableBalance || 0;
           if (currentAvailableBalance < amount) {
-            if (!confirm(`⚠️ Paying ${formatCurrency(amount)} exceeds your Available Balance of ${formatCurrency(currentAvailableBalance)}. Proceed anyway?`)) return;
+            const _okPay1 = await showConfirm(
+              `Paying ${formatCurrency(amount)} exceeds your Available Balance of ${formatCurrency(currentAvailableBalance)}. Proceed anyway?`,
+              { confirmText: "Proceed", cancelText: "Cancel", type: "warning" }
+            );
+            if (!_okPay1) return;
           }
           // Advance due date (UI logic stays here — engine only handles money)
           const dueDay = data.accounts[transactionAccountIndex].dueDay;
@@ -2201,7 +2199,7 @@ async function openTransactionPanel(index) {
           };
 
         } else if (type === 'withdrawal') {
-          if (data.accounts[transactionAccountIndex].balance < amount) return alert("Insufficient balance.");
+          if (data.accounts[transactionAccountIndex].balance < amount) { showToast("Insufficient balance — not enough funds in this account.", "error"); return; }
           flatIntent = {
             type:        'withdrawal',
             amount,
@@ -2214,7 +2212,7 @@ async function openTransactionPanel(index) {
 
         } else if (type === 'transfer') {
           const targetIndex = parseInt(wrapper.querySelector('#transfer-target').value);
-          if (data.accounts[transactionAccountIndex].balance < amount) return alert("Insufficient balance.");
+          if (data.accounts[transactionAccountIndex].balance < amount) { showToast("Insufficient balance — not enough funds in this account.", "error"); return; }
           flatIntent = {
             type:            'transfer',
             amount,
@@ -2229,7 +2227,7 @@ async function openTransactionPanel(index) {
 
         } else if (type === 'expense' && !isLiability) {
           // Expense from asset account
-          if (data.accounts[transactionAccountIndex].balance < amount) return alert("Insufficient balance.");
+          if (data.accounts[transactionAccountIndex].balance < amount) { showToast("Insufficient balance — not enough funds in this account.", "error"); return; }
           const catIndex     = parseInt(wrapper.querySelector('#expense-category').value);
           const monthDocRef  = docRef.collection("months").doc(currentMonth);
           const monthSnap    = await monthDocRef.get();
@@ -2248,7 +2246,7 @@ async function openTransactionPanel(index) {
           };
         }
 
-        if (!flatIntent) return alert("Unknown transaction type.");
+        if (!flatIntent) { showToast("Unknown transaction type.", "error"); return; }
 
         await persistFinancialTransaction(flatIntent, db, currentUser.uid);
 
@@ -2277,7 +2275,7 @@ async function openTransactionPanel(index) {
 
       } catch (err) {
         console.error("[Phase 6] Engine account txn error:", err);
-        alert("Failed to save transaction. Please try again.");
+        showToast("Failed to save transaction. Please try again.", "error");
         return;
       }
     }
@@ -2296,7 +2294,11 @@ async function openTransactionPanel(index) {
       // ✅ Use availableBalance (real cash on hand), NOT tbb (unbudgeted money)
       const currentAvailableBalance = monthData.availableBalance || 0;
       if (currentAvailableBalance < amount) {
-        if (!confirm(`⚠️ Paying ${formatCurrency(amount)} exceeds your Available Balance of ${formatCurrency(currentAvailableBalance)}. Proceed anyway?`)) return;
+        const _okPay2 = await showConfirm(
+          `Paying ${formatCurrency(amount)} exceeds your Available Balance of ${formatCurrency(currentAvailableBalance)}. Proceed anyway?`,
+          { confirmText: "Proceed", cancelText: "Cancel", type: "warning" }
+        );
+        if (!_okPay2) return;
       }
 
       // Reduce the liability balance (paying off debt)
@@ -2413,14 +2415,14 @@ async function openTransactionPanel(index) {
       newTransaction.type    = "expense";
 
     } else if (type === "withdrawal") {
-      if (data.accounts[transactionAccountIndex].balance < amount) return alert("Insufficient balance.");
+      if (data.accounts[transactionAccountIndex].balance < amount) { showToast("Insufficient balance — not enough funds in this account.", "error"); return; }
       data.accounts[transactionAccountIndex].balance -= amount;
       newTransaction.inflow = amount;
       newTransaction.type   = "income";
 
     } else if (type === "transfer") {
       const targetIndex = parseInt(wrapper.querySelector('#transfer-target').value);
-      if (data.accounts[transactionAccountIndex].balance < amount) return alert("Insufficient balance.");
+      if (data.accounts[transactionAccountIndex].balance < amount) { showToast("Insufficient balance — not enough funds in this account.", "error"); return; }
       data.accounts[transactionAccountIndex].balance  -= amount;
       data.accounts[targetIndex].balance              += amount;
       newTransaction.outflow     = amount;
@@ -2429,7 +2431,7 @@ async function openTransactionPanel(index) {
       newTransaction.toAccount   = data.accounts[targetIndex].name;
 
     } else if (type === "expense") {
-      if (data.accounts[transactionAccountIndex].balance < amount) return alert("Insufficient balance.");
+      if (data.accounts[transactionAccountIndex].balance < amount) { showToast("Insufficient balance — not enough funds in this account.", "error"); return; }
       const catIndex = parseInt(wrapper.querySelector('#expense-category').value);
 
       const currentMonth = availableMonths[currentMonthIndex] || data.currentMonth || new Date().toISOString().slice(0, 7);
@@ -2775,7 +2777,11 @@ const selectedMonth = availableMonths[currentMonthIndex] || new Date().toISOStri
 
 // ✅ Delete category
 document.getElementById("delete-category-btn").addEventListener("click", async () => {
-  if (!confirm("Delete this category?")) return;
+  const _okDelCat = await showConfirm(
+    "Delete this category? This cannot be undone.",
+    { confirmText: "Delete", cancelText: "Cancel", type: "danger" }
+  );
+  if (!_okDelCat) return;
 
   const docRef = db.collection("budget").doc(currentUser.uid);
   const docSnap = await docRef.get();
@@ -2811,7 +2817,11 @@ document.getElementById("delete-category-btn").addEventListener("click", async (
 
 // ✅ Delete transaction (and return amount to category)
 async function deleteTransaction(categoryName, txId) {
-  if (!confirm("Delete this transaction?")) return;
+  const _okDelTxn = await showConfirm(
+    "Delete this transaction? This cannot be undone.",
+    { confirmText: "Delete", cancelText: "Cancel", type: "danger" }
+  );
+  if (!_okDelTxn) return;
   if (!currentUser) return;
 
   const docRef       = db.collection("budget").doc(currentUser.uid);
@@ -2915,7 +2925,7 @@ async function deleteTransaction(categoryName, txId) {
 
   let monthData = monthSnap.data();
   const txIndex = monthData.transactions.findIndex((t) => t.id === txId);
-  if (txIndex === -1) return alert("Transaction not found!");
+  if (txIndex === -1) { showToast("Transaction not found.", "error"); return; }
 
   const tx = monthData.transactions[txIndex];
 
@@ -3097,7 +3107,11 @@ async function loadAccountTransactionHistory(index) {
 }
 
 async function deleteAccountTransaction(txId, monthKey, accountIndex) {
-  if (!confirm('Delete this transaction? This will reverse the account balance only.')) return;
+  const _okDelAcctTxn = await showConfirm(
+    "Delete this transaction? The account balance will be reversed. This cannot be undone.",
+    { confirmText: "Delete", cancelText: "Cancel", type: "danger" }
+  );
+  if (!_okDelAcctTxn) return;
   if (!currentUser) return;
 
   const docRef   = db.collection("budget").doc(currentUser.uid);
@@ -3252,6 +3266,79 @@ function showToast(message, type = "success") {
     toast.classList.remove("show");
     setTimeout(() => toast.remove(), 300);
   }, 3000);
+}
+
+// ── Styled modal replacements for alert() and confirm() ─────────────────
+// showAlert(msg, type?)        → Promise<void>   (replaces alert())
+// showConfirm(msg, opts?)      → Promise<boolean> (replaces confirm())
+//
+// Both inject a temporary DOM element and resolve when the user clicks.
+// They share one modal container — only one shows at a time.
+// type can be: "info" | "success" | "warning" | "error" | "danger"
+
+function showAlert(message, type = "info") {
+  return new Promise(resolve => {
+    const overlay = _createDialogOverlay();
+    const icon = { info:"ℹ️", success:"✅", warning:"⚠️", error:"❌", danger:"🗑️" }[type] || "ℹ️";
+    const btnColor = type === "danger" ? "#ef4444"
+                   : type === "error"  ? "#ef4444"
+                   : type === "warning"? "#f59e0b"
+                   : type === "success"? "#10b981"
+                   : "var(--primary)";
+    overlay.innerHTML = `
+      <div class="bm-dialog-box">
+        <div class="bm-dialog-icon">${icon}</div>
+        <p class="bm-dialog-msg">${message}</p>
+        <div class="bm-dialog-actions">
+          <button class="bm-dialog-btn bm-dialog-btn-primary" style="background:${btnColor}">OK</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('.bm-dialog-btn-primary').addEventListener('click', () => {
+      overlay.remove(); resolve();
+    });
+    overlay.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === 'Escape') { overlay.remove(); resolve(); } });
+    overlay.querySelector('.bm-dialog-btn-primary').focus();
+  });
+}
+
+function showConfirm(message, opts = {}) {
+  // opts: { confirmText, cancelText, type }
+  return new Promise(resolve => {
+    const overlay = _createDialogOverlay();
+    const type = opts.type || "warning";
+    const icon = { info:"ℹ️", warning:"⚠️", error:"❌", danger:"🗑️" }[type] || "⚠️";
+    const confirmText = opts.confirmText || "Confirm";
+    const cancelText  = opts.cancelText  || "Cancel";
+    const btnColor = type === "danger" ? "#ef4444"
+                   : type === "error"  ? "#ef4444"
+                   : type === "warning"? "#f59e0b"
+                   : "var(--primary)";
+    overlay.innerHTML = `
+      <div class="bm-dialog-box">
+        <div class="bm-dialog-icon">${icon}</div>
+        <p class="bm-dialog-msg">${message}</p>
+        <div class="bm-dialog-actions">
+          <button class="bm-dialog-btn bm-dialog-btn-cancel">${cancelText}</button>
+          <button class="bm-dialog-btn bm-dialog-btn-primary" style="background:${btnColor}">${confirmText}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('.bm-dialog-btn-primary').addEventListener('click', () => { overlay.remove(); resolve(true); });
+    overlay.querySelector('.bm-dialog-btn-cancel').addEventListener('click', () => { overlay.remove(); resolve(false); });
+    overlay.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { overlay.remove(); resolve(true); }
+      if (e.key === 'Escape') { overlay.remove(); resolve(false); }
+    });
+    overlay.querySelector('.bm-dialog-btn-primary').focus();
+  });
+}
+
+function _createDialogOverlay() {
+  const el = document.createElement('div');
+  el.className = 'bm-dialog-overlay';
+  el.setAttribute('tabindex', '-1');
+  return el;
 }
 
 // Automatically load budget section after login
@@ -4582,12 +4669,12 @@ function applyFilters() {
     const toDate = document.getElementById('toDate').value;
     
     if (!fromDate || !toDate) {
-      alert('Please select both start and end dates for custom range.');
+      showToast("Please select both start and end dates.", "error");
       return;
     }
     
     if (new Date(fromDate) > new Date(toDate)) {
-      alert('Start date must be before end date.');
+      showToast("Start date must be before end date.", "error");
       return;
     }
   }
@@ -5406,7 +5493,7 @@ if ('ontouchstart' in window) {
                 if (userDoc.exists && userData?.approved === true) {
                     await loadGoals();
                 } else {
-                    alert("Your account is not yet approved.");
+                    showToast("Your account is pending approval. Please contact the admin.", "error");
                     await auth.signOut();
                 }
             } catch (err) {
@@ -5653,7 +5740,11 @@ function createGoalCard(goal) {
             const goal = goals.find(g => g.id === goalId);
             if (!goal) return;
 
-            if (!confirm(`Are you sure you want to delete "${goal.name}"? This action cannot be undone.`)) {
+            const _okDelGoal = await showConfirm(
+              `Delete goal <strong>${goal.name}</strong>? This action cannot be undone.`,
+              { confirmText: "Delete", cancelText: "Cancel", type: "danger" }
+            );
+            if (!_okDelGoal) {
                 return;
             }
 
@@ -6101,7 +6192,7 @@ document.getElementById("saveBtn").addEventListener("click", async () => {
     showToast("✅ Settings saved! Currency updated to " + currency, "success");
   } catch (error) {
     console.error("Error saving settings:", error);
-    alert("❌ Failed to save settings. Please try again.");
+    showToast("Failed to save settings. Please try again.", "error");
   }
 });
 
@@ -6151,7 +6242,7 @@ function reauthenticateUserModal() {
 
     confirmBtn.onclick = async () => {
       const password = passwordInput.value.trim();
-      if (!password) return alert("Please enter your password.");
+      if (!password) { showToast("Please enter your password.", "error"); return; }
 
       const credential = firebase.auth.EmailAuthProvider.credential(currentUser.email, password);
       try {
@@ -6159,7 +6250,7 @@ function reauthenticateUserModal() {
         modal.style.display = "none";
         resolve(true);
       } catch (err) {
-        alert("❌ Incorrect password. Try again.");
+        showToast("Incorrect password. Please try again.", "error");
       }
     };
 
@@ -6197,7 +6288,11 @@ document.getElementById("clearDataBtn").addEventListener("click", async () => {
   const ok = await reauthenticateUserModal();
   if (!ok) return;
 
-  if (!confirm("Clear all your budget data?")) return;
+  const _okClear = await showConfirm(
+    "Clear ALL your budget data? This will permanently delete all categories, transactions, and months. This cannot be undone.",
+    { confirmText: "Clear Everything", cancelText: "Cancel", type: "danger" }
+  );
+  if (!_okClear) return;
 
   const monthsSnap = await firebase.firestore().collection("budget").doc(currentUser.uid).collection("months").get();
   for (const d of monthsSnap.docs) await d.ref.delete();
@@ -6205,7 +6300,7 @@ document.getElementById("clearDataBtn").addEventListener("click", async () => {
   const goalsSnap = await firebase.firestore().collection("budget").doc(currentUser.uid).collection("goals").get();
   for (const d of goalsSnap.docs) await d.ref.delete();
 
-  alert("🗑️ Data cleared.");
+  showToast("All budget data cleared.", "success");
 });
 
 // ===== Delete Account =====
@@ -6213,7 +6308,11 @@ document.getElementById("deleteAccountBtn").addEventListener("click", async () =
   const ok = await reauthenticateUserModal();
   if (!ok) return;
 
-  if (!confirm("Delete account permanently? This cannot be undone.")) return;
+  const _okDelFirebase = await showConfirm(
+    "Permanently delete your account? All your data will be erased and cannot be recovered.",
+    { confirmText: "Delete My Account", cancelText: "Cancel", type: "danger" }
+  );
+  if (!_okDelFirebase) return;
 
   await firebase.firestore().collection("users").doc(currentUser.uid).delete();
 
@@ -6225,7 +6324,7 @@ document.getElementById("deleteAccountBtn").addEventListener("click", async () =
 
   await currentUser.delete();
 
-  alert("🚫 Account deleted.");
+  showToast("Account deleted successfully.", "success");
   window.location.href = "sign_auth.html";
 });
 
@@ -6449,7 +6548,11 @@ function openModal(id) {
   window.applyCatColorAll = function() {
     const bg   = getBgColor();
     const text = getTextColor(bg);
-    if (!confirm(`Apply this color to ALL budget category cards?`)) return;
+    const _okColorAll = await showConfirm(
+      "Apply this color to ALL budget category cards?",
+      { confirmText: "Apply to All", cancelText: "Cancel", type: "info" }
+    );
+    if (!_okColorAll) return;
     applyColor(bg, text, null, null, true);
     closeCatColorModal();
   };
