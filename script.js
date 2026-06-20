@@ -767,6 +767,10 @@ auth.onAuthStateChanged(async (user) => {
       if (window.themeManager && typeof window.themeManager.loadThemeFromFirestore === "function") {
         await window.themeManager.loadThemeFromFirestore();
       }
+
+      // Show onboarding wizard if this is a new user
+      await Onboarding.checkAndShow();
+
     } else {
       showToast("Your account is pending approval. Please contact the admin.", "error");
       await auth.signOut();
@@ -3344,6 +3348,465 @@ function _createDialogOverlay() {
   el.setAttribute('tabindex', '-1');
   return el;
 }
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// ONBOARDING WIZARD
+// Shows once per user when they have no accounts, categories, or income.
+// Stores onboardingComplete:true in users/{uid} when finished or fully skipped.
+// ════════════════════════════════════════════════════════════════════════════
+
+const Onboarding = (() => {
+  // In-memory state collected across all 3 steps
+  let _state = {
+    accounts:   [],   // [{ name, type, balance }]
+    categories: [],   // [{ name, budget }]
+    incomes:    [],   // [{ name, amount }]
+  };
+
+  let _currentStep = 1;
+  const TOTAL_STEPS = 3;
+
+  // ── Public API ──────────────────────────────────────────────────────────
+
+  async function checkAndShow() {
+    if (!currentUser) return;
+    try {
+      const userDoc = await db.collection("users").doc(currentUser.uid).get();
+      if (userDoc.exists && userDoc.data().onboardingComplete) return; // already done
+
+      // Check if user already has data (returning user who cleared flag, etc.)
+      const budgetDoc = await db.collection("budget").doc(currentUser.uid).get();
+      if (budgetDoc.exists) {
+        const d = budgetDoc.data();
+        const hasAccounts    = d.accounts && d.accounts.length > 0;
+        const hasCategories  = d.categories && d.categories.length > 0;
+        if (hasAccounts && hasCategories) {
+          // User already set up — mark complete silently and skip
+          await _markComplete();
+          return;
+        }
+      }
+
+      _show();
+    } catch (err) {
+      console.warn("[Onboarding] checkAndShow error:", err);
+    }
+  }
+
+  function _show() {
+    _state = { accounts: [], categories: [], incomes: [] };
+    _currentStep = 1;
+    document.getElementById("onboardingOverlay").style.display = "flex";
+    _renderStep(1);
+    _wireFooter();
+  }
+
+  function _hide() {
+    document.getElementById("onboardingOverlay").style.display = "none";
+  }
+
+  // ── Step renderer ───────────────────────────────────────────────────────
+
+  function _renderStep(step) {
+    _currentStep = step;
+    _updateHeader(step);
+    _updateDots(step);
+
+    const body = document.getElementById("ob-body");
+    if (step === 1) body.innerHTML = _step1HTML();
+    if (step === 2) body.innerHTML = _step2HTML();
+    if (step === 3) body.innerHTML = _step3HTML();
+
+    _updateFooter(step);
+    _renderLists();
+    _wireStepInputs(step);
+  }
+
+  function _updateHeader(step) {
+    const eyebrow  = document.getElementById("ob-eyebrow");
+    const title    = document.getElementById("ob-title");
+    const subtitle = document.getElementById("ob-subtitle");
+
+    const config = {
+      1: {
+        eyebrow:  "Step 1 of 3",
+        title:    'Add your <span>accounts</span>',
+        subtitle: "Start by adding the accounts you use — bank, cash, e-wallets, or credit cards.",
+      },
+      2: {
+        eyebrow:  "Step 2 of 3",
+        title:    'Set up <span>categories</span>',
+        subtitle: "Create budget envelopes for your spending — Groceries, Rent, Transport, etc.",
+      },
+      3: {
+        eyebrow:  "Step 3 of 3",
+        title:    'Add your <span>income</span>',
+        subtitle: "Tell BudgetMaster how much money you have to budget this month.",
+      },
+    };
+
+    const c = config[step];
+    eyebrow.textContent  = c.eyebrow;
+    title.innerHTML      = c.title;
+    subtitle.textContent = c.subtitle;
+  }
+
+  function _updateDots(step) {
+    for (let i = 1; i <= TOTAL_STEPS; i++) {
+      const dot = document.getElementById(`ob-dot-${i}`);
+      dot.classList.remove("active", "done");
+      if (i < step)  dot.classList.add("done");
+      if (i === step) dot.classList.add("active");
+    }
+  }
+
+  function _updateFooter(step) {
+    const skipBtn = document.getElementById("ob-skip-btn");
+    const nextBtn = document.getElementById("ob-next-btn");
+
+    if (step === TOTAL_STEPS) {
+      skipBtn.textContent = "Skip & Finish";
+      nextBtn.textContent = "Finish Setup ✓";
+    } else {
+      skipBtn.textContent = "Skip this step";
+      nextBtn.textContent = "Next →";
+    }
+  }
+
+  // ── Step 1: Accounts ────────────────────────────────────────────────────
+
+  function _step1HTML() {
+    return `
+      <div id="ob-account-list" class="ob-item-list"></div>
+      <div class="ob-input-row three" id="ob-acct-inputs">
+        <div class="ob-field">
+          <label>Account name</label>
+          <input id="ob-acct-name" type="text" placeholder="e.g. BDO Savings" maxlength="40">
+        </div>
+        <div class="ob-field">
+          <label>Type</label>
+          <select id="ob-acct-type">
+            <option value="checking">Bank / Savings</option>
+            <option value="cash">Cash / E-wallet</option>
+            <option value="credit-card">Credit Card</option>
+            <option value="loan">Loan</option>
+          </select>
+        </div>
+        <div class="ob-field">
+          <label>Balance</label>
+          <input id="ob-acct-balance" type="number" min="0" placeholder="0.00" step="0.01">
+        </div>
+        <button class="ob-inline-add" id="ob-acct-add" title="Add account">+</button>
+      </div>`;
+  }
+
+  // ── Step 2: Categories ──────────────────────────────────────────────────
+
+  function _step2HTML() {
+    const suggestions = ["Groceries","Rent","Transport","Utilities","Dining Out","Entertainment","Savings","Healthcare"];
+    const chips = suggestions.map(s =>
+      `<button class="ob-chip" onclick="Onboarding._addCategoryChip('${s}')">${s}</button>`
+    ).join("");
+
+    return `
+      <div style="margin-bottom:10px;">
+        <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:8px;">Quick add:</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">${chips}</div>
+      </div>
+      <div id="ob-cat-list" class="ob-item-list"></div>
+      <div class="ob-input-row" id="ob-cat-inputs">
+        <div class="ob-field">
+          <label>Category name</label>
+          <input id="ob-cat-name" type="text" placeholder="e.g. Groceries" maxlength="40">
+        </div>
+        <div class="ob-field">
+          <label>Monthly budget (optional)</label>
+          <input id="ob-cat-budget" type="number" min="0" placeholder="0.00" step="0.01">
+        </div>
+        <button class="ob-inline-add" id="ob-cat-add" title="Add category">+</button>
+      </div>
+      <style>
+        .ob-chip{padding:5px 12px;background:#f1f5f9;border:1.5px solid #e2e8f0;
+          border-radius:99px;font-size:12px;font-weight:600;color:#475569;cursor:pointer;
+          transition:background 0.15s,border-color 0.15s,color 0.15s;}
+        .ob-chip:hover{background:#e8f0fe;border-color:var(--primary,#2563eb);color:var(--primary,#2563eb);}
+      </style>`;
+  }
+
+  // ── Step 3: Income ──────────────────────────────────────────────────────
+
+  function _step3HTML() {
+    return `
+      <div id="ob-income-list" class="ob-item-list"></div>
+      <div class="ob-input-row" id="ob-income-inputs">
+        <div class="ob-field">
+          <label>Income source</label>
+          <input id="ob-income-name" type="text" placeholder="e.g. Monthly Salary" maxlength="50">
+        </div>
+        <div class="ob-field">
+          <label>Amount</label>
+          <input id="ob-income-amount" type="number" min="0.01" placeholder="0.00" step="0.01">
+        </div>
+        <button class="ob-inline-add" id="ob-income-add" title="Add income">+</button>
+      </div>`;
+  }
+
+  // ── Item lists ──────────────────────────────────────────────────────────
+
+  function _renderLists() {
+    if (_currentStep === 1) _renderAccountList();
+    if (_currentStep === 2) _renderCategoryList();
+    if (_currentStep === 3) _renderIncomeList();
+  }
+
+  function _accountIcon(type) {
+    return type === "cash" ? "💵" : type === "credit-card" ? "💳" : type === "loan" ? "🏦" : "🏧";
+  }
+
+  function _renderAccountList() {
+    const list = document.getElementById("ob-account-list");
+    if (!list) return;
+    list.innerHTML = _state.accounts.map((a, i) => `
+      <div class="ob-item">
+        <div class="ob-item-icon">${_accountIcon(a.type)}</div>
+        <div class="ob-item-info">
+          <div class="ob-item-name">${a.name}</div>
+          <div class="ob-item-sub">${a.type} · ${formatCurrency(a.balance)}</div>
+        </div>
+        <button class="ob-item-remove" onclick="Onboarding._removeItem('accounts',${i})">×</button>
+      </div>`).join("");
+  }
+
+  function _renderCategoryList() {
+    const list = document.getElementById("ob-cat-list");
+    if (!list) return;
+    list.innerHTML = _state.categories.map((c, i) => `
+      <div class="ob-item">
+        <div class="ob-item-icon">📂</div>
+        <div class="ob-item-info">
+          <div class="ob-item-name">${c.name}</div>
+          <div class="ob-item-sub">${c.budget > 0 ? "Budget: " + formatCurrency(c.budget) : "No budget set"}</div>
+        </div>
+        <button class="ob-item-remove" onclick="Onboarding._removeItem('categories',${i})">×</button>
+      </div>`).join("");
+  }
+
+  function _renderIncomeList() {
+    const list = document.getElementById("ob-income-list");
+    if (!list) return;
+    list.innerHTML = _state.incomes.map((inc, i) => `
+      <div class="ob-item">
+        <div class="ob-item-icon">💰</div>
+        <div class="ob-item-info">
+          <div class="ob-item-name">${inc.name}</div>
+          <div class="ob-item-sub">${formatCurrency(inc.amount)} / month</div>
+        </div>
+        <button class="ob-item-remove" onclick="Onboarding._removeItem('incomes',${i})">×</button>
+      </div>`).join("");
+  }
+
+  // ── Wire input handlers ─────────────────────────────────────────────────
+
+  function _wireStepInputs(step) {
+    if (step === 1) {
+      document.getElementById("ob-acct-add").onclick = _addAccount;
+      document.getElementById("ob-acct-name").onkeydown = e => { if (e.key === "Enter") _addAccount(); };
+    }
+    if (step === 2) {
+      document.getElementById("ob-cat-add").onclick = _addCategory;
+      document.getElementById("ob-cat-name").onkeydown = e => { if (e.key === "Enter") _addCategory(); };
+    }
+    if (step === 3) {
+      document.getElementById("ob-income-add").onclick = _addIncome;
+      document.getElementById("ob-income-amount").onkeydown = e => { if (e.key === "Enter") _addIncome(); };
+    }
+  }
+
+  function _wireFooter() {
+    document.getElementById("ob-next-btn").onclick  = _handleNext;
+    document.getElementById("ob-skip-btn").onclick  = _handleSkip;
+  }
+
+  // ── Add / remove item actions ───────────────────────────────────────────
+
+  function _addAccount() {
+    const name    = (document.getElementById("ob-acct-name").value || "").trim();
+    const type    = document.getElementById("ob-acct-type").value;
+    const balance = parseFloat(document.getElementById("ob-acct-balance").value) || 0;
+    if (!name) { document.getElementById("ob-acct-name").focus(); return; }
+    _state.accounts.push({ name, type, balance });
+    document.getElementById("ob-acct-name").value    = "";
+    document.getElementById("ob-acct-balance").value = "";
+    _renderAccountList();
+    document.getElementById("ob-acct-name").focus();
+  }
+
+  function _addCategory() {
+    const name   = (document.getElementById("ob-cat-name").value || "").trim();
+    const budget = parseFloat(document.getElementById("ob-cat-budget").value) || 0;
+    if (!name) { document.getElementById("ob-cat-name").focus(); return; }
+    if (_state.categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+      showToast("Category already added.", "error"); return;
+    }
+    _state.categories.push({ name, budget });
+    document.getElementById("ob-cat-name").value   = "";
+    document.getElementById("ob-cat-budget").value = "";
+    _renderCategoryList();
+    document.getElementById("ob-cat-name").focus();
+  }
+
+  function _addCategoryChip(name) {
+    if (_state.categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+      showToast(`${name} already added.`, "error"); return;
+    }
+    _state.categories.push({ name, budget: 0 });
+    _renderCategoryList();
+  }
+
+  function _addIncome() {
+    const name   = (document.getElementById("ob-income-name").value || "").trim();
+    const amount = parseFloat(document.getElementById("ob-income-amount").value);
+    if (!name)            { document.getElementById("ob-income-name").focus(); return; }
+    if (!amount || amount <= 0) { document.getElementById("ob-income-amount").focus(); return; }
+    _state.incomes.push({ name, amount });
+    document.getElementById("ob-income-name").value   = "";
+    document.getElementById("ob-income-amount").value = "";
+    _renderIncomeList();
+    document.getElementById("ob-income-name").focus();
+  }
+
+  function _removeItem(key, index) {
+    _state[key].splice(index, 1);
+    _renderLists();
+  }
+
+  // ── Navigation ──────────────────────────────────────────────────────────
+
+  function _handleNext() {
+    if (_currentStep < TOTAL_STEPS) {
+      _renderStep(_currentStep + 1);
+    } else {
+      _finish();
+    }
+  }
+
+  function _handleSkip() {
+    if (_currentStep < TOTAL_STEPS) {
+      _renderStep(_currentStep + 1);
+    } else {
+      _finish();
+    }
+  }
+
+  // ── Write to Firestore ──────────────────────────────────────────────────
+
+  async function _finish() {
+    const btn = document.getElementById("ob-next-btn");
+    btn.disabled = true;
+    btn.textContent = "Saving…";
+
+    try {
+      const uid      = currentUser.uid;
+      const docRef   = db.collection("budget").doc(uid);
+      const monthKey = new Date().toISOString().slice(0, 7);
+      const today    = new Date().toISOString().slice(0, 10);
+      const now      = new Date().toISOString();
+
+      // ── 1. Write accounts ─────────────────────────────────────────────
+      let totalTbb = 0;
+      const accountsToWrite = _state.accounts.map(a => ({
+        name:      a.name,
+        type:      a.type,
+        balance:   a.balance,
+        notes:     "",
+        createdAt: now,
+        updatedAt: now,
+      }));
+
+      // ── 2. Build categories with assigned amounts ─────────────────────
+      let totalAssigned = 0;
+      const categoriesToWrite = _state.categories.map(c => {
+        totalAssigned += c.budget;
+        return {
+          name:     c.name,
+          assigned: c.budget,
+          spent:    0,
+          balance:  c.budget,
+        };
+      });
+
+      // ── 3. Build income transactions and compute TBB ──────────────────
+      const incomeTransactions = _state.incomes.map(inc => ({
+        id:       generateTxnId("txn"),
+        name:     inc.name,
+        amount:   inc.amount,
+        category: "Income",
+        type:     "income",
+        date:     today,
+        inflow:   inc.amount,
+        outflow:  0,
+        source:   "onboarding",
+      }));
+
+      // TBB = total income - total assigned to categories
+      const totalIncome = _state.incomes.reduce((s, i) => s + i.amount, 0);
+      totalTbb = totalIncome - totalAssigned;
+
+      // ── 4. Write root budget doc ──────────────────────────────────────
+      await docRef.set({
+        accounts:     accountsToWrite,
+        categories:   categoriesToWrite,
+        transactions: [],
+        tbb:          totalTbb,
+        currentMonth: monthKey,
+      });
+
+      // ── 5. Write month doc ────────────────────────────────────────────
+      const availBal = totalIncome - totalAssigned;
+      await docRef.collection("months").doc(monthKey).set({
+        currentMonth:     monthKey,
+        tbb:              totalTbb,
+        availableBalance: availBal,
+        categories:       categoriesToWrite,
+        transactions:     incomeTransactions,
+      });
+
+      // ── 6. Mark onboarding complete ───────────────────────────────────
+      await _markComplete();
+
+      // ── 7. Reload app ─────────────────────────────────────────────────
+      accounts = accountsToWrite;
+      _hide();
+      await loadAvailableMonths();
+      await loadBudget();
+      await loadAccounts();
+      await loadBudgetSection();
+      renderAccounts(accounts);
+
+      showToast("Welcome to BudgetMaster! Your budget is ready. 🎉", "success");
+
+    } catch (err) {
+      console.error("[Onboarding] _finish error:", err);
+      showToast("Failed to save your setup. Please try again.", "error");
+      btn.disabled    = false;
+      btn.textContent = "Finish Setup ✓";
+    }
+  }
+
+  async function _markComplete() {
+    await db.collection("users").doc(currentUser.uid).update({
+      onboardingComplete: true
+    });
+  }
+
+  // ── Expose internals needed by inline onclick handlers ──────────────────
+  return {
+    checkAndShow,
+    _addCategoryChip,
+    _removeItem,
+  };
+})();
 
 // Automatically load budget section after login
 auth.onAuthStateChanged(async (user) => {
