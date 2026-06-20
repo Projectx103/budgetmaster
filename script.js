@@ -995,39 +995,54 @@ async function addTransaction() {
   const targetMonth = selectedMonth || data.currentMonth || new Date().toISOString().slice(0, 7);
 
   // ── Available Balance guard ───────────────────────────────────────────────
-  // Compute the real available balance from live Firestore data rather than
-  // trusting a potentially stale availableBalance field. This is the same
-  // formula used by renderBudget: totalIncome - totalBudgetExpenses.
-  const _monthSnap = await docRef.collection("months").doc(targetMonth).get();
-  const _monthData = _monthSnap.exists ? _monthSnap.data() : {};
-  const _txns      = _monthData.transactions || [];
-  const _cats      = _monthData.categories   || [];
+  // RULE: Only block if the transaction exceeds the TOTAL INCOME received
+  // this month — meaning the user is spending money that literally does not
+  // exist anywhere in their budget.
+  //
+  // We do NOT block when a transaction exceeds a category's assigned amount.
+  // That creates an "overspent" state, which is valid and intentional —
+  // it's exactly what the A1 rollover logic carries forward to next month.
+  //
+  // Example:
+  //   Income: ₱10,000 | Groceries assigned: ₱2,000 | Groceries spent: ₱1,800
+  //   → User adds ₱500 expense to Groceries
+  //   → Groceries spent = ₱2,300 (₱300 overspent) — ALLOWED ✅
+  //   → Available Balance drops but total income still covers it
+  //
+  //   Income: ₱10,000 | Total spent across all categories: ₱9,800
+  //   → User tries to add ₱500 expense
+  //   → Would exceed total income by ₱300 — BLOCKED ❌
+  //
+  const _monthSnap   = await docRef.collection("months").doc(targetMonth).get();
+  const _monthData   = _monthSnap.exists ? _monthSnap.data() : {};
+  const _txns        = _monthData.transactions || [];
 
-  // Sum all income inflows
+  // Total income received this month
   const _totalIncome = _txns
     .filter(t => t.type === "income" || (t.inflow && t.inflow > 0))
     .reduce((s, t) => s + (t.amount || t.inflow || 0), 0);
 
-  // Sum all budget-category spending (excludes asset/account-only txns)
+  // Total spent across all budget categories this month
   const _totalSpent = _txns
     .filter(t => t.type === "expense" && !t.isAccountOnlyTxn && !t.fromAsset && !t.fromLiability)
     .reduce((s, t) => s + (t.amount || 0), 0);
 
-  // Prefer stored availableBalance if it exists and is recent; fall back to computed
-  const _storedAvail = typeof _monthData.availableBalance === "number"
-    ? _monthData.availableBalance : null;
-  const _computedAvail = _totalIncome - _totalSpent;
-
-  // Use stored value if it's there, otherwise compute it live
-  // (stored value is written by the engine after every transaction)
-  const _avail = _storedAvail !== null ? _storedAvail : _computedAvail;
-
-  if (_avail - amount < 0) {
-    const shortfall = amount - Math.max(0, _avail);
+  // Only block if the expense would push total spending beyond total income
+  // (i.e. spending money that was never received)
+  if (_totalIncome === 0) {
     showToast(
-      `❌ Not enough budget. Available Balance is ${formatCurrency(Math.max(0, _avail))} — ` +
-      `this expense is ${formatCurrency(shortfall)} over your available budget. ` +
-      `Add income first or reduce your category assignments.`,
+      "❌ No income recorded this month. Add income before logging expenses.",
+      "error"
+    );
+    return;
+  }
+
+  if (_totalSpent + amount > _totalIncome) {
+    const remaining = Math.max(0, _totalIncome - _totalSpent);
+    showToast(
+      `❌ This expense exceeds your total available funds. ` +
+      `You have ${formatCurrency(remaining)} left from ` +
+      `${formatCurrency(_totalIncome)} income this month.`,
       "error"
     );
     return;
