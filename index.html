@@ -14,6 +14,70 @@
 
   <link rel="stylesheet" href="style.css">
 
+  <style>
+  /* ── Styled dialog modals (replaces native alert/confirm) ── */
+  .bm-dialog-overlay {
+    position: fixed; inset: 0; z-index: 99999;
+    background: rgba(0,0,0,0.5);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+    animation: bm-fade-in 0.15s ease;
+  }
+  @keyframes bm-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  .bm-dialog-box {
+    background: var(--card-bg, #fff);
+    border-radius: 16px;
+    padding: 28px 28px 24px;
+    max-width: 400px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    animation: bm-slide-up 0.2s ease;
+    text-align: center;
+  }
+  @keyframes bm-slide-up {
+    from { transform: translateY(12px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+  }
+  .bm-dialog-icon {
+    font-size: 2rem;
+    margin-bottom: 12px;
+    line-height: 1;
+  }
+  .bm-dialog-msg {
+    font-size: 0.92rem;
+    color: var(--text, #1e293b);
+    line-height: 1.6;
+    margin: 0 0 22px;
+  }
+  .bm-dialog-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+  .bm-dialog-btn {
+    padding: 10px 22px;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.15s;
+    min-width: 90px;
+  }
+  .bm-dialog-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+  .bm-dialog-btn:active { transform: translateY(0); }
+  .bm-dialog-btn-cancel {
+    background: var(--border, #e2e8f0);
+    color: var(--text, #1e293b);
+  }
+  .bm-dialog-btn-primary {
+    color: #fff;
+  }
+  </style>
+
 </head>
 <body>
 
