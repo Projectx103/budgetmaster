@@ -78,6 +78,174 @@
   }
   </style>
 
+  <style>
+  /* ── Onboarding Wizard ── */
+  #onboardingOverlay {
+    position: fixed; inset: 0; z-index: 99998;
+    background: rgba(15,23,42,0.72);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+    animation: bm-fade-in 0.3s ease;
+  }
+  .ob-card {
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.8);
+    border-radius: 24px;
+    box-shadow: 0 28px 80px rgba(15,23,42,0.22);
+    width: 100%; max-width: 560px;
+    max-height: 90vh;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    animation: bm-slide-up 0.3s ease;
+  }
+  .ob-header {
+    padding: 28px 32px 0;
+    flex-shrink: 0;
+  }
+  .ob-steps {
+    display: flex; gap: 8px; margin-bottom: 20px;
+  }
+  .ob-step-dot {
+    flex: 1; height: 4px; border-radius: 99px;
+    background: #e2e8f0;
+    transition: background 0.25s;
+  }
+  .ob-step-dot.active { background: var(--primary, #2563eb); }
+  .ob-step-dot.done   { background: #10b981; }
+  .ob-eyebrow {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
+    text-transform: uppercase; color: #64748b; margin-bottom: 6px;
+  }
+  .ob-title {
+    font-family: 'Fraunces', serif;
+    font-size: 26px; font-weight: 700;
+    letter-spacing: -0.03em; color: #0f172a;
+    line-height: 1.15; margin-bottom: 6px;
+  }
+  .ob-title span { color: var(--primary, #2563eb); }
+  .ob-subtitle {
+    font-size: 14px; color: #64748b; line-height: 1.5;
+    margin-bottom: 0;
+  }
+  .ob-body {
+    padding: 20px 32px;
+    overflow-y: auto; flex: 1;
+  }
+  .ob-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    margin-bottom: 10px;
+  }
+  .ob-row.full { grid-template-columns: 1fr; }
+  .ob-field { display: flex; flex-direction: column; gap: 5px; }
+  .ob-field label {
+    font-size: 12px; font-weight: 600; color: #374151;
+  }
+  .ob-field input, .ob-field select {
+    padding: 10px 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px; color: #0f172a;
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+    outline: none;
+    -webkit-appearance: none; appearance: none;
+  }
+  .ob-field input:focus, .ob-field select:focus {
+    border-color: var(--primary, #2563eb);
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+    background: #fff;
+  }
+  .ob-add-btn {
+    width: 100%; padding: 10px;
+    background: #f1f5f9;
+    border: 1.5px dashed #cbd5e1;
+    border-radius: 10px;
+    font-size: 13px; font-weight: 600;
+    color: #64748b; cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    margin-top: 4px;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .ob-add-btn:hover {
+    background: #e8f0fe; border-color: var(--primary,#2563eb);
+    color: var(--primary,#2563eb);
+  }
+  .ob-item-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+  .ob-item {
+    display: flex; align-items: center; gap: 10px;
+    background: #f8fafc; border: 1px solid #e2e8f0;
+    border-radius: 10px; padding: 10px 14px;
+  }
+  .ob-item-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: #e8f0fe; color: var(--primary,#2563eb);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; flex-shrink: 0;
+  }
+  .ob-item-info { flex: 1; min-width: 0; }
+  .ob-item-name { font-size: 14px; font-weight: 600; color: #0f172a; }
+  .ob-item-sub  { font-size: 12px; color: #64748b; margin-top: 1px; }
+  .ob-item-remove {
+    background: none; border: none; cursor: pointer;
+    color: #94a3b8; font-size: 18px; line-height: 1;
+    padding: 2px 4px; border-radius: 4px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .ob-item-remove:hover { color: #ef4444; background: #fee2e2; }
+  .ob-footer {
+    padding: 16px 32px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-top: 1px solid #f1f5f9; flex-shrink: 0;
+  }
+  .ob-skip {
+    background: none; border: none; cursor: pointer;
+    font-size: 13px; color: #94a3b8; font-weight: 500;
+    padding: 8px 12px; border-radius: 8px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .ob-skip:hover { color: #64748b; background: #f1f5f9; }
+  .ob-next {
+    padding: 11px 28px;
+    background: var(--primary, #2563eb); color: #fff;
+    border: none; border-radius: 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+  }
+  .ob-next:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(37,99,235,0.25);
+  }
+  .ob-next:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
+  .ob-input-row {
+    display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px;
+    align-items: end; margin-bottom: 10px;
+  }
+  .ob-input-row.three { grid-template-columns: 1fr 1fr 120px auto; }
+  .ob-inline-add {
+    padding: 10px 14px; background: var(--primary,#2563eb); color: #fff;
+    border: none; border-radius: 10px; cursor: pointer;
+    font-size: 18px; font-weight: 700; line-height: 1;
+    transition: background 0.15s; align-self: flex-end; height: 40px;
+    display: flex; align-items: center; justify-content: center; width: 40px;
+  }
+  .ob-inline-add:hover { background: #1d4ed8; }
+  @media (max-width: 560px) {
+    .ob-card { border-radius: 20px; }
+    .ob-header, .ob-body, .ob-footer { padding-left: 20px; padding-right: 20px; }
+    .ob-row { grid-template-columns: 1fr; }
+    .ob-input-row { grid-template-columns: 1fr auto; }
+    .ob-input-row .ob-field:nth-child(2),
+    .ob-input-row .ob-field:nth-child(3) { display: none; }
+  }
+  </style>
+
 </head>
 <body>
 
@@ -1642,6 +1810,34 @@
 </div>
 
   <!-- Phase 0 helpers -->
+  <!-- ── Onboarding Wizard ─────────────────────────────────────────────── -->
+  <div id="onboardingOverlay" style="display:none;">
+    <div class="ob-card">
+
+      <!-- Header -->
+      <div class="ob-header">
+        <div class="ob-steps">
+          <div class="ob-step-dot active" id="ob-dot-1"></div>
+          <div class="ob-step-dot" id="ob-dot-2"></div>
+          <div class="ob-step-dot" id="ob-dot-3"></div>
+        </div>
+        <div class="ob-eyebrow" id="ob-eyebrow">Step 1 of 3</div>
+        <div class="ob-title" id="ob-title">Add your <span>accounts</span></div>
+        <p class="ob-subtitle" id="ob-subtitle">Start by adding the accounts you use — bank accounts, cash, or credit cards.</p>
+      </div>
+
+      <!-- Body — steps injected by JS -->
+      <div class="ob-body" id="ob-body"></div>
+
+      <!-- Footer -->
+      <div class="ob-footer">
+        <button class="ob-skip" id="ob-skip-btn">Skip this step</button>
+        <button class="ob-next" id="ob-next-btn">Next →</button>
+      </div>
+
+    </div>
+  </div>
+
   <script src="helpers/currency.js"></script>
   <script src="firebase/firestoreTransactionRunner.js"></script>
 
