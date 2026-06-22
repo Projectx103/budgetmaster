@@ -3883,6 +3883,12 @@ const AccountsPrompt = (() => {
 
   function _render() {
     if (accounts && accounts.length > 0) { _hide(); return; }
+
+    // Hide the header Add Account button while the banner is showing —
+    // the banner has its own CTA, no need for two buttons doing the same thing.
+    const headerBtn = document.getElementById("add-account-btn");
+    if (headerBtn) headerBtn.style.display = "none";
+
     let banner = document.getElementById("accounts-setup-prompt");
     if (!banner) {
       banner = document.createElement("div");
@@ -3893,7 +3899,12 @@ const AccountsPrompt = (() => {
     }
     banner.innerHTML =
       '<div class="acct-prompt-inner">'
-      + '<div class="acct-prompt-icon">🏦</div>'
+      + '<div class="acct-prompt-icon">'
+      +   '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+      +     '<rect x="2" y="5" width="20" height="14" rx="2"/>'
+      +     '<line x1="2" y1="10" x2="22" y2="10"/>'
+      +   '</svg>'
+      + '</div>'
       + '<div class="acct-prompt-text">'
       + '<div class="acct-prompt-title">Set up your first account</div>'
       + '<div class="acct-prompt-sub">Track your cash, bank accounts, e-wallets, and credit cards in one place.</div>'
@@ -3917,6 +3928,9 @@ const AccountsPrompt = (() => {
   function _hide() {
     const el = document.getElementById("accounts-setup-prompt");
     if (el) el.remove();
+    // Restore the header Add Account button when banner is hidden
+    const headerBtn = document.getElementById("add-account-btn");
+    if (headerBtn) headerBtn.style.display = "";
   }
 
   async function _dismiss() {
@@ -4291,7 +4305,7 @@ const DashboardTour = (() => {
 // ════════════════════════════════════════════════════════════════════════════
 
 const AccountsTour = (() => {
-  const TOTAL = 6;
+  const TOTAL = 4;
   const STEPS = [
     { sel: () => document.getElementById("add-account-btn"),
       title: "Add your first account",
@@ -4305,14 +4319,6 @@ const AccountsTour = (() => {
     { sel: () => document.querySelector(".nw-cell:nth-child(3)"),
       title: "Net worth",
       body: "Assets minus Liabilities. The single most important number in your financial life." },
-    { sel: () => document.querySelector('.txn-pop-tab[data-type="deposit"]'),
-      fb:   () => document.querySelector(".txn-pop-tabs"),
-      title: "Deposit",
-      body: "Record money coming into this account — salary, transfers in, or cash top-ups." },
-    { sel: () => document.querySelector('.txn-pop-tab[data-type="withdrawal"]'),
-      fb:   () => document.querySelector(".txn-pop-tabs"),
-      title: "Withdrawal",
-      body: "Record money leaving this account — ATM withdrawals or cash out." },
   ];
 
   let _step = 0, _on = false;
