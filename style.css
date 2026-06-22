@@ -1848,32 +1848,9 @@ h3 {
   font-size: 12px;
 }
 
-#add-account-btn {
-  position: fixed;
-  bottom: 28px;
-  right: 28px;
-  padding: 11px 22px;
-  border-radius: 50px;
-  font-weight: 700;
-  font-size: 13px;
-  cursor: pointer;
-  background: var(--primary);
-  color: #fff;
-  border: none;
-  box-shadow: 0 4px 16px rgba(0,92,169,0.35);
-  transition: all 0.2s ease;
-  font-family: inherit;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-#add-account-btn:hover {
-  background: var(--primary-hover);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0,92,169,0.45);
-}
+/* Legacy floating button rules removed — Add Account is now an inline
+   header button (.acct-add-inline-btn) so it no longer collides with
+   the floating Help FAB at the bottom-right corner. */
 
 .accounts-header {
   display: flex;
