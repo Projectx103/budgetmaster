@@ -4291,7 +4291,7 @@ const DashboardTour = (() => {
 // ════════════════════════════════════════════════════════════════════════════
 
 const AccountsTour = (() => {
-  const TOTAL = 7;
+  const TOTAL = 6;
   const STEPS = [
     { sel: () => document.getElementById("add-account-btn"),
       title: "Add your first account",
@@ -4313,10 +4313,6 @@ const AccountsTour = (() => {
       fb:   () => document.querySelector(".txn-pop-tabs"),
       title: "Withdrawal",
       body: "Record money leaving this account — ATM withdrawals or cash out." },
-    { sel: () => document.querySelector('.txn-pop-tab[data-type="expense"]') || document.querySelector('.txn-pop-tab[data-type="pay"]'),
-      fb:   () => document.querySelector(".txn-pop-tabs"),
-      title: "Pay / Expense",
-      body: "Log a purchase or bill payment charged to this account." },
   ];
 
   let _step = 0, _on = false;
