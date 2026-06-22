@@ -5943,3 +5943,57 @@ th.sorted .ie-sort-icon { color: var(--primary); }
   max-height: calc(100vh - 160px);
   overflow-y: auto;
 }
+
+
+/* ============================================================
+   FLOATING HELP BUTTON (FAB)
+   Always-visible help launcher, bottom-right corner.
+   ============================================================ */
+#bm-help-fab {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 52px; height: 52px;
+  background: var(--primary, #2563eb);
+  color: #fff;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(37,99,235,.4);
+  z-index: 9000;
+  transition: transform .2s, box-shadow .2s, background .15s;
+  text-decoration: none;
+  border: none;
+}
+#bm-help-fab:hover {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 12px 32px rgba(37,99,235,.5);
+  background: #1d4ed8;
+}
+#bm-help-fab:active {
+  transform: translateY(-1px) scale(1);
+}
+
+/* Subtle pulse animation to draw attention to first-time users */
+#bm-help-fab::after {
+  content: "";
+  position: absolute; inset: -4px;
+  border-radius: 50%;
+  background: var(--primary, #2563eb);
+  opacity: .35;
+  animation: bm-help-pulse 2.5s ease-out infinite;
+  z-index: -1;
+  pointer-events: none;
+}
+@keyframes bm-help-pulse {
+  0%   { transform: scale(1);   opacity: .35; }
+  70%  { transform: scale(1.4); opacity: 0; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
+@media (max-width: 600px) {
+  #bm-help-fab {
+    width: 48px; height: 48px;
+    bottom: 16px; right: 16px;
+  }
+}
