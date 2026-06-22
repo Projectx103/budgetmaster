@@ -161,6 +161,15 @@ let filteredTransactions = []; // Store filtered results
   link.addEventListener("click", async (e) => { // ✅ Make async
     e.preventDefault();
 
+    // ── Tour guard: block navigation while a tour is active ──────────────
+    // The tour overlay blocks CSS clicks but the sidebar links are inside
+    // it via z-index, so we guard here in JS as well.
+    const _dashActive    = typeof DashboardTour    !== "undefined" && DashboardTour.isActive();
+    const _accountsActive = typeof AccountsTour    !== "undefined" && AccountsTour.isActive();
+    if (_dashActive || _accountsActive) {
+      return; // silently block — the tour overlay visual already signals this
+    }
+
     // Remove active class from all links
     sidebarLinks.forEach(l => l.classList.remove("active"));
     link.classList.add("active");
@@ -4181,7 +4190,7 @@ const DashboardTour = (() => {
     }, 120);
   });
 
-  return { checkAndStart };
+  return { checkAndStart, isActive: () => _on };
 })();
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -4330,7 +4339,7 @@ const AccountsTour = (() => {
     _rsz = setTimeout(() => { const s = STEPS[_step]; if (!s) return; let t = s.sel(); if (!t&&s.fb) t=s.fb(); if(t) _place(t); }, 120);
   });
 
-  return { checkAndStart };
+  return { checkAndStart, isActive: () => _on };
 })();
 
 
