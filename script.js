@@ -4198,19 +4198,16 @@ const DashboardTour = (() => {
       return;
     }
 
-    // Smooth scroll to bring target into view, then place immediately.
-    // We use scrollIntoView with `instant` behaviour first to compute position,
-    // then a single smooth scroll. _place is called via rAF so layout is
-    // measured AFTER the browser has reflowed — eliminating the "jump".
+    // Only scroll if the element is genuinely OFF-screen (clipped).
+    // If it's already fully visible, skip the scroll — that prevents the
+    // tooltip from positioning to the wrong place during a mid-scroll measure.
     const r0 = tgt.getBoundingClientRect();
-    const needsScroll = r0.top < 80 || r0.bottom > window.innerHeight - 80;
+    const partiallyHidden = r0.top < 0 || r0.bottom > window.innerHeight;
 
-    if (needsScroll) {
+    if (partiallyHidden) {
       tgt.scrollIntoView({ behavior: "smooth", block: "center" });
-      // Wait for scroll to finish — measure when scroll has visibly settled
       _waitForScrollEnd(() => _place(tgt));
     } else {
-      // No scroll needed — place immediately on next frame
       requestAnimationFrame(() => _place(tgt));
     }
   }
@@ -4402,11 +4399,18 @@ const AccountsTour = (() => {
     if (!tgt) { if (idx < TOTAL-1) { _step++; _go(_step); } return; }
 
     const r0 = tgt.getBoundingClientRect();
-    const needsScroll = r0.top < 80 || r0.bottom > window.innerHeight - 80;
-    if (needsScroll) {
+    // Only scroll if the element is genuinely OFF-screen (clipped),
+    // not just near an edge. If the user can already see the element,
+    // we don\'t move them around — that prevents the tooltip from
+    // appearing in the wrong place while the page is mid-scroll.
+    const fullyVisible = r0.top >= 0 && r0.bottom <= window.innerHeight;
+    const partiallyHidden = r0.top < 0 || r0.bottom > window.innerHeight;
+
+    if (partiallyHidden) {
       tgt.scrollIntoView({ behavior: "smooth", block: "center" });
       _waitForScrollEnd(() => _place(tgt));
     } else {
+      // Element is already fully on-screen — place tooltip immediately
       requestAnimationFrame(() => _place(tgt));
     }
   }
