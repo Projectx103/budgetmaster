@@ -5,27 +5,40 @@
   <title>BudgetMaster — Help & FAQ</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Apply the saved theme BEFORE any paint to avoid a flash of unstyled content -->
+  <script>
+    (function() {
+      try {
+        var t = localStorage.getItem("budgetmaster-theme");
+        if (t && t !== "classic") {
+          document.documentElement.setAttribute("data-theme", t);
+        }
+      } catch (e) { /* localStorage unavailable — fall back to default */ }
+    })();
+  </script>
+
   <style>
+    /* Help page local fallbacks — overridden by style.css theme variables when loaded */
     :root {
-      --ink: #132238;
-      --muted: #66758a;
-      --line: #dce7f3;
-      --blue: #2563eb;
-      --blue-dark: #1d4fa8;
-      --green: #10b981;
-      --red: #ef4444;
-      --amber: #f59e0b;
-      --bg: #f7fbff;
-      --card: #ffffff;
+      --help-ink:        var(--ynab-text,        #132238);
+      --help-muted:      var(--ynab-text-light,  #66758a);
+      --help-line:       var(--ynab-border,      #dce7f3);
+      --help-blue:       var(--primary,          #2563eb);
+      --help-blue-dark:  var(--primary-hover,    #1d4fa8);
+      --help-green:      var(--ynab-green,       #10b981);
+      --help-red:        var(--ynab-red,         #ef4444);
+      --help-amber:      var(--ynab-orange,      #f59e0b);
+      --help-bg:         var(--ynab-light-gray,  #f7fbff);
+      --help-card:       var(--card-bg,          #ffffff);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: 'DM Sans', sans-serif;
-      color: var(--ink);
-      background:
-        radial-gradient(circle at 10% 20%, rgba(186,219,255,.4) 0%, transparent 28%),
-        radial-gradient(circle at 90% 10%, rgba(222,244,255,.5) 0%, transparent 30%),
-        linear-gradient(135deg, #f7fbff 0%, #eef6fb 100%);
+      color: var(--help-ink);
+      background: var(--bg, linear-gradient(135deg, #f7fbff 0%, #eef6fb 100%));
+      background-attachment: fixed;
       min-height: 100vh;
       line-height: 1.6;
     }
@@ -35,14 +48,14 @@
       background: rgba(255,255,255,.85);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
-      border-bottom: 1px solid var(--line);
+      border-bottom: 1px solid var(--help-line);
       padding: 14px 24px;
       position: sticky; top: 0; z-index: 10;
       display: flex; align-items: center; justify-content: space-between;
     }
     .help-brand {
       display: flex; align-items: center; gap: 10px;
-      text-decoration: none; color: var(--ink);
+      text-decoration: none; color: var(--help-ink);
     }
     .help-brand-logo {
       width: 42px; height: 42px;
@@ -56,13 +69,13 @@
     .help-back {
       display: inline-flex; align-items: center; gap: 6px;
       padding: 8px 16px;
-      background: var(--blue);
+      background: var(--help-blue);
       color: #fff; text-decoration: none;
       border-radius: 10px;
       font-size: 13px; font-weight: 600;
       transition: background .15s, transform .15s;
     }
-    .help-back:hover { background: var(--blue-dark); transform: translateY(-1px); }
+    .help-back:hover { background: var(--help-blue-dark); transform: translateY(-1px); }
 
     /* ── Hero ── */
     .help-hero {
@@ -73,7 +86,7 @@
     .help-hero-eyebrow {
       font-size: 12px; font-weight: 700;
       letter-spacing: .14em; text-transform: uppercase;
-      color: var(--blue);
+      color: var(--help-blue);
       margin-bottom: 12px;
     }
     .help-hero-title {
@@ -85,9 +98,9 @@
       line-height: 1.1;
       margin-bottom: 14px;
     }
-    .help-hero-title span { color: var(--blue); }
+    .help-hero-title span { color: var(--help-blue); }
     .help-hero-sub {
-      font-size: 16px; color: var(--muted);
+      font-size: 16px; color: var(--help-muted);
       max-width: 560px; margin: 0 auto;
       line-height: 1.65;
     }
@@ -100,15 +113,15 @@
     #help-search {
       width: 100%; padding: 14px 16px 14px 44px;
       font-family: 'DM Sans', sans-serif;
-      font-size: 15px; color: var(--ink);
+      font-size: 15px; color: var(--help-ink);
       background: rgba(255,255,255,.85);
-      border: 1.5px solid var(--line);
+      border: 1.5px solid var(--help-line);
       border-radius: 14px;
       outline: none;
       transition: border-color .15s, box-shadow .15s;
     }
     #help-search:focus {
-      border-color: var(--blue);
+      border-color: var(--help-blue);
       box-shadow: 0 0 0 4px rgba(37,99,235,.12);
       background: #fff;
     }
@@ -128,7 +141,7 @@
     .help-pill {
       padding: 8px 16px;
       background: rgba(255,255,255,.7);
-      border: 1.5px solid var(--line);
+      border: 1.5px solid var(--help-line);
       border-radius: 99px;
       font-size: 13px; font-weight: 600;
       color: #475569;
@@ -136,8 +149,8 @@
       transition: all .15s;
       font-family: 'DM Sans', sans-serif;
     }
-    .help-pill:hover { background: #eff6ff; border-color: var(--blue); color: var(--blue); }
-    .help-pill.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+    .help-pill:hover { background: #eff6ff; border-color: var(--help-blue); color: var(--help-blue); }
+    .help-pill.active { background: var(--help-blue); border-color: var(--help-blue); color: #fff; }
 
     /* ── Content sections ── */
     .help-content {
@@ -161,7 +174,7 @@
       background: linear-gradient(135deg, #eff6ff, #dbeafe);
       border-radius: 11px;
       display: inline-flex; align-items: center; justify-content: center;
-      color: var(--blue);
+      color: var(--help-blue);
       box-shadow: 0 4px 12px rgba(37,99,235,.12);
       flex-shrink: 0;
     }
@@ -172,14 +185,14 @@
       background: rgba(255,255,255,.85);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
-      border: 1px solid var(--line);
+      border: 1px solid var(--help-line);
       border-radius: 14px;
       margin-bottom: 10px;
       overflow: hidden;
       transition: border-color .15s, box-shadow .15s;
     }
     .help-item.open {
-      border-color: var(--blue);
+      border-color: var(--help-blue);
       box-shadow: 0 8px 24px rgba(37,99,235,.08);
     }
     .help-q {
@@ -190,10 +203,10 @@
       cursor: pointer;
       font-family: 'DM Sans', sans-serif;
       font-size: 15px; font-weight: 600;
-      color: var(--ink); text-align: left;
+      color: var(--help-ink); text-align: left;
       transition: color .15s;
     }
-    .help-q:hover { color: var(--blue); }
+    .help-q:hover { color: var(--help-blue); }
     .help-q-icon {
       width: 24px; height: 24px;
       display: flex; align-items: center; justify-content: center;
@@ -204,7 +217,7 @@
     }
     .help-item.open .help-q-icon {
       transform: rotate(180deg);
-      color: var(--blue);
+      color: var(--help-blue);
     }
     .help-a {
       max-height: 0; overflow: hidden;
@@ -216,7 +229,7 @@
     }
     .help-a p { margin-bottom: 10px; font-size: 14px; color: #334155; line-height: 1.65; }
     .help-a p:last-child { margin-bottom: 0; }
-    .help-a strong { color: var(--ink); font-weight: 600; }
+    .help-a strong { color: var(--help-ink); font-weight: 600; }
     .help-a code {
       background: #f1f5f9;
       padding: 1px 6px; border-radius: 4px;
@@ -230,7 +243,7 @@
     /* Example callout */
     .help-example {
       background: #f0f7ff;
-      border-left: 3px solid var(--blue);
+      border-left: 3px solid var(--help-blue);
       padding: 12px 14px;
       border-radius: 0 8px 8px 0;
       margin: 10px 0;
@@ -241,14 +254,14 @@
     .help-example strong { display: block; margin-bottom: 4px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #2563eb; }
     .help-warning {
       background: #fff7ed;
-      border-left: 3px solid var(--amber);
+      border-left: 3px solid var(--help-amber);
       padding: 12px 14px;
       border-radius: 0 8px 8px 0;
       margin: 10px 0;
       font-size: 13.5px;
       color: #7c4a03;
     }
-    .help-warning strong { display: block; margin-bottom: 4px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--amber); }
+    .help-warning strong { display: block; margin-bottom: 4px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--help-amber); }
 
     /* Color-coded flow lists */
     .flow-list {
@@ -262,8 +275,8 @@
       font-size: 14px;
       display: flex; align-items: flex-start; gap: 10px;
     }
-    .flow-list .up    { border-left: 3px solid var(--green); }
-    .flow-list .down  { border-left: 3px solid var(--red); }
+    .flow-list .up    { border-left: 3px solid var(--help-green); }
+    .flow-list .down  { border-left: 3px solid var(--help-red); }
     .flow-list .none  { border-left: 3px solid #94a3b8; }
     .flow-tag {
       font-size: 11px; font-weight: 700;
@@ -279,7 +292,7 @@
     /* No results */
     .help-no-results {
       text-align: center; padding: 60px 20px;
-      color: var(--muted);
+      color: var(--help-muted);
       display: none;
     }
     .help-no-results.show { display: block; }
@@ -287,13 +300,13 @@
     /* Footer */
     .help-footer {
       text-align: center; padding: 32px 24px;
-      color: var(--muted);
+      color: var(--help-muted);
       font-size: 13px;
-      border-top: 1px solid var(--line);
+      border-top: 1px solid var(--help-line);
       margin-top: 40px;
       background: rgba(255,255,255,.5);
     }
-    .help-footer a { color: var(--blue); text-decoration: none; font-weight: 600; }
+    .help-footer a { color: var(--help-blue); text-decoration: none; font-weight: 600; }
     .help-footer a:hover { text-decoration: underline; }
 
     @media (max-width: 600px) {
