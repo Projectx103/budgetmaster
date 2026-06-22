@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BudgetMaster — Help & FAQ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #132238;
+      --muted: #66758a;
+      --line: #dce7f3;
+      --blue: #2563eb;
+      --blue-dark: #1d4fa8;
+      --green: #10b981;
+      --red: #ef4444;
+      --amber: #f59e0b;
+      --bg: #f7fbff;
+      --card: #ffffff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 10% 20%, rgba(186,219,255,.4) 0%, transparent 28%),
+        radial-gradient(circle at 90% 10%, rgba(222,244,255,.5) 0%, transparent 30%),
+        linear-gradient(135deg, #f7fbff 0%, #eef6fb 100%);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* ── Top bar ── */
+    .help-topbar {
+      background: rgba(255,255,255,.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--line);
+      padding: 14px 24px;
+      position: sticky; top: 0; z-index: 10;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .help-brand {
+      display: flex; align-items: center; gap: 10px;
+      text-decoration: none; color: var(--ink);
+    }
+    .help-brand-icon {
+      width: 36px; height: 36px;
+      background: var(--blue);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff;
+    }
+    .help-brand-name {
+      font-size: 17px; font-weight: 700;
+      letter-spacing: -.02em;
+    }
+    .help-back {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px;
+      background: var(--blue);
+      color: #fff; text-decoration: none;
+      border-radius: 10px;
+      font-size: 13px; font-weight: 600;
+      transition: background .15s, transform .15s;
+    }
+    .help-back:hover { background: var(--blue-dark); transform: translateY(-1px); }
+
+    /* ── Hero ── */
+    .help-hero {
+      max-width: 800px; margin: 0 auto;
+      padding: 48px 24px 32px;
+      text-align: center;
+    }
+    .help-hero-eyebrow {
+      font-size: 12px; font-weight: 700;
+      letter-spacing: .14em; text-transform: uppercase;
+      color: var(--blue);
+      margin-bottom: 12px;
+    }
+    .help-hero-title {
+      font-family: 'Fraunces', serif;
+      font-size: clamp(34px, 5vw, 48px);
+      font-weight: 700;
+      letter-spacing: -.04em;
+      color: #17304f;
+      line-height: 1.1;
+      margin-bottom: 14px;
+    }
+    .help-hero-title span { color: var(--blue); }
+    .help-hero-sub {
+      font-size: 16px; color: var(--muted);
+      max-width: 560px; margin: 0 auto;
+      line-height: 1.65;
+    }
+
+    /* ── Search ── */
+    .help-search-wrap {
+      max-width: 600px; margin: 24px auto 0;
+      position: relative;
+    }
+    #help-search {
+      width: 100%; padding: 14px 16px 14px 44px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px; color: var(--ink);
+      background: rgba(255,255,255,.85);
+      border: 1.5px solid var(--line);
+      border-radius: 14px;
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    #help-search:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 4px rgba(37,99,235,.12);
+      background: #fff;
+    }
+    .help-search-icon {
+      position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+      color: #94a3b8;
+      pointer-events: none;
+    }
+
+    /* ── Section pills ── */
+    .help-pills {
+      max-width: 800px; margin: 24px auto 0;
+      padding: 0 24px;
+      display: flex; flex-wrap: wrap; gap: 8px;
+      justify-content: center;
+    }
+    .help-pill {
+      padding: 8px 16px;
+      background: rgba(255,255,255,.7);
+      border: 1.5px solid var(--line);
+      border-radius: 99px;
+      font-size: 13px; font-weight: 600;
+      color: #475569;
+      cursor: pointer;
+      transition: all .15s;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .help-pill:hover { background: #eff6ff; border-color: var(--blue); color: var(--blue); }
+    .help-pill.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+    /* ── Content sections ── */
+    .help-content {
+      max-width: 800px; margin: 0 auto;
+      padding: 32px 24px 60px;
+    }
+    .help-section {
+      margin-bottom: 40px;
+      scroll-margin-top: 100px;
+    }
+    .help-section-title {
+      font-family: 'Fraunces', serif;
+      font-size: 26px; font-weight: 700;
+      letter-spacing: -.03em;
+      color: #17304f;
+      margin-bottom: 18px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .help-section-icon {
+      width: 38px; height: 38px;
+      background: #eff6ff;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+
+    /* ── Accordion items ── */
+    .help-item {
+      background: rgba(255,255,255,.85);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      margin-bottom: 10px;
+      overflow: hidden;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .help-item.open {
+      border-color: var(--blue);
+      box-shadow: 0 8px 24px rgba(37,99,235,.08);
+    }
+    .help-q {
+      width: 100%;
+      padding: 16px 20px;
+      background: none; border: none;
+      display: flex; align-items: center; justify-content: space-between;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px; font-weight: 600;
+      color: var(--ink); text-align: left;
+      transition: color .15s;
+    }
+    .help-q:hover { color: var(--blue); }
+    .help-q-icon {
+      width: 24px; height: 24px;
+      display: flex; align-items: center; justify-content: center;
+      color: #94a3b8;
+      transition: transform .25s, color .15s;
+      flex-shrink: 0;
+      margin-left: 12px;
+    }
+    .help-item.open .help-q-icon {
+      transform: rotate(180deg);
+      color: var(--blue);
+    }
+    .help-a {
+      max-height: 0; overflow: hidden;
+      transition: max-height .3s ease, padding .3s ease;
+    }
+    .help-item.open .help-a {
+      max-height: 800px;
+      padding: 0 20px 18px;
+    }
+    .help-a p { margin-bottom: 10px; font-size: 14px; color: #334155; line-height: 1.65; }
+    .help-a p:last-child { margin-bottom: 0; }
+    .help-a strong { color: var(--ink); font-weight: 600; }
+    .help-a code {
+      background: #f1f5f9;
+      padding: 1px 6px; border-radius: 4px;
+      font-family: ui-monospace, "SF Mono", Consolas, monospace;
+      font-size: 13px;
+      color: #1e3a8a;
+    }
+    .help-a ul { padding-left: 20px; margin: 8px 0; }
+    .help-a li { font-size: 14px; color: #334155; margin-bottom: 4px; }
+
+    /* Example callout */
+    .help-example {
+      background: #f0f7ff;
+      border-left: 3px solid var(--blue);
+      padding: 12px 14px;
+      border-radius: 0 8px 8px 0;
+      margin: 10px 0;
+      font-size: 13.5px;
+      line-height: 1.65;
+      color: #1e3a8a;
+    }
+    .help-example strong { display: block; margin-bottom: 4px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #2563eb; }
+    .help-warning {
+      background: #fff7ed;
+      border-left: 3px solid var(--amber);
+      padding: 12px 14px;
+      border-radius: 0 8px 8px 0;
+      margin: 10px 0;
+      font-size: 13.5px;
+      color: #7c4a03;
+    }
+    .help-warning strong { display: block; margin-bottom: 4px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--amber); }
+
+    /* Color-coded flow lists */
+    .flow-list {
+      list-style: none; padding: 0; margin: 10px 0;
+    }
+    .flow-list li {
+      padding: 10px 14px;
+      background: #f8fafc;
+      border-radius: 8px;
+      margin-bottom: 6px;
+      font-size: 14px;
+      display: flex; align-items: flex-start; gap: 10px;
+    }
+    .flow-list .up    { border-left: 3px solid var(--green); }
+    .flow-list .down  { border-left: 3px solid var(--red); }
+    .flow-list .none  { border-left: 3px solid #94a3b8; }
+    .flow-tag {
+      font-size: 11px; font-weight: 700;
+      letter-spacing: .08em; text-transform: uppercase;
+      padding: 3px 8px; border-radius: 99px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .flow-tag.up    { background: #d1fae5; color: #065f46; border-left: none; }
+    .flow-tag.down  { background: #fee2e2; color: #991b1b; border-left: none; }
+    .flow-tag.none  { background: #f1f5f9; color: #475569; border-left: none; }
+
+    /* No results */
+    .help-no-results {
+      text-align: center; padding: 60px 20px;
+      color: var(--muted);
+      display: none;
+    }
+    .help-no-results.show { display: block; }
+
+    /* Footer */
+    .help-footer {
+      text-align: center; padding: 32px 24px;
+      color: var(--muted);
+      font-size: 13px;
+      border-top: 1px solid var(--line);
+      margin-top: 40px;
+      background: rgba(255,255,255,.5);
+    }
+    .help-footer a { color: var(--blue); text-decoration: none; font-weight: 600; }
+    .help-footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 600px) {
+      .help-topbar { padding: 12px 16px; }
+      .help-brand-name { display: none; }
+      .help-hero { padding: 32px 16px 24px; }
+      .help-content { padding: 24px 16px 40px; }
+      .help-section-title { font-size: 22px; }
+      .help-q { padding: 14px 16px; font-size: 14px; }
+      .help-item.open .help-a { padding: 0 16px 14px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top bar -->
+  <div class="help-topbar">
+    <a class="help-brand" href="index.html">
+      <div class="help-brand-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="5" width="20" height="14" rx="2"/>
+          <line x1="2" y1="10" x2="22" y2="10"/>
+        </svg>
+      </div>
+      <span class="help-brand-name">BudgetMaster</span>
+    </a>
+    <a class="help-back" href="index.html">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+      Back to app
+    </a>
+  </div>
+
+  <!-- Hero -->
+  <div class="help-hero">
+    <div class="help-hero-eyebrow">Help &amp; FAQ</div>
+    <h1 class="help-hero-title">How can we <span>help you</span>?</h1>
+    <p class="help-hero-sub">Quick answers to common questions about envelope budgeting, accounts, transactions, and how every number is calculated.</p>
+
+    <!-- Search -->
+    <div class="help-search-wrap">
+      <svg class="help-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="help-search" placeholder="Search for help — e.g. &quot;TBB&quot;, &quot;rollover&quot;, &quot;credit card&quot;" autocomplete="off">
+    </div>
+
+    <!-- Section pills -->
+    <div class="help-pills">
+      <button class="help-pill active" data-filter="all">All topics</button>
+      <button class="help-pill" data-filter="dashboard">Dashboard</button>
+      <button class="help-pill" data-filter="accounts">Accounts</button>
+      <button class="help-pill" data-filter="budget">Budget</button>
+      <button class="help-pill" data-filter="rollover">Rollover</button>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="help-content" id="help-content">
+
+    <!-- ── DASHBOARD ──────────────────────────────────────────── -->
+    <div class="help-section" data-section="dashboard" id="sec-dashboard">
+      <h2 class="help-section-title">
+        <span class="help-section-icon">📊</span>
+        Dashboard
+      </h2>
+
+      <div class="help-item">
+        <button class="help-q">
+          What is "To Be Budgeted" (TBB)?
+          <span class="help-q-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="help-a">
+          <p>TBB is money you've received but haven't <strong>assigned</strong> to any category yet. Your goal is to bring this to ₱0 every month by giving every peso a job — that's the heart of envelope budgeting.</p>
+          <div class="help-example">
+            <strong>Example</strong>
+            You earn ₱20,000. Before you assign anything, TBB = ₱20,000.
+            You assign ₱8,000 to Rent, ₱5,000 to Groceries, ₱2,000 to Transport.
+            TBB is now ₱5,000 — that's still unassigned money you can use anywhere.
+          </div>
+        </div>
+      </div>
+
+      <div class="help-item">
+        <button class="help-q">
+          What's the difference between TBB and Available Balance?
+          <span class="help-q-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="help-a">
+          <p>They sound similar but mean very different things:</p>
+          <ul>
+            <li><strong>TBB</strong> = money not yet assigned to any category. Should be ₱0 when you're done budgeting.</li>
+            <li><strong>Available Balance</strong> = total income minus total spending. It's your <em>real</em> spendable money this month.</li>
+          </ul>
+          <div class="help-example">
+            <strong>Example</strong>
+            Income: ₱20,000 · Assigned to categories: ₱20,000 · Spent so far: ₱5,000.
+            TBB = ₱0 (you assigned everything) · Available Balance = ₱15,000 (still in your accounts).
+          </div>
+        </div>
+      </div>
+
+      <div class="help-item">
+        <button class="help-q">
+          Why is my category showing in red / "Overspent"?
+          <span class="help-q-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="help-a">
+          <p>A category goes red when your <strong>spent</strong> amount exceeds your <strong>assigned</strong> amount. It's not an error — it's a normal part of budgeting that happens to everyone.</p>
+          <p>At month-end rollover, you'll be asked how to handle each overspent category:</p>
+          <ul>
+            <li><strong>Cover next month</strong> — the overspent amount carries forward as a negative balance. You'll need to assign new money next month to clear it.</li>
+            <li><strong>Absorb into pool</strong> — the deficit is taken out of your total TBB pool, and the category resets to ₱0.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ACCOUNTS ──────────────────────────────────────────── -->
+    <div class="help-section" data-section="accounts" id="sec-accounts">
+      <h2 class="help-section-title">
+        <span class="help-section-icon">🏦</span>
+        Accounts
+      </h2>
+
+      <div class="help-item">
+        <button class="help-q">
+          Deposit, Withdraw, Pay, Transfer — what affects what?
+          <span class="help-q-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="help-a">
+          <p>Each account transaction type affects different totals. Here's a clear breakdown:</p>
+          <ul class="flow-list">
+            <li class="up">
+              <span class="flow-tag up">Deposit</span>
+              <span>Account balance ↑ · Available Balance ↑ · TBB ↑ · Doesn't affect any category</span>
+            </li>
+            <li class="down">
+              <span class="flow-tag down">Withdraw</span>
+              <span>Account balance ↓ · Available Balance ↓ · TBB ↓ · Doesn't affect any category</span>
+            </li>
+            <li class="down">
+              <span class="flow-tag down">Pay (credit card)</span>
+              <span>Asset account ↓ · Credit card balance owed ↓ · Available Balance ↓ · TBB unchanged</span>
+            </li>
+            <li class="none">
+              <span class="flow-tag none">Transfer</span>
+              <span>One account ↓ · Another account ↑ · Available Balance unchanged · TBB unchanged</span>
+            </li>
+            <li class="down">
+              <span class="flow-tag down">Expense</span>
+              <span>Account balance ↓ · Category spent ↑ · Available Balance ↓ · TBB unchanged</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="help-item">
+        <button class="help-q">
+          How do credit card payments work?
+          <span class="help-q-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="help-a">
+          <p>Credit cards work in two steps:</p>
+          <p><strong>Step 1 — You charge something to the card.</strong> Use the <code>Expense</code> button inside that credit card account. This:</p>
+          <ul>
+            <li>Increases your credit card balance (you now owe more)</li>
+            <li>Increases the spent amount in the linked budget category (e.g. Groceries)</li>
+            <li>Does NOT decrease any cash account — you haven't paid yet</li>
+          </ul>
+          <p><strong>Step 2 — You pay the credit card bill.</strong> Use the <code>Pay</code> button. This:</p>
+          <ul>
+            <li>Decreases the asset account you paid from (e.g. Checking ↓)</li>
+            <li>Decreases the credit card balance owed (you now owe less)</li>
+            <li>Does NOT affect any budget category — that was already counted in Step 1</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="help-item">
+        <button class="help-q">
+          When should I use Transfer vs Deposit?
+          <span class="help-q-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="help-a">
+          <p><strong>Transfer</strong> = moving money between your own accounts. It doesn't change your total wealth, so Available Balance and TBB stay the same.</p>
+          <p><strong>Deposit</strong> = new money entering your accounts from outside (salary, gift, allowance). It increases your total wealth, so TBB goes up.</p>
+          <div class="help-example">
+            <strong>Right way to use each</strong>
+            • Moving ₱5,000 from BDO Savings to GCash → <strong>Transfer</strong>
+            • Your boss paid your salary into BDO Savings → <strong>Deposit</strong>
+            • Mom sent you ₱2,000 via GCash → <strong>Deposit</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="help-item">
+        <button class="help-q">
+          Why does my Withdrawal reduce TBB?
+          <span class="help-q-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="help-a">
+          <p>A Withdrawal means money is leaving your tracked accounts without being attached to a budget category — like converting savings to physical cash you'll spend untracked, or sending money to someone outside your budget system.</p>
+          <p>Since the money is gone from your wealth and not tied to any category's spent amount, it must come out of TBB to keep the budget math correct.</p>
+          <div class="help-warning">
+            <strong>Tip</strong>
+            If you're paying for something specific, use <code>Expense</code> instead — it lets you categorise the spending properly.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── BUDGET ──────────────────────────────────────────── -->
+    <div class="help-section" data-section="budget" id="sec-budget">
+      <h2 class="help-section-title">
+        <span class="help-section-icon">💰</span>
+        Budget
+      </h2>
+
+      <div class="help-item">
+        <button class="help-q">
+          How do I assign money to a category?
+          <span class="help-q-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="help-a">
+          <p>Open the <strong>Budget</strong> section, find your category, and tap the assigned amount to edit it. The number you enter is moved <em>from TBB</em> into that category.</p>
+          <p>You can only assign money you have. If you try to assign more than your current TBB, the app will block it and show an error — you need more income first.</p>
+        </div>
+      </div>
+
+      <div class="help-item">
+        <button class="help-q">
+          Why can't I assign more money than my TBB?
+          <span class="help-q-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="help-a">
+          <p>Envelope budgeting only works if you're assigning <strong>real money you actually have</strong>. Allowing you to assign more than your income would let you plan to spend money that doesn't exist, which defeats the whole point.</p>
+          <p>If you want to assign more to a category, you need to either:</p>
+          <ul>
+            <li>Add more income to this month, or</li>
+            <li>Reduce the amount assigned to another category to free up TBB</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="help-item">
+        <button class="help-q">
+          Can I overspend a category?
+          <span class="help-q-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="help-a">
+          <p>Yes. Real life doesn't fit a perfect budget — you might spend more on groceries than you assigned. BudgetMaster will allow it as long as your <strong>total spending</strong> doesn't exceed your <strong>total income</strong>.</p>
+          <p>The overspent category will show in red, and at rollover time you'll decide how to handle the deficit — Cover next month or Absorb from TBB.</p>
+          <div class="help-example">
+            <strong>Example</strong>
+            Groceries assigned: ₱5,000 · Groceries spent: ₱5,800 → overspent by ₱800.
+            That's fine if you have ₱800+ unassigned in TBB or another category — but you'll need to clear that deficit eventually.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ROLLOVER ──────────────────────────────────────────── -->
+    <div class="help-section" data-section="rollover" id="sec-rollover">
+      <h2 class="help-section-title">
+        <span class="help-section-icon">🔄</span>
+        Rollover
+      </h2>
+
+      <div class="help-item">
+        <button class="help-q">
+          What is rollover and when does it happen?
+          <span class="help-q-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="help-a">
+          <p>Rollover is the process of closing the current month and opening the next one. It carries forward leftover money in each category so unspent savings aren't lost.</p>
+          <p>You can trigger it manually from the Rollover button, or set it to run automatically on a chosen day of the month in Settings.</p>
+        </div>
+      </div>
+
+      <div class="help-item">
+        <button class="help-q">
+          What happens to unspent category money?
+          <span class="help-q-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="help-a">
+          <p>It carries forward automatically. Each category's new starting amount = its previous <code>assigned - spent</code> value.</p>
+          <div class="help-example">
+            <strong>Example</strong>
+            Groceries: assigned ₱5,000, spent ₱4,200 → carries forward ₱800 to next month.
+            New month starts with Groceries assigned = ₱800, spent = ₱0.
+          </div>
+        </div>
+      </div>
+
+      <div class="help-item">
+        <button class="help-q">
+          Cover vs Absorb — what's the difference?
+          <span class="help-q-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="help-a">
+          <p>When a category is overspent at rollover, you get two choices for how to handle it:</p>
+          <ul>
+            <li><strong>Cover next month</strong> — the category starts with a negative balance equal to the overspent amount. You must assign new money next month to bring it back to ₱0+.</li>
+            <li><strong>Absorb into pool</strong> — the category resets to ₱0, and the deficit is taken out of next month's TBB pool. This is like saying "the rest of my budget covers this overspend."</li>
+          </ul>
+          <div class="help-example">
+            <strong>Example</strong>
+            Groceries overspent by ₱500.
+            <br>• <strong>Cover</strong> → next month, Groceries starts at -₱500 (you owe it back).
+            <br>• <strong>Absorb</strong> → next month, Groceries starts at ₱0 and TBB is reduced by ₱500.
+          </div>
+        </div>
+      </div>
+
+      <div class="help-item">
+        <button class="help-q">
+          Can I undo a rollover?
+          <span class="help-q-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="help-a">
+          <p>Not directly — rollovers create permanent month boundaries. But all your data is preserved in the Reports section, and the previous month's transactions, categories, and balances are still viewable via the month selector.</p>
+          <p>If a rollover was triggered by mistake, you can:</p>
+          <ul>
+            <li>Navigate back to the previous month using the month picker arrows</li>
+            <li>Check the <code>rolloverHistory</code> log in your data for the exact carry-forward amounts</li>
+            <li>Manually adjust assignments in the new month to undo any unwanted changes</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- No results state -->
+    <div class="help-no-results" id="help-no-results">
+      <p style="font-size: 18px; margin-bottom: 8px;">🔍</p>
+      <p>No help topics found matching your search.</p>
+      <p style="font-size: 13px; margin-top: 8px;">Try different keywords or browse all topics.</p>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <div class="help-footer">
+    Can't find what you need? <a href="#">Contact support</a>
+    <br><br>
+    <a href="index.html">← Back to BudgetMaster</a>
+  </div>
+
+  <script>
+    // ── Accordion toggle ────────────────────────────────────────────────
+    document.querySelectorAll('.help-q').forEach(q => {
+      q.addEventListener('click', () => {
+        const item = q.closest('.help-item');
+        const wasOpen = item.classList.contains('open');
+        // Close all others in same section (single-open pattern)
+        document.querySelectorAll('.help-item.open').forEach(el => el.classList.remove('open'));
+        if (!wasOpen) item.classList.add('open');
+      });
+    });
+
+    // ── Section pill filter ─────────────────────────────────────────────
+    const pills    = document.querySelectorAll('.help-pill');
+    const sections = document.querySelectorAll('.help-section');
+    pills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        pills.forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        const filter = pill.dataset.filter;
+        sections.forEach(sec => {
+          sec.style.display = (filter === 'all' || sec.dataset.section === filter) ? 'block' : 'none';
+        });
+        document.getElementById('help-search').value = '';
+        document.getElementById('help-no-results').classList.remove('show');
+        // Show all items in visible sections
+        document.querySelectorAll('.help-item').forEach(i => i.style.display = '');
+      });
+    });
+
+    // ── Live search ─────────────────────────────────────────────────────
+    const searchInput = document.getElementById('help-search');
+    const noResults   = document.getElementById('help-no-results');
+
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value.trim().toLowerCase();
+      // Reset pill filter when searching
+      if (q) {
+        pills.forEach(p => p.classList.remove('active'));
+        pills[0].classList.add('active');
+        sections.forEach(s => s.style.display = 'block');
+      }
+      let visibleCount = 0;
+      document.querySelectorAll('.help-item').forEach(item => {
+        const text = item.textContent.toLowerCase();
+        const match = !q || text.includes(q);
+        item.style.display = match ? '' : 'none';
+        if (match) visibleCount++;
+      });
+      // Hide section title if all its items are hidden
+      sections.forEach(sec => {
+        const anyVisible = sec.querySelectorAll('.help-item').length > 0 &&
+          Array.from(sec.querySelectorAll('.help-item')).some(i => i.style.display !== 'none');
+        sec.style.display = anyVisible ? 'block' : 'none';
+      });
+      noResults.classList.toggle('show', visibleCount === 0);
+    });
+
+    // ── Deep link to section via hash (e.g. help.html#accounts) ─────────
+    if (window.location.hash) {
+      const target = document.querySelector(window.location.hash);
+      if (target) {
+        setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+      }
+    }
+  </script>
+
+</body>
+</html>
