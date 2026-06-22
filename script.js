@@ -4235,6 +4235,13 @@ const DashboardTour = (() => {
     const P = 8;
     const r = tgt.getBoundingClientRect();
 
+    // Safety: skip if element has no size (hidden / not laid out)
+    if (r.width === 0 || r.height === 0) {
+      _hl.style.cssText = "display:none";
+      _tt.style.left = "-9999px";
+      return;
+    }
+
     // Highlight cutout around the target
     _hl.style.cssText = `left:${r.left - P}px;top:${r.top - P}px;width:${r.width + P * 2}px;height:${r.height + P * 2}px;`;
 
@@ -4304,7 +4311,19 @@ const DashboardTour = (() => {
 const AccountsTour = (() => {
   const TOTAL = 4;
   const STEPS = [
-    { sel: () => document.getElementById("add-account-btn"),
+    { sel: () => {
+        // Pick whichever Add Account button is actually visible right now.
+        // When user has 0 accounts the header button is hidden and the prompt
+        // banner shows its own CTA — point at that one instead.
+        const candidates = [
+          document.getElementById("acct-prompt-add-btn"),
+          document.getElementById("add-account-btn"),
+        ];
+        for (const el of candidates) {
+          if (el && el.offsetParent !== null) return el; // visible
+        }
+        return null;
+      },
       title: "Add your first account",
       body: "Tap here to add a bank account, cash wallet, GCash, Maya, or credit card." },
     { sel: () => document.querySelector(".nw-cell:nth-child(1)"),
@@ -4431,6 +4450,16 @@ const AccountsTour = (() => {
     if (!_hl || !_tt) return;
     const P = 8;
     const r = tgt.getBoundingClientRect();
+
+    // Safety: if rect is zero-sized (element hidden, not yet laid out),
+    // skip placement entirely — hide highlight and tooltip so they don\'t
+    // appear pinned at the top-left corner.
+    if (r.width === 0 || r.height === 0) {
+      _hl.style.cssText = "display:none";
+      _tt.style.left = "-9999px";
+      return;
+    }
+
     _hl.style.cssText = `left:${r.left - P}px;top:${r.top - P}px;width:${r.width + P * 2}px;height:${r.height + P * 2}px;`;
 
     const vw = window.innerWidth, vh = window.innerHeight;
