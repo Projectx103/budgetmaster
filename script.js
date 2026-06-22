@@ -4291,7 +4291,7 @@ const DashboardTour = (() => {
 // ════════════════════════════════════════════════════════════════════════════
 
 const AccountsTour = (() => {
-  const TOTAL = 8;
+  const TOTAL = 7;
   const STEPS = [
     { sel: () => document.getElementById("add-account-btn"),
       title: "Add your first account",
@@ -4317,10 +4317,6 @@ const AccountsTour = (() => {
       fb:   () => document.querySelector(".txn-pop-tabs"),
       title: "Pay / Expense",
       body: "Log a purchase or bill payment charged to this account." },
-    { sel: () => document.querySelector('.txn-pop-tab[data-type="transfer"]'),
-      fb:   () => document.querySelector(".txn-pop-tabs"),
-      title: "Transfer",
-      body: "Move money between your own accounts — e.g. Savings to GCash." },
   ];
 
   let _step = 0, _on = false;
