@@ -5847,3 +5847,99 @@ th.sorted .ie-sort-icon { color: var(--primary); }
   .acct-prompt-inner       { flex-direction: column; text-align: center; }
   .acct-prompt-actions     { flex-direction: row; justify-content: center; }
 }
+
+
+/* ============================================================
+   WELCOME BANNER
+   Shown after onboarding wizard completes, before dashboard tour.
+   ============================================================ */
+#bm-welcome-banner {
+  position: fixed; inset: 0; z-index: 19998;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  animation: bm-fade-in 0.25s ease;
+}
+.bm-welcome-overlay {
+  position: absolute; inset: 0;
+  background: rgba(15,23,42,.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.bm-welcome-card {
+  position: relative;
+  max-width: 460px; width: 100%;
+  background: rgba(255,255,255,.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,.8);
+  border-radius: 22px;
+  box-shadow: 0 28px 80px rgba(15,23,42,.28);
+  padding: 36px 32px 28px;
+  text-align: center;
+  animation: bm-slide-up 0.3s ease;
+}
+.bm-welcome-icon {
+  font-size: 52px; line-height: 1;
+  margin-bottom: 16px;
+  animation: bm-welcome-bounce 1.5s ease infinite;
+}
+@keyframes bm-welcome-bounce {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+.bm-welcome-title {
+  font-family: "Fraunces", serif;
+  font-size: 26px; font-weight: 700;
+  letter-spacing: -.02em;
+  color: #0f172a;
+  margin: 0 0 10px;
+  line-height: 1.2;
+}
+.bm-welcome-title span { color: var(--primary,#2563eb); }
+.bm-welcome-sub {
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.55;
+  margin: 0 0 24px;
+}
+.bm-welcome-actions {
+  display: flex; flex-direction: column; gap: 10px;
+}
+.bm-welcome-cta {
+  padding: 14px 24px;
+  background: var(--primary,#2563eb);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform .15s, box-shadow .15s, background .15s;
+}
+.bm-welcome-cta:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(37,99,235,.3);
+}
+.bm-welcome-skip {
+  padding: 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: #94a3b8;
+  transition: color .15s;
+}
+.bm-welcome-skip:hover { color: #475569; }
+
+
+/* ============================================================
+   TOUR — improved tooltip card styling
+   ============================================================ */
+.tour-card {
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+}
