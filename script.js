@@ -3808,12 +3808,9 @@ const Onboarding = (() => {
       await loadBudget();
       await loadAccounts();
       await loadBudgetSection();
-      showToast("Welcome to BudgetMaster! Your budget is ready. 🎉", "success");
 
-      // Auto-start the dashboard tour right after onboarding completes
-      if (typeof DashboardTour !== "undefined") {
-        setTimeout(() => DashboardTour.checkAndStart(), 800);
-      }
+      // Show welcome banner — user clicks "Take the tour" to begin
+      _showWelcomeBanner();
 
     } catch (err) {
       console.error("[Onboarding] _finish error:", err);
@@ -3828,6 +3825,38 @@ const Onboarding = (() => {
     } catch (_) {
       await db.collection("users").doc(currentUser.uid).set({ onboardingComplete: true }, { merge: true });
     }
+  }
+
+  // ── Welcome banner — shown after the wizard, before the dashboard tour ──
+  function _showWelcomeBanner() {
+    // Don\'t duplicate
+    if (document.getElementById("bm-welcome-banner")) return;
+
+    const banner = document.createElement("div");
+    banner.id = "bm-welcome-banner";
+    banner.innerHTML = `
+      <div class="bm-welcome-overlay"></div>
+      <div class="bm-welcome-card">
+        <div class="bm-welcome-icon">\ud83c\udf89</div>
+        <h2 class="bm-welcome-title">You\u2019re all set, <span>${_esc((currentUser && currentUser.displayName) || "friend")}</span>!</h2>
+        <p class="bm-welcome-sub">Your budget is ready to go. Want a quick tour of your dashboard so you know what each card and button does?</p>
+        <div class="bm-welcome-actions">
+          <button type="button" class="bm-welcome-skip"   id="bm-welcome-skip">Skip for now</button>
+          <button type="button" class="bm-welcome-cta"    id="bm-welcome-start">Take the 1-minute tour \u2192</button>
+        </div>
+      </div>`;
+    document.body.appendChild(banner);
+
+    const cleanup = () => banner.remove();
+
+    document.getElementById("bm-welcome-start").addEventListener("click", () => {
+      cleanup();
+      if (typeof DashboardTour !== "undefined") {
+        // Small delay for banner fade-out and dashboard render
+        setTimeout(() => DashboardTour.checkAndStart(), 200);
+      }
+    });
+    document.getElementById("bm-welcome-skip").addEventListener("click", cleanup);
   }
 
   return { checkAndShow, _removeItem, _updateBudget, _addCategoryChip: _addCategoryChip };
@@ -4140,6 +4169,7 @@ const DashboardTour = (() => {
     if (!s) return;
     const tgt = s.sel();
 
+    // Update text content
     document.getElementById("tour-step-count").textContent = `Step ${idx + 1} of ${TOTAL}`;
     document.getElementById("tour-title").textContent      = s.title;
     document.getElementById("tour-body").textContent       = s.body;
@@ -4154,28 +4184,91 @@ const DashboardTour = (() => {
       return;
     }
 
-    tgt.scrollIntoView({ behavior: "smooth", block: "center" });
-    setTimeout(() => _place(tgt), 360);
+    // Smooth scroll to bring target into view, then place immediately.
+    // We use scrollIntoView with `instant` behaviour first to compute position,
+    // then a single smooth scroll. _place is called via rAF so layout is
+    // measured AFTER the browser has reflowed — eliminating the "jump".
+    const r0 = tgt.getBoundingClientRect();
+    const needsScroll = r0.top < 80 || r0.bottom > window.innerHeight - 80;
+
+    if (needsScroll) {
+      tgt.scrollIntoView({ behavior: "smooth", block: "center" });
+      // Wait for scroll to finish — measure when scroll has visibly settled
+      _waitForScrollEnd(() => _place(tgt));
+    } else {
+      // No scroll needed — place immediately on next frame
+      requestAnimationFrame(() => _place(tgt));
+    }
+  }
+
+  // Waits until window scroll position stops changing, then runs callback
+  function _waitForScrollEnd(cb) {
+    let last = window.scrollY;
+    let stable = 0;
+    const tick = () => {
+      const now = window.scrollY;
+      if (Math.abs(now - last) < 0.5) {
+        stable++;
+        if (stable >= 2) { cb(); return; }
+      } else {
+        stable = 0;
+      }
+      last = now;
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
   }
 
   function _place(tgt) {
     if (!_hl || !_tt) return;
     const P = 8;
     const r = tgt.getBoundingClientRect();
+
+    // Highlight cutout around the target
     _hl.style.cssText = `left:${r.left - P}px;top:${r.top - P}px;width:${r.width + P * 2}px;height:${r.height + P * 2}px;`;
-    const vp = window.innerHeight;
-    const TW = Math.min(300, window.innerWidth - 32);
-    const below = (vp - r.bottom >= 200) || (vp - r.bottom >= r.top);
+
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const TW = Math.min(320, vw - 32);
+    const GAP = 18; // gap between target and tooltip (incl. arrow)
+
+    // Render tooltip off-screen first to measure its true height
+    _tt.style.left = "-9999px";
+    _tt.style.top  = "0px";
+    _tt.style.width = `${TW}px`;
+
+    // Force a reflow then measure
+    const tH = _tt.offsetHeight;
+
+    // Decide above or below based on actual tooltip height
+    const spaceBelow = vh - r.bottom - GAP;
+    const spaceAbove = r.top - GAP;
+    const below = spaceBelow >= tH || spaceBelow >= spaceAbove;
+
     const arr = document.getElementById("tour-arrow");
     if (arr) arr.className = below ? "arrow-up" : "arrow-down";
-    let lx = r.left;
-    if (lx + TW > window.innerWidth - 16) lx = window.innerWidth - TW - 16;
+
+    // Horizontal: align tooltip near the center of the target, clamp to viewport
+    let lx = r.left + (r.width / 2) - (TW / 2);
+    if (lx + TW > vw - 16) lx = vw - TW - 16;
     if (lx < 16) lx = 16;
+
     _tt.style.left  = `${lx}px`;
     _tt.style.width = `${TW}px`;
-    if (below) { _tt.style.top = `${r.bottom + P + 14 + 12}px`; _tt.style.bottom = "auto"; }
-    else        { _tt.style.bottom = `${vp - r.top + P + 14 + 12}px`; _tt.style.top = "auto"; }
-    if (arr) arr.style.left = `${Math.max(10, Math.min(r.left + r.width / 2 - lx - 10, TW - 30))}px`;
+
+    if (below) {
+      _tt.style.top    = `${r.bottom + GAP}px`;
+      _tt.style.bottom = "auto";
+    } else {
+      _tt.style.top    = `${r.top - GAP - tH}px`;
+      _tt.style.bottom = "auto";
+    }
+
+    // Position arrow pointing back at the target center
+    if (arr) {
+      const arrowX = Math.max(14, Math.min(r.left + r.width / 2 - lx - 10, TW - 30));
+      arr.style.left = `${arrowX}px`;
+    }
   }
 
   let _rsz;
@@ -4310,26 +4403,64 @@ const AccountsTour = (() => {
 
     if (!tgt) { if (idx < TOTAL-1) { _step++; _go(_step); } return; }
 
-    tgt.scrollIntoView({ behavior: "smooth", block: "center" });
-    setTimeout(() => _place(tgt), 360);
+    const r0 = tgt.getBoundingClientRect();
+    const needsScroll = r0.top < 80 || r0.bottom > window.innerHeight - 80;
+    if (needsScroll) {
+      tgt.scrollIntoView({ behavior: "smooth", block: "center" });
+      _waitForScrollEnd(() => _place(tgt));
+    } else {
+      requestAnimationFrame(() => _place(tgt));
+    }
+  }
+
+  function _waitForScrollEnd(cb) {
+    let last = window.scrollY, stable = 0;
+    const tick = () => {
+      const now = window.scrollY;
+      if (Math.abs(now - last) < 0.5) { stable++; if (stable >= 2) { cb(); return; } }
+      else { stable = 0; }
+      last = now;
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
   }
 
   function _place(tgt) {
     if (!_hl || !_tt) return;
-    const P = 8, r = tgt.getBoundingClientRect();
-    _hl.style.cssText = `left:${r.left-P}px;top:${r.top-P}px;width:${r.width+P*2}px;height:${r.height+P*2}px;`;
-    const vp = window.innerHeight, TW = Math.min(300, window.innerWidth-32);
-    const below = vp - r.bottom >= 200 || vp - r.bottom >= r.top;
+    const P = 8;
+    const r = tgt.getBoundingClientRect();
+    _hl.style.cssText = `left:${r.left - P}px;top:${r.top - P}px;width:${r.width + P * 2}px;height:${r.height + P * 2}px;`;
+
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const TW = Math.min(320, vw - 32);
+    const GAP = 18;
+
+    _tt.style.left  = "-9999px";
+    _tt.style.top   = "0px";
+    _tt.style.width = `${TW}px`;
+    const tH = _tt.offsetHeight;
+
+    const spaceBelow = vh - r.bottom - GAP;
+    const spaceAbove = r.top - GAP;
+    const below = spaceBelow >= tH || spaceBelow >= spaceAbove;
+
     const arr = document.getElementById("tour-arrow");
     if (arr) arr.className = below ? "arrow-up" : "arrow-down";
-    let lx = r.left;
-    if (lx + TW > window.innerWidth - 16) lx = window.innerWidth - TW - 16;
+
+    let lx = r.left + (r.width / 2) - (TW / 2);
+    if (lx + TW > vw - 16) lx = vw - TW - 16;
     if (lx < 16) lx = 16;
-    _tt.style.left = `${lx}px`;
+
+    _tt.style.left  = `${lx}px`;
     _tt.style.width = `${TW}px`;
-    if (below) { _tt.style.top = `${r.bottom+P+14+12}px`; _tt.style.bottom = "auto"; }
-    else        { _tt.style.bottom = `${vp-r.top+P+14+12}px`; _tt.style.top = "auto"; }
-    if (arr) arr.style.left = `${Math.max(10, Math.min(r.left+r.width/2-lx-10, TW-30))}px`;
+
+    if (below) { _tt.style.top = `${r.bottom + GAP}px`; _tt.style.bottom = "auto"; }
+    else       { _tt.style.top = `${r.top - GAP - tH}px`; _tt.style.bottom = "auto"; }
+
+    if (arr) {
+      const arrowX = Math.max(14, Math.min(r.left + r.width / 2 - lx - 10, TW - 30));
+      arr.style.left = `${arrowX}px`;
+    }
   }
 
   let _rsz;
