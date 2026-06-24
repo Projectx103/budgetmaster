@@ -6198,6 +6198,7 @@ th.sorted .ie-sort-icon { color: var(--primary); }
   opacity: 0;
 }
 .bm-income-table tbody tr:hover .bm-row-action,
+.bm-recur-table tbody tr:hover .bm-row-action,
 .bm-row-action:focus-visible {
   opacity: 1;
 }
