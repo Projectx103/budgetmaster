@@ -6057,3 +6057,159 @@ th.sorted .ie-sort-icon { color: var(--primary); }
     /* Keep label visible — mobile users still need it readable */
   }
 }
+
+
+/* ============================================================
+   BUDGET SECTION — Income This Month card
+   Lets users edit/delete the income they added from the dashboard.
+   ============================================================ */
+
+.bm-card-head {
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--ynab-border, #e2e8f0);
+}
+.bm-card-head h2 { margin-bottom: 4px; }
+.bm-card-sub {
+  font-size: 13px;
+  color: var(--ynab-text-light, #64748b);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.bm-empty-row {
+  text-align: center;
+  padding: 32px 16px !important;
+  color: var(--ynab-text-light, #64748b);
+  font-size: 13px;
+}
+.bm-empty-row strong { color: var(--primary, #2563eb); }
+
+.bm-income-card { margin-top: 16px; }
+
+/* Empty state */
+.bm-empty-state {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--ynab-text-light, #64748b);
+}
+.bm-empty-icon {
+  width: 64px; height: 64px;
+  margin: 0 auto 14px;
+  background: rgba(37,99,235,.08);
+  border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--primary, #2563eb);
+}
+.bm-empty-title {
+  font-size: 15px; font-weight: 600;
+  color: var(--ynab-text, #1e293b);
+  margin-bottom: 6px;
+}
+.bm-empty-sub { font-size: 13px; line-height: 1.5; }
+.bm-empty-sub strong { color: var(--primary, #2563eb); }
+
+/* Summary bar */
+.bm-income-summary {
+  display: flex; align-items: center; gap: 14px;
+  background: linear-gradient(135deg,
+              rgba(16,185,129,.08) 0%,
+              rgba(16,185,129,.03) 100%);
+  border: 1px solid rgba(16,185,129,.18);
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.bm-income-summary-label {
+  font-size: 11px; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ynab-text-light, #64748b);
+}
+.bm-income-summary-amount {
+  font-size: 20px; font-weight: 800;
+  color: #047857;
+  font-family: "DM Sans", sans-serif;
+  margin-left: auto;
+}
+.bm-income-summary-count {
+  font-size: 12px;
+  color: var(--ynab-text-light, #64748b);
+  background: rgba(255,255,255,.7);
+  padding: 4px 10px;
+  border-radius: 99px;
+  font-weight: 600;
+}
+
+/* Income rows */
+.bm-income-rows { display: flex; flex-direction: column; gap: 8px; }
+.bm-income-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 16px;
+  background: var(--ynab-light-gray, #f8fafc);
+  border: 1px solid var(--ynab-border, #e2e8f0);
+  border-radius: 11px;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.bm-income-row:hover {
+  border-color: rgba(16,185,129,.4);
+  box-shadow: 0 4px 12px rgba(15,23,42,.06);
+}
+
+.bm-income-row-icon {
+  width: 36px; height: 36px; flex-shrink: 0;
+  background: rgba(16,185,129,.12);
+  color: #047857;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+}
+.bm-income-row-info { flex: 1; min-width: 0; }
+.bm-income-row-name {
+  font-size: 14px; font-weight: 600;
+  color: var(--ynab-text, #1e293b);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bm-income-row-meta {
+  font-size: 12px;
+  color: var(--ynab-text-light, #64748b);
+  margin-top: 2px;
+}
+.bm-income-row-amount {
+  font-size: 15px; font-weight: 700;
+  color: #047857;
+  font-family: "DM Sans", sans-serif;
+  white-space: nowrap;
+}
+
+.bm-income-row-actions {
+  display: flex; gap: 4px; flex-shrink: 0;
+}
+.bm-income-action {
+  width: 32px; height: 32px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  color: var(--ynab-text-light, #64748b);
+  transition: all .15s;
+}
+.bm-income-edit:hover {
+  background: rgba(37,99,235,.1);
+  border-color: rgba(37,99,235,.2);
+  color: var(--primary, #2563eb);
+}
+.bm-income-delete:hover {
+  background: rgba(239,68,68,.1);
+  border-color: rgba(239,68,68,.2);
+  color: #dc2626;
+}
+
+@media (max-width: 600px) {
+  .bm-income-summary { padding: 12px 14px; }
+  .bm-income-summary-amount { font-size: 18px; }
+  .bm-income-row { padding: 10px 12px; gap: 10px; }
+  .bm-income-row-icon { width: 32px; height: 32px; }
+  .bm-income-row-amount { font-size: 14px; }
+  .bm-income-action { width: 30px; height: 30px; }
+}
