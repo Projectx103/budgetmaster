@@ -6219,3 +6219,123 @@ th.sorted .ie-sort-icon { color: var(--primary); }
   .bm-income-table tfoot td { padding: 10px 8px; }
   .bm-income-date { font-size: 12px; }
 }
+
+
+/* ============================================================
+   RECURRING TRANSACTIONS
+   Minimalist table + segmented type buttons in the modal.
+   ============================================================ */
+
+/* Type segmented control inside the modal */
+.bm-recur-type-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.bm-recur-type-btn {
+  display: flex; align-items: center; justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  background: var(--ynab-light-gray, #f8fafc);
+  border: 1.5px solid var(--ynab-border, #e2e8f0);
+  border-radius: 10px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ynab-text, #1e293b);
+  cursor: pointer;
+  transition: all .15s;
+}
+.bm-recur-type-btn:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+.bm-recur-type-btn.selected {
+  background: rgba(37,99,235,.08);
+  border-color: var(--primary, #2563eb);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+}
+.bm-recur-type-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+}
+
+/* Rules list */
+.bm-recur-empty {
+  padding: 24px 0;
+  text-align: center;
+  color: var(--ynab-text-light, #64748b);
+  font-size: 13px;
+  border-top: 1px solid var(--ynab-border, #e2e8f0);
+}
+.bm-recur-empty strong { color: var(--primary, #2563eb); font-weight: 600; }
+
+.bm-recur-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.bm-recur-table thead th {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ynab-text-light, #64748b);
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ynab-border, #e2e8f0);
+}
+.bm-recur-table tbody td {
+  padding: 12px;
+  border-bottom: 1px solid var(--ynab-border, #f1f5f9);
+  vertical-align: middle;
+}
+.bm-recur-table tbody tr:hover {
+  background: var(--ynab-light-gray, #f8fafc);
+}
+.bm-recur-name {
+  font-weight: 500;
+  color: var(--ynab-text, #1e293b);
+}
+
+/* Type chips */
+.bm-recur-chip {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.bm-recur-chip-income {
+  background: rgba(16,185,129,.12);
+  color: #047857;
+}
+.bm-recur-chip-expense {
+  background: rgba(239,68,68,.12);
+  color: #b91c1c;
+}
+.bm-recur-paused {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 7px;
+  background: var(--ynab-border, #e2e8f0);
+  color: var(--ynab-text-light, #64748b);
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Recurring transaction pill — shown on dashboard transactions */
+.bm-recur-pill {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--primary, #2563eb);
+  background: rgba(37,99,235,.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
