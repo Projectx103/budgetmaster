@@ -2615,33 +2615,205 @@ function renderBudgetSection(categories, transactions) {
   const tbody = document.getElementById("budget-table-body");
   tbody.innerHTML = ""; // Clear previous rows
 
-  categories.forEach((c, index) => {
-    const balance = c.assigned - c.spent;
-
-    const row = document.createElement("tr");
-
-    row.innerHTML = `
-      <td><input type="checkbox" class="category-checkbox" data-index="${index}" /></td>
-      <td>${c.name}</td>
-      <td>${formatCurrency(c.assigned)}</td>
-      <td>${formatCurrency(c.spent)}</td>
-      <td style="color:${balance<0?'red':'green'}">${formatCurrency(balance)}</td>
-    `;
-
-    tbody.appendChild(row);
-  });
-
-  // Add checkbox click listeners
-  document.querySelectorAll(".category-checkbox").forEach(cb => {
-    cb.checked = false;
-    cb.addEventListener("change", async (e) => {
-      if (!e.target.checked) return;
-      const idx = parseInt(e.target.dataset.index);
-      selectedCategoryIndex = idx;
-      await openCategoryModal(categories[idx], transactions);
-      e.target.checked = false;
+  if (categories.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="bm-empty-row">
+      No categories yet. Tap <strong>+ Category</strong> on the dashboard to add your first one.
+    </td></tr>`;
+  } else {
+    categories.forEach((c, index) => {
+      const balance = c.assigned - c.spent;
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td><input type="checkbox" class="category-checkbox" data-index="${index}" /></td>
+        <td>${c.name}</td>
+        <td>${formatCurrency(c.assigned)}</td>
+        <td>${formatCurrency(c.spent)}</td>
+        <td style="color:${balance<0?'red':'green'}">${formatCurrency(balance)}</td>
+      `;
+      tbody.appendChild(row);
     });
+
+    document.querySelectorAll(".category-checkbox").forEach(cb => {
+      cb.checked = false;
+      cb.addEventListener("change", async (e) => {
+        if (!e.target.checked) return;
+        const idx = parseInt(e.target.dataset.index);
+        selectedCategoryIndex = idx;
+        await openCategoryModal(categories[idx], transactions);
+        e.target.checked = false;
+      });
+    });
+  }
+
+  // Also render the Income This Month list
+  renderIncomeList(transactions);
+}
+
+// ── Render the income transactions list inside the Budget section ──────────
+function renderIncomeList(transactions) {
+  const listEl = document.getElementById("bm-income-list");
+  if (!listEl) return;
+
+  // Pick only true income entries (engine and legacy may use slightly different shapes)
+  const incomes = (transactions || []).filter(t =>
+    t.type === "income" && !t.isAccountOnlyTxn &&
+    // Exclude rollover carry-forward records — those aren\'t user-added income
+    t.category !== "BALANCE FROM LAST MONTH"
+  );
+
+  if (incomes.length === 0) {
+    listEl.innerHTML = `
+      <div class="bm-empty-state">
+        <div class="bm-empty-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="1" x2="12" y2="23"/>
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+        </div>
+        <div class="bm-empty-title">No income recorded this month</div>
+        <div class="bm-empty-sub">Tap <strong>+ Income</strong> on the dashboard to add your salary or any money coming in.</div>
+      </div>`;
+    return;
+  }
+
+  // Sort newest first
+  const sorted = [...incomes].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+  // Total at the top
+  const total = sorted.reduce((s, t) => s + (t.amount || t.inflow || 0), 0);
+
+  listEl.innerHTML = `
+    <div class="bm-income-summary">
+      <div class="bm-income-summary-label">Total income this month</div>
+      <div class="bm-income-summary-amount">${formatCurrency(total)}</div>
+      <div class="bm-income-summary-count">${sorted.length} entr${sorted.length === 1 ? "y" : "ies"}</div>
+    </div>
+    <div class="bm-income-rows">
+      ${sorted.map(t => {
+        const id   = t.id || "";
+        const name = (t.name || "Income").replace(/</g, "&lt;");
+        const amt  = formatCurrency(t.amount || t.inflow || 0);
+        const dt   = t.date ? formatDate(t.date) : "—";
+        return `
+        <div class="bm-income-row" data-tx-id="${id}">
+          <div class="bm-income-row-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+              <polyline points="17 6 23 6 23 12"/>
+            </svg>
+          </div>
+          <div class="bm-income-row-info">
+            <div class="bm-income-row-name">${name}</div>
+            <div class="bm-income-row-meta">${dt}</div>
+          </div>
+          <div class="bm-income-row-amount">+${amt}</div>
+          <div class="bm-income-row-actions">
+            <button class="bm-income-action bm-income-edit"   data-tx-id="${id}" aria-label="Edit income" title="Edit">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </button>
+            <button class="bm-income-action bm-income-delete" data-tx-id="${id}" aria-label="Delete income" title="Delete">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+            </button>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>`;
+
+  // Wire action buttons
+  listEl.querySelectorAll(".bm-income-edit").forEach(btn => {
+    btn.addEventListener("click", () => editIncome(btn.dataset.txId, sorted));
   });
+  listEl.querySelectorAll(".bm-income-delete").forEach(btn => {
+    btn.addEventListener("click", () => deleteTransaction("Income", btn.dataset.txId));
+  });
+}
+
+// ── Edit existing income — opens the same modal in edit mode ──────────────
+function editIncome(txId, incomes) {
+  const tx = incomes.find(t => t.id === txId);
+  if (!tx) { showToast("Income entry not found.", "error"); return; }
+
+  document.getElementById("income-modal-title").textContent = "Edit Income";
+  document.getElementById("incomeEditId").value     = tx.id || "";
+  document.getElementById("incomeAmount").value      = tx.amount || tx.inflow || "";
+  document.getElementById("incomeDescription").value = tx.name || "";
+  document.getElementById("incomeDate").value        = tx.date || new Date().toISOString().slice(0, 10);
+  openModal("incomeModal");
+}
+
+// ── Unified save: branches between add and edit based on incomeEditId ────
+async function saveIncome() {
+  const editId = (document.getElementById("incomeEditId").value || "").trim();
+  if (!editId) {
+    // New income — existing flow
+    await addIncome();
+    closeModal("incomeModal");
+    resetIncomeModal();
+    return;
+  }
+
+  // Edit flow: delete the old entry, then add the new one
+  // Both operations use the engine path so they\'re atomic + auditable
+  const amount      = parseFloat(document.getElementById("incomeAmount").value);
+  const description = document.getElementById("incomeDescription").value.trim();
+  const date        = document.getElementById("incomeDate").value || new Date().toISOString().slice(0, 10);
+
+  if (isNaN(amount) || amount <= 0) {
+    showToast("Please enter a valid income amount.", "error");
+    return;
+  }
+
+  try {
+    // Delete the old transaction (this reverses its TBB effect)
+    await _deleteIncomeSilent(editId);
+    // Add a fresh one with the new values
+    await addIncome();
+    closeModal("incomeModal");
+    resetIncomeModal();
+    showToast("Income updated successfully.", "success");
+  } catch (err) {
+    console.error("[Income edit] failed:", err);
+    showToast("Failed to update income. Please try again.", "error");
+  }
+}
+
+// Internal: reverse an income transaction without showing the confirm dialog
+async function _deleteIncomeSilent(txId) {
+  if (!currentUser) throw new Error("No user");
+  const docRef    = db.collection("budget").doc(currentUser.uid);
+  const monthKey  = availableMonths[currentMonthIndex] || new Date().toISOString().slice(0, 7);
+  const monthRef  = docRef.collection("months").doc(monthKey);
+
+  await runWithRetry(db, async (txn) => {
+    const monthSnap = await txn.get(monthRef);
+    if (!monthSnap.exists) throw new Error("Month data not found");
+    const m = monthSnap.data();
+    const idx = (m.transactions || []).findIndex(t => t.id === txId);
+    if (idx === -1) throw new Error("Transaction not found");
+    const tx = m.transactions[idx];
+
+    // Reverse TBB
+    m.tbb = Math.max(0, (m.tbb || 0) - (tx.amount || tx.inflow || 0));
+    // Reverse availableBalance (engine owns this)
+    m.availableBalance = Math.max(0, (m.availableBalance || 0) - (tx.amount || tx.inflow || 0));
+    // Remove the transaction
+    m.transactions.splice(idx, 1);
+    txn.set(monthRef, m);
+  });
+}
+
+function resetIncomeModal() {
+  document.getElementById("income-modal-title").textContent = "Add Income";
+  document.getElementById("incomeEditId").value     = "";
+  document.getElementById("incomeAmount").value      = "";
+  document.getElementById("incomeDescription").value = "";
+  document.getElementById("incomeDate").value        = "";
 }
 
 
@@ -7500,8 +7672,14 @@ function openModal(id) {
   
   // Set today's date for income modal
   if (id === 'incomeModal') {
-    const today = new Date().toISOString().slice(0, 10);
-    document.getElementById("incomeDate").value = today;
+    // Only reset to Add mode if not currently in edit mode
+    // (editIncome() sets incomeEditId BEFORE calling openModal())
+    const editId = document.getElementById("incomeEditId");
+    if (editId && !editId.value) {
+      const today = new Date().toISOString().slice(0, 10);
+      document.getElementById("incomeDate").value = today;
+      document.getElementById("income-modal-title").textContent = "Add Income";
+    }
   }
   
   // Set today's date for transaction modal
