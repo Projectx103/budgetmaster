@@ -6198,7 +6198,6 @@ th.sorted .ie-sort-icon { color: var(--primary); }
   opacity: 0;
 }
 .bm-income-table tbody tr:hover .bm-row-action,
-.bm-recur-table tbody tr:hover .bm-row-action,
 .bm-row-action:focus-visible {
   opacity: 1;
 }
@@ -6430,5 +6429,135 @@ th.sorted .ie-sort-icon { color: var(--primary); }
   .bm-recur-info {
     font-size: 12px;
     padding: 10px 12px;
+  }
+}
+
+/* ============================================================
+   BOOT LOADER — shown after login / on refresh until the app's
+   data (budget, accounts, theme, etc.) has actually finished
+   loading. Prevents the "blank page" flash before appSection
+   is populated. Letter "B" for BudgetMaster.
+   ============================================================ */
+
+.bm-boot-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg, linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%));
+  opacity: 1;
+  transition: opacity .45s ease, visibility .45s ease;
+}
+
+/* Fade-out state, toggled via JS once data is ready */
+.bm-boot-loader.bm-boot-loader-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.bm-boot-loader-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+
+/* ---- The "B" mark ---- */
+.bm-b-loader {
+  width: 64px;
+  height: 76.8px;
+  filter: drop-shadow(0 6px 16px rgba(37, 99, 235, .25));
+}
+
+.bm-b-loader-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* Faint static outline of the B, always visible as a "track" */
+.bm-b-loader-track {
+  fill: none;
+  stroke: var(--primary, #2563eb);
+  stroke-width: 1.5;
+  stroke-opacity: .18;
+}
+
+/* The animated fill that sweeps up through the letter, looping */
+.bm-b-loader-fill {
+  fill: var(--primary, #2563eb);
+  animation: bm-b-fill 1.6s cubic-bezier(.65,0,.35,1) infinite;
+}
+
+@keyframes bm-b-fill {
+  0% {
+    clip-path: inset(100% 0% 0% 0%);
+    opacity: .55;
+  }
+  45% {
+    clip-path: inset(0% 0% 0% 0%);
+    opacity: 1;
+  }
+  65% {
+    clip-path: inset(0% 0% 0% 0%);
+    opacity: 1;
+  }
+  100% {
+    clip-path: inset(0% 0% 100% 0%);
+    opacity: .55;
+  }
+}
+
+/* ---- Wordmark + status text ---- */
+.bm-boot-loader-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.bm-boot-loader-title {
+  font-family: "Fraunces", "DM Sans", serif;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: .01em;
+  color: var(--ynab-text, #1e293b);
+}
+
+.bm-boot-loader-status {
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ynab-text-light, #64748b);
+  animation: bm-boot-status-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes bm-boot-status-pulse {
+  0%, 100% { opacity: .6; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bm-b-loader-fill {
+    animation: none;
+    clip-path: inset(0% 0% 0% 0%);
+    opacity: 1;
+  }
+  .bm-boot-loader-status {
+    animation: none;
+    opacity: .85;
+  }
+}
+
+@media (max-width: 600px) {
+  .bm-b-loader {
+    width: 52px;
+    height: 62.4px;
+  }
+  .bm-boot-loader-title {
+    font-size: 19px;
   }
 }
