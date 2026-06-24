@@ -793,6 +793,11 @@ auth.onAuthStateChanged(async (user) => {
       // Show accounts setup prompt if user has no accounts
       if (typeof AccountsPrompt !== "undefined") await AccountsPrompt.checkAndRender();
 
+      // Run any due recurring rules (auto-create salary, rent, etc.)
+      if (typeof Recurring !== "undefined") {
+        try { await Recurring.runDueRules(); } catch (e) { console.warn("[Recurring] runDueRules:", e); }
+      }
+
     } else {
       showToast("Your account is pending approval. Please contact the admin.", "error");
       await auth.signOut();
@@ -4221,6 +4226,455 @@ const AccountsPrompt = (() => {
 
 
 
+
+// ════════════════════════════════════════════════════════════════════════════
+// RECURRING TRANSACTIONS
+// Auto-create income or expense transactions on a chosen day each month.
+// Storage: budget/{uid}/recurringRules/{ruleId}
+// Generated transactions tagged with source:"recurring" and recurringRuleId
+// to be identifiable in the dashboard transaction list.
+// ════════════════════════════════════════════════════════════════════════════
+
+const Recurring = (() => {
+
+  // ── Generate a unique rule id ───────────────────────────────────────────
+  function _genRuleId() {
+    const ts = Date.now().toString(36);
+    const rand = (typeof crypto !== "undefined" && crypto.randomUUID)
+      ? crypto.randomUUID().replace(/-/g, "").slice(0, 12)
+      : Math.random().toString(36).slice(2, 14);
+    return "rec-" + ts + "-" + rand;
+  }
+
+  // ── Read all rules for current user ─────────────────────────────────────
+  async function _getAllRules() {
+    if (!currentUser) return [];
+    try {
+      const snap = await db.collection("budget").doc(currentUser.uid)
+        .collection("recurringRules").get();
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (err) {
+      console.warn("[Recurring] _getAllRules:", err);
+      return [];
+    }
+  }
+
+  // ── Save a single rule ──────────────────────────────────────────────────
+  async function _saveRule(rule) {
+    const ref = db.collection("budget").doc(currentUser.uid)
+      .collection("recurringRules").doc(rule.id);
+    await ref.set(rule);
+  }
+
+  async function _deleteRule(ruleId) {
+    const ref = db.collection("budget").doc(currentUser.uid)
+      .collection("recurringRules").doc(ruleId);
+    await ref.delete();
+  }
+
+  // ── Compute the actual transaction date for a given rule + month ───────
+  function _dateForMonth(rule, yearMonth) {
+    // yearMonth: "2026-03"
+    const [y, m] = yearMonth.split("-").map(Number);
+    let day = rule.dayOfMonth;
+    if (day === "last" || day === -1) {
+      day = new Date(y, m, 0).getDate(); // last day of that month
+    } else {
+      day = parseInt(day, 10);
+      const lastDay = new Date(y, m, 0).getDate();
+      if (day > lastDay) day = lastDay; // e.g. Feb 30 → Feb 28/29
+    }
+    return `${yearMonth}-${String(day).padStart(2, "0")}`;
+  }
+
+  // ── List of months between two YYYY-MM strings, inclusive ─────────────
+  function _monthsBetween(startMonth, endMonth) {
+    const result = [];
+    let [y, m] = startMonth.split("-").map(Number);
+    const [ey, em] = endMonth.split("-").map(Number);
+    while (y < ey || (y === ey && m <= em)) {
+      result.push(`${y}-${String(m).padStart(2, "0")}`);
+      m++;
+      if (m > 12) { m = 1; y++; }
+    }
+    return result;
+  }
+
+  // ── Has this rule\'s due date for a given month already passed? ────────
+  function _isDueForMonth(rule, yearMonth) {
+    const dueDate = _dateForMonth(rule, yearMonth);
+    const today   = new Date().toISOString().slice(0, 10);
+    return dueDate <= today;
+  }
+
+  // ── Execute a rule for a specific month — creates one transaction ──────
+  async function _executeRuleForMonth(rule, yearMonth) {
+    if (!currentUser) return;
+    const date = _dateForMonth(rule, yearMonth);
+
+    try {
+      await persistFinancialTransaction(
+        {
+          type:     rule.type,
+          amount:   rule.amount,
+          date:     date,
+          monthKey: yearMonth,
+          name:     rule.name,
+          category: rule.category || (rule.type === "income" ? "Income" : ""),
+        },
+        db,
+        currentUser.uid
+      );
+      // Patch the just-created transaction with recurring tags so it can be
+      // identified in the dashboard transaction list.
+      await _tagTransactionAsRecurring(yearMonth, rule, date);
+      console.log(`[Recurring] Executed "${rule.name}" for ${yearMonth}`);
+      return true;
+    } catch (err) {
+      console.error("[Recurring] execute failed:", rule.id, yearMonth, err);
+      return false;
+    }
+  }
+
+  // ── Post-create patch: find the txn we just created and add recurring tags ──
+  async function _tagTransactionAsRecurring(yearMonth, rule, date) {
+    try {
+      const monthRef = db.collection("budget").doc(currentUser.uid)
+        .collection("months").doc(yearMonth);
+      await runWithRetry(db, async (txn) => {
+        const snap = await txn.get(monthRef);
+        if (!snap.exists) return;
+        const data = snap.data();
+        // Find the latest matching transaction (by name + date + amount)
+        const matches = (data.transactions || [])
+          .map((t, i) => ({ t, i }))
+          .filter(({ t }) =>
+            t.name === rule.name &&
+            t.date === date &&
+            Math.abs((t.amount || 0) - rule.amount) < 0.01 &&
+            !t.recurringRuleId
+          );
+        if (matches.length === 0) return;
+        // Tag the last (most recently added) match
+        const { t, i } = matches[matches.length - 1];
+        data.transactions[i] = {
+          ...t,
+          source:          "recurring",
+          recurringRuleId: rule.id,
+        };
+        txn.set(monthRef, data);
+      });
+    } catch (err) {
+      console.warn("[Recurring] tag failed (non-fatal):", err);
+    }
+  }
+
+  // ── Main entry — call on every app load. Idempotent via lastRunMonth ────
+  async function runDueRules() {
+    if (!currentUser) return { executed: 0 };
+
+    const rules = await _getAllRules();
+    if (rules.length === 0) return { executed: 0 };
+
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    let executed = 0;
+
+    for (const rule of rules) {
+      if (rule.paused) continue;
+      if (rule.endMonth && rule.endMonth < thisMonth) continue;
+
+      // Where do we start from? The month AFTER lastRunMonth, or startMonth.
+      let cursor = rule.startMonth;
+      if (rule.lastRunMonth) {
+        let [y, m] = rule.lastRunMonth.split("-").map(Number);
+        m++;
+        if (m > 12) { m = 1; y++; }
+        cursor = `${y}-${String(m).padStart(2, "0")}`;
+      }
+
+      // Don\'t go past the current month
+      if (cursor > thisMonth) continue;
+
+      const monthsToRun = _monthsBetween(cursor, thisMonth);
+
+      for (const month of monthsToRun) {
+        if (!_isDueForMonth(rule, month)) continue;
+        const ok = await _executeRuleForMonth(rule, month);
+        if (ok) {
+          rule.lastRunMonth = month;
+          await _saveRule(rule);
+          executed++;
+        }
+      }
+    }
+
+    if (executed > 0) {
+      showToast(`${executed} recurring transaction${executed === 1 ? "" : "s"} added.`, "success");
+      // Reload UI so the new transactions appear
+      try {
+        await loadMonthData(availableMonths[currentMonthIndex]);
+        await loadBudgetSection();
+      } catch (_) {}
+    }
+
+    return { executed };
+  }
+
+  // ── UI: render the rules list inside Settings → Recurring tab ──────────
+  async function renderRulesList() {
+    const listEl = document.getElementById("bm-recurring-list");
+    if (!listEl) return;
+
+    const rules = await _getAllRules();
+
+    if (rules.length === 0) {
+      listEl.innerHTML = `
+        <div class="bm-recur-empty">
+          No recurring rules yet. Tap <strong>+ New Recurring Rule</strong> to set one up.
+        </div>`;
+      return;
+    }
+
+    // Sort: income first, then by day of month
+    rules.sort((a, b) => {
+      if (a.type !== b.type) return a.type === "income" ? -1 : 1;
+      const ad = a.dayOfMonth === "last" ? 31 : parseInt(a.dayOfMonth, 10);
+      const bd = b.dayOfMonth === "last" ? 31 : parseInt(b.dayOfMonth, 10);
+      return ad - bd;
+    });
+
+    listEl.innerHTML = `
+      <table class="bm-recur-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Type</th>
+            <th>Day</th>
+            <th class="bm-num">Amount</th>
+            <th class="bm-actions-col"></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rules.map(r => {
+            const name = (r.name || "").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+            const dayLabel = r.dayOfMonth === "last" ? "Last" : _ordinal(parseInt(r.dayOfMonth, 10));
+            const typeChip = r.type === "income"
+              ? `<span class="bm-recur-chip bm-recur-chip-income">Income</span>`
+              : `<span class="bm-recur-chip bm-recur-chip-expense">Expense</span>`;
+            const pausedNote = r.paused ? ` <span class="bm-recur-paused">paused</span>` : "";
+            return `
+            <tr data-rule-id="${r.id}">
+              <td class="bm-recur-name">${name}${pausedNote}</td>
+              <td>${typeChip}</td>
+              <td>${dayLabel}</td>
+              <td class="bm-num">${formatCurrency(r.amount)}</td>
+              <td class="bm-actions-col">
+                <button class="bm-row-action bm-recur-pause" data-rule-id="${r.id}" title="${r.paused ? "Resume" : "Pause"}">
+                  ${r.paused
+                    ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>'
+                    : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>'}
+                </button>
+                <button class="bm-row-action bm-recur-edit" data-rule-id="${r.id}" title="Edit">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button class="bm-row-action bm-recur-delete" data-rule-id="${r.id}" title="Delete">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+              </td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>`;
+
+    // Wire actions
+    listEl.querySelectorAll(".bm-recur-pause").forEach(btn => {
+      btn.addEventListener("click", () => togglePauseRule(btn.dataset.ruleId));
+    });
+    listEl.querySelectorAll(".bm-recur-edit").forEach(btn => {
+      btn.addEventListener("click", () => openEditRuleModal(btn.dataset.ruleId));
+    });
+    listEl.querySelectorAll(".bm-recur-delete").forEach(btn => {
+      btn.addEventListener("click", () => confirmDeleteRule(btn.dataset.ruleId));
+    });
+  }
+
+  function _ordinal(n) {
+    const s = ["th", "st", "nd", "rd"], v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  }
+
+  // ── Open edit modal pre-filled ──────────────────────────────────────────
+  async function openEditRuleModal(ruleId) {
+    const rules = await _getAllRules();
+    const r = rules.find(x => x.id === ruleId);
+    if (!r) return;
+
+    document.getElementById("recurring-modal-title").textContent = "Edit Recurring Rule";
+    document.getElementById("recurringEditId").value             = r.id;
+    document.getElementById("recurringName").value               = r.name || "";
+    document.getElementById("recurringAmount").value             = r.amount;
+    document.getElementById("recurringDay").value                = r.dayOfMonth;
+    document.getElementById("recurringStartMonth").value         = r.startMonth;
+
+    // Set type buttons
+    document.querySelectorAll(".bm-recur-type-btn").forEach(b => {
+      b.classList.toggle("selected", b.dataset.type === r.type);
+    });
+    _toggleCategoryDropdown(r.type);
+    await _populateCategoryDropdown();
+    if (r.category) document.getElementById("recurringCategory").value = r.category;
+
+    openModal("recurringModal");
+  }
+
+  async function togglePauseRule(ruleId) {
+    const rules = await _getAllRules();
+    const r = rules.find(x => x.id === ruleId);
+    if (!r) return;
+    r.paused = !r.paused;
+    await _saveRule(r);
+    showToast(r.paused ? "Rule paused." : "Rule resumed.", "success");
+    await renderRulesList();
+  }
+
+  async function confirmDeleteRule(ruleId) {
+    const ok = await showConfirm(
+      "Delete this recurring rule? Past transactions it created will remain.",
+      { confirmText: "Delete", cancelText: "Cancel", type: "danger" }
+    );
+    if (!ok) return;
+    await _deleteRule(ruleId);
+    showToast("Recurring rule deleted.", "success");
+    await renderRulesList();
+  }
+
+  // ── Helpers for the modal ───────────────────────────────────────────────
+  function _toggleCategoryDropdown(type) {
+    const wrap = document.getElementById("recurringCategoryGroup");
+    if (wrap) wrap.style.display = type === "expense" ? "" : "none";
+  }
+
+  async function _populateCategoryDropdown() {
+    const sel = document.getElementById("recurringCategory");
+    if (!sel) return;
+    // Read categories from current month
+    try {
+      const docRef = db.collection("budget").doc(currentUser.uid);
+      const root = await docRef.get();
+      const cats = (root.exists ? root.data().categories : []) || [];
+      sel.innerHTML = `<option value="">— Select category —</option>` +
+        cats.map(c => `<option value="${(c.name || "").replace(/"/g, "&quot;")}">${(c.name || "").replace(/</g, "&lt;")}</option>`).join("");
+    } catch (_) {}
+  }
+
+  function resetModal() {
+    document.getElementById("recurring-modal-title").textContent = "New Recurring Rule";
+    document.getElementById("recurringEditId").value             = "";
+    document.getElementById("recurringName").value               = "";
+    document.getElementById("recurringAmount").value             = "";
+    document.getElementById("recurringDay").value                = "15";
+    document.getElementById("recurringStartMonth").value         = new Date().toISOString().slice(0, 7);
+    document.querySelectorAll(".bm-recur-type-btn").forEach((b, i) => {
+      b.classList.toggle("selected", i === 0); // Income default
+    });
+    _toggleCategoryDropdown("income");
+  }
+
+  return {
+    runDueRules,
+    renderRulesList,
+    openEditRuleModal,
+    resetModal,
+    _toggleCategoryDropdown,
+    _populateCategoryDropdown,
+    _genRuleId,
+    _saveRule,
+    _getAllRules,
+  };
+})();
+
+// ── Top-level save handler called by modal Save button ─────────────────────
+async function saveRecurringRule() {
+  const editId = document.getElementById("recurringEditId").value;
+  const name   = document.getElementById("recurringName").value.trim();
+  const amount = parseFloat(document.getElementById("recurringAmount").value);
+  const day    = document.getElementById("recurringDay").value;
+  const startMonth = document.getElementById("recurringStartMonth").value
+                     || new Date().toISOString().slice(0, 7);
+  const typeBtn = document.querySelector(".bm-recur-type-btn.selected");
+  const type    = typeBtn ? typeBtn.dataset.type : "income";
+  const category = type === "expense"
+    ? (document.getElementById("recurringCategory").value || "")
+    : "Income";
+
+  // Validation
+  if (!name) { showToast("Please enter a description.", "error"); return; }
+  if (isNaN(amount) || amount <= 0) { showToast("Please enter a valid amount.", "error"); return; }
+  if (type === "expense" && !category) { showToast("Please choose a category for the expense.", "error"); return; }
+
+  let rule;
+  if (editId) {
+    // Edit existing — preserve lastRunMonth
+    const all = await Recurring._getAllRules();
+    rule = all.find(r => r.id === editId);
+    if (!rule) { showToast("Rule not found.", "error"); return; }
+    rule.name       = name;
+    rule.amount     = amount;
+    rule.dayOfMonth = day;
+    rule.startMonth = startMonth;
+    rule.type       = type;
+    rule.category   = category;
+  } else {
+    // New
+    rule = {
+      id:           Recurring._genRuleId(),
+      type, name, amount, category,
+      dayOfMonth:   day,
+      startMonth:   startMonth,
+      endMonth:     null,
+      paused:       false,
+      lastRunMonth: null,
+      fromAccount:  null,
+      createdAt:    new Date().toISOString(),
+    };
+  }
+
+  try {
+    await Recurring._saveRule(rule);
+    closeModal("recurringModal");
+    showToast(editId ? "Rule updated." : "Recurring rule created.", "success");
+    await Recurring.renderRulesList();
+    // Immediately run any past-due months for new rules
+    if (!editId) {
+      await Recurring.runDueRules();
+    }
+  } catch (err) {
+    console.error("[saveRecurringRule]", err);
+    showToast("Failed to save rule. Please try again.", "error");
+  }
+}
+
+// Wire modal open + type buttons + new-rule button when DOM is ready
+document.addEventListener("DOMContentLoaded", () => {
+  const newBtn = document.getElementById("bm-new-recurring-btn");
+  if (newBtn) {
+    newBtn.addEventListener("click", async () => {
+      Recurring.resetModal();
+      await Recurring._populateCategoryDropdown();
+      openModal("recurringModal");
+    });
+  }
+  // Type segmented buttons
+  document.querySelectorAll(".bm-recur-type-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".bm-recur-type-btn").forEach(b => b.classList.remove("selected"));
+      btn.classList.add("selected");
+      Recurring._toggleCategoryDropdown(btn.dataset.type);
+    });
+  });
+});
+
+
 // ════════════════════════════════════════════════════════════════════════════
 // DASHBOARD TOOLTIP TOUR
 // Guides new users through the dashboard cards and action buttons.
@@ -7450,6 +7904,11 @@ document.querySelectorAll('.settings-sidebar li').forEach(item => {
       await loadProfileSection();
     }
     
+    // ✅ Load recurring rules when opening recurring section
+    if (sectionToShow === 'recurringSection' && currentUser && typeof Recurring !== "undefined") {
+      await Recurring.renderRulesList();
+    }
+
     // ✅ Load rollover settings when opening rollover section
     if (sectionToShow === 'rolloverSection' && currentUser) {
       const doc = await firebase.firestore().collection("users").doc(currentUser.uid).get();
