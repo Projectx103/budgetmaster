@@ -3,6 +3,43 @@
 // Extracted from inline <script> blocks
 // ============================================
 
+// --- Boot Loader controller -------------------------------------------
+// Keeps the full-page "B" loader visible from first paint until the
+// real app data (budget/accounts/theme/etc.) has actually finished
+// loading, so the user never sees a blank page after login/refresh.
+const BootLoader = (function () {
+  let hidden = false;
+  let safetyTimer = null;
+
+  function setStatus(text) {
+    const el = document.getElementById("bmBootLoaderStatus");
+    if (el && text) el.textContent = text;
+  }
+
+  function hide() {
+    if (hidden) return; // idempotent — safe to call from multiple code paths
+    hidden = true;
+    if (safetyTimer) clearTimeout(safetyTimer);
+    const el = document.getElementById("bmBootLoader");
+    if (!el) return;
+    el.classList.add("bm-boot-loader-hidden");
+    // Remove from DOM after the fade-out transition finishes
+    setTimeout(() => el.remove(), 500);
+  }
+
+  function init() {
+    // Hard safety net: never let the loader hang forever if some
+    // unexpected error skips past our normal hide() calls.
+    safetyTimer = setTimeout(() => {
+      console.warn("[BootLoader] Safety timeout reached — forcing hide.");
+      hide();
+    }, 12000);
+  }
+
+  return { setStatus, hide, init };
+})();
+BootLoader.init();
+
 // --- Summary cards animation/interaction patch ---
 (function(){
   const _origUpdate = window.updateSummary;
@@ -753,10 +790,14 @@ auth.onAuthStateChanged(async (user) => {
 }); 
 // ==== Auth & Load Data ====
 auth.onAuthStateChanged(async (user) => {
-  if (!user) return window.location.href = "auth.html";
+  if (!user) {
+    BootLoader.hide(); // not logged in — redirecting, no point showing the loader
+    return window.location.href = "auth.html";
+  }
   currentUser = user;
-  
+
   try {
+    BootLoader.setStatus("Checking your account…");
     const userDoc = await db.collection("users").doc(user.uid).get();
     const userData = userDoc.data();
     
@@ -773,8 +814,10 @@ auth.onAuthStateChanged(async (user) => {
     
     if (userDoc.exists && userData?.approved === true) {
       document.getElementById("appSection").style.display = "block";
+      BootLoader.setStatus("Loading your budget…");
       await loadAvailableMonths();
       await loadBudget();
+      BootLoader.setStatus("Loading your accounts…");
       await loadAccounts();
       await loadRolloverSettings();
       await loadGoals();
@@ -798,14 +841,21 @@ auth.onAuthStateChanged(async (user) => {
         try { await Recurring.runDueRules(); } catch (e) { console.warn("[Recurring] runDueRules:", e); }
       }
 
+      // ✅ Everything the user needs to see is ready — reveal the app
+      BootLoader.hide();
+
     } else {
       showToast("Your account is pending approval. Please contact the admin.", "error");
+      BootLoader.hide(); // nothing more will load — don't leave the user staring at the loader
       await auth.signOut();
     }
   } catch (err) {
     console.error("Error fetching user:", err);
+    BootLoader.hide(); // fail safe — never trap the user behind the loader on error
   }
 });
+
+
 
 
   async function loadBudget() {
