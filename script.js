@@ -4421,6 +4421,72 @@ const Recurring = (() => {
   }
 
   // ── UI: render the rules list inside Settings → Recurring tab ──────────
+  // ── Compute status for a rule — what state is it in right now? ─────────
+  function _statusForRule(rule) {
+    if (rule.paused) {
+      return { kind: "paused", label: "Paused", icon: "pause", color: "neutral" };
+    }
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    const today     = new Date().toISOString().slice(0, 10);
+
+    // Compute when it would next run THIS month
+    const dueDate = _dateForMonth(rule, thisMonth);
+
+    // Did it already run this month?
+    if (rule.lastRunMonth === thisMonth) {
+      return {
+        kind: "ran",
+        label: `Added on ${_humanDate(dueDate)}`,
+        icon: "check",
+        color: "success",
+      };
+    }
+
+    // Is it past-due (its day has come/passed but it hasn\'t run yet)?
+    if (dueDate <= today) {
+      return {
+        kind: "pending",
+        label: `Missed ${_humanDate(dueDate)} — will add on next login`,
+        icon: "alert",
+        color: "warning",
+      };
+    }
+
+    // Future-due
+    return {
+      kind: "scheduled",
+      label: `Will add on ${_humanDate(dueDate)}`,
+      icon: "clock",
+      color: "info",
+    };
+  }
+
+  // Convert "2026-06-15" to a friendly human label
+  function _humanDate(dateStr) {
+    if (!dateStr) return "—";
+    try {
+      const d = new Date(dateStr + "T00:00:00");
+      const today = new Date();
+      const tomorrow = new Date(); tomorrow.setDate(today.getDate() + 1);
+      const yesterday = new Date(); yesterday.setDate(today.getDate() - 1);
+
+      if (d.toDateString() === today.toDateString())     return "today";
+      if (d.toDateString() === tomorrow.toDateString())  return "tomorrow";
+      if (d.toDateString() === yesterday.toDateString()) return "yesterday";
+
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    } catch (_) { return dateStr; }
+  }
+
+  // SVG glyph for each status type
+  function _statusIcon(kind) {
+    if (kind === "check") return '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    if (kind === "alert") return '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+    if (kind === "clock") return '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+    if (kind === "pause") return '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+    return "";
+  }
+
   async function renderRulesList() {
     const listEl = document.getElementById("bm-recurring-list");
     if (!listEl) return;
@@ -4429,6 +4495,14 @@ const Recurring = (() => {
 
     if (rules.length === 0) {
       listEl.innerHTML = `
+        <div class="bm-recur-info">
+          <div class="bm-recur-info-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          </div>
+          <div>
+            <strong>How recurring works:</strong> rules run when you open the app. If you miss a day, they catch up on your next visit.
+          </div>
+        </div>
         <div class="bm-recur-empty">
           No recurring rules yet. Tap <strong>+ New Recurring Rule</strong> to set one up.
         </div>`;
@@ -4444,6 +4518,15 @@ const Recurring = (() => {
     });
 
     listEl.innerHTML = `
+      <div class="bm-recur-info">
+        <div class="bm-recur-info-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        </div>
+        <div>
+          <strong>How recurring works:</strong> rules run when you open the app. If you miss a day, they catch up on your next visit.
+        </div>
+      </div>
+
       <table class="bm-recur-table">
         <thead>
           <tr>
@@ -4459,16 +4542,27 @@ const Recurring = (() => {
             const name = (r.name || "").replace(/</g, "&lt;").replace(/"/g, "&quot;");
             const dayLabel = r.dayOfMonth === "last" ? "Last" : _ordinal(parseInt(r.dayOfMonth, 10));
             const typeChip = r.type === "income"
-              ? `<span class="bm-recur-chip bm-recur-chip-income">Income</span>`
-              : `<span class="bm-recur-chip bm-recur-chip-expense">Expense</span>`;
-            const pausedNote = r.paused ? ` <span class="bm-recur-paused">paused</span>` : "";
+              ? '<span class="bm-recur-chip bm-recur-chip-income">Income</span>'
+              : '<span class="bm-recur-chip bm-recur-chip-expense">Expense</span>';
+            const status = _statusForRule(r);
+            const statusBadge = `
+              <div class="bm-recur-status bm-recur-status-${status.color}">
+                <span class="bm-recur-status-icon">${_statusIcon(status.icon)}</span>
+                <span>${status.label}</span>
+              </div>`;
             return `
             <tr data-rule-id="${r.id}">
-              <td class="bm-recur-name">${name}${pausedNote}</td>
+              <td class="bm-recur-name">
+                ${name}
+                ${statusBadge}
+              </td>
               <td>${typeChip}</td>
               <td>${dayLabel}</td>
               <td class="bm-num">${formatCurrency(r.amount)}</td>
               <td class="bm-actions-col">
+                ${status.kind === "pending"
+                  ? `<button class="bm-row-action bm-recur-run" data-rule-id="${r.id}" title="Run now"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>`
+                  : ""}
                 <button class="bm-row-action bm-recur-pause" data-rule-id="${r.id}" title="${r.paused ? "Resume" : "Pause"}">
                   ${r.paused
                     ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>'
@@ -4496,6 +4590,37 @@ const Recurring = (() => {
     listEl.querySelectorAll(".bm-recur-delete").forEach(btn => {
       btn.addEventListener("click", () => confirmDeleteRule(btn.dataset.ruleId));
     });
+    listEl.querySelectorAll(".bm-recur-run").forEach(btn => {
+      btn.addEventListener("click", () => runRuleNow(btn.dataset.ruleId));
+    });
+  }
+
+  // ── Manually trigger a single rule for the current month ───────────────
+  async function runRuleNow(ruleId) {
+    const rules = await _getAllRules();
+    const rule = rules.find(r => r.id === ruleId);
+    if (!rule) { showToast("Rule not found.", "error"); return; }
+
+    const ok = await showConfirm(
+      `Add this transaction now? "${rule.name}" — ${formatCurrency(rule.amount)}`,
+      { confirmText: "Add now", cancelText: "Cancel" }
+    );
+    if (!ok) return;
+
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    const success = await _executeRuleForMonth(rule, thisMonth);
+    if (success) {
+      rule.lastRunMonth = thisMonth;
+      await _saveRule(rule);
+      showToast("Transaction added.", "success");
+      try {
+        await loadMonthData(availableMonths[currentMonthIndex]);
+        await loadBudgetSection();
+      } catch (_) {}
+      await renderRulesList();
+    } else {
+      showToast("Failed to add transaction. Please try again.", "error");
+    }
   }
 
   function _ordinal(n) {
@@ -4585,6 +4710,7 @@ const Recurring = (() => {
     renderRulesList,
     openEditRuleModal,
     resetModal,
+    runRuleNow,
     _toggleCategoryDropdown,
     _populateCategoryDropdown,
     _genRuleId,
