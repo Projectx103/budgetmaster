@@ -2649,83 +2649,75 @@ function renderBudgetSection(categories, transactions) {
   renderIncomeList(transactions);
 }
 
-// ── Render the income transactions list inside the Budget section ──────────
+// ── Render income transactions as a minimal table inside Budget section ───
 function renderIncomeList(transactions) {
   const listEl = document.getElementById("bm-income-list");
   if (!listEl) return;
 
-  // Pick only true income entries (engine and legacy may use slightly different shapes)
   const incomes = (transactions || []).filter(t =>
     t.type === "income" && !t.isAccountOnlyTxn &&
-    // Exclude rollover carry-forward records — those aren\'t user-added income
     t.category !== "BALANCE FROM LAST MONTH"
   );
 
   if (incomes.length === 0) {
     listEl.innerHTML = `
-      <div class="bm-empty-state">
-        <div class="bm-empty-icon">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="1" x2="12" y2="23"/>
-            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-          </svg>
-        </div>
-        <div class="bm-empty-title">No income recorded this month</div>
-        <div class="bm-empty-sub">Tap <strong>+ Income</strong> on the dashboard to add your salary or any money coming in.</div>
+      <div class="bm-income-empty">
+        No income recorded this month. Add income from the dashboard to see entries here.
       </div>`;
     return;
   }
 
   // Sort newest first
   const sorted = [...incomes].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-
-  // Total at the top
   const total = sorted.reduce((s, t) => s + (t.amount || t.inflow || 0), 0);
 
   listEl.innerHTML = `
-    <div class="bm-income-summary">
-      <div class="bm-income-summary-label">Total income this month</div>
-      <div class="bm-income-summary-amount">${formatCurrency(total)}</div>
-      <div class="bm-income-summary-count">${sorted.length} entr${sorted.length === 1 ? "y" : "ies"}</div>
-    </div>
-    <div class="bm-income-rows">
-      ${sorted.map(t => {
-        const id   = t.id || "";
-        const name = (t.name || "Income").replace(/</g, "&lt;");
-        const amt  = formatCurrency(t.amount || t.inflow || 0);
-        const dt   = t.date ? formatDate(t.date) : "—";
-        return `
-        <div class="bm-income-row" data-tx-id="${id}">
-          <div class="bm-income-row-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
-              <polyline points="17 6 23 6 23 12"/>
-            </svg>
-          </div>
-          <div class="bm-income-row-info">
-            <div class="bm-income-row-name">${name}</div>
-            <div class="bm-income-row-meta">${dt}</div>
-          </div>
-          <div class="bm-income-row-amount">+${amt}</div>
-          <div class="bm-income-row-actions">
-            <button class="bm-income-action bm-income-edit"   data-tx-id="${id}" aria-label="Edit income" title="Edit">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-              </svg>
-            </button>
-            <button class="bm-income-action bm-income-delete" data-tx-id="${id}" aria-label="Delete income" title="Delete">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="3 6 5 6 21 6"/>
-                <path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-              </svg>
-            </button>
-          </div>
-        </div>`;
-      }).join("")}
-    </div>`;
+    <table class="bm-income-table">
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th>Date</th>
+          <th class="bm-num">Amount</th>
+          <th class="bm-actions-col"></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${sorted.map(t => {
+          const id   = t.id || "";
+          const name = (t.name || "Income").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+          const amt  = formatCurrency(t.amount || t.inflow || 0);
+          const dt   = t.date ? formatDate(t.date) : "—";
+          return `
+          <tr data-tx-id="${id}">
+            <td class="bm-income-name">${name}</td>
+            <td class="bm-income-date">${dt}</td>
+            <td class="bm-num bm-income-amount">${amt}</td>
+            <td class="bm-actions-col">
+              <button class="bm-row-action bm-income-edit"   data-tx-id="${id}" aria-label="Edit" title="Edit">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </button>
+              <button class="bm-row-action bm-income-delete" data-tx-id="${id}" aria-label="Delete" title="Delete">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+              </button>
+            </td>
+          </tr>`;
+        }).join("")}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="2" class="bm-income-total-label">Total · ${sorted.length} entr${sorted.length === 1 ? "y" : "ies"}</td>
+          <td class="bm-num bm-income-total-amount">${formatCurrency(total)}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>`;
 
-  // Wire action buttons
   listEl.querySelectorAll(".bm-income-edit").forEach(btn => {
     btn.addEventListener("click", () => editIncome(btn.dataset.txId, sorted));
   });
