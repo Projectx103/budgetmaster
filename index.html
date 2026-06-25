@@ -3,20 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <title>BudgetMaster – YNAB-Like Monitoring</title>
-
-  <!-- ── PWA: install + iOS home-screen support ── -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#2563eb">
-  <link rel="manifest" href="manifest.json">
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-  <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
-
-  <!-- iOS Safari doesn't fully respect manifest.json — needs its own tags -->
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="BudgetMaster">
-
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -29,6 +15,30 @@
 
 </head>
 <body>
+
+<!-- ===== Boot Loader (shown until app data is ready) ===== -->
+<div id="bmBootLoader" class="bm-boot-loader" role="status" aria-live="polite" aria-label="Loading BudgetMaster">
+  <div class="bm-boot-loader-inner">
+    <div class="bm-b-loader" aria-hidden="true">
+      <svg class="bm-b-loader-svg" viewBox="0 0 60 72" xmlns="http://www.w3.org/2000/svg">
+        <path class="bm-b-loader-track"
+          d="M10 4 H32 C42 4 48 10 48 18 C48 24.5 44.3 28.7 39 30.5 C45.5 32.2 50 37 50 44.5 C50 54 43 60 32 60 H10 Z
+             M20 14 V30 H30 C35 30 38 27.2 38 21.5 C38 16.3 35 14 30 14 Z
+             M20 40 V50 H31 C36.5 50 40 47.4 40 44.8 C40 41.6 36.8 40 31 40 Z"
+          fill-rule="evenodd"/>
+        <path class="bm-b-loader-fill"
+          d="M10 4 H32 C42 4 48 10 48 18 C48 24.5 44.3 28.7 39 30.5 C45.5 32.2 50 37 50 44.5 C50 54 43 60 32 60 H10 Z
+             M20 14 V30 H30 C35 30 38 27.2 38 21.5 C38 16.3 35 14 30 14 Z
+             M20 40 V50 H31 C36.5 50 40 47.4 40 44.8 C40 41.6 36.8 40 31 40 Z"
+          fill-rule="evenodd"/>
+      </svg>
+    </div>
+    <div class="bm-boot-loader-text">
+      <span class="bm-boot-loader-title">BudgetMaster</span>
+      <span class="bm-boot-loader-status" id="bmBootLoaderStatus">Loading your budget…</span>
+    </div>
+  </div>
+</div>
 
 
 <!-- Theme Selector -->
