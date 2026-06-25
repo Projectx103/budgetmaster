@@ -8681,3 +8681,26 @@ function openModal(id) {
     });
   });
 })();
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// SERVICE WORKER REGISTRATION (PWA support)
+// Isolated block — touches no app logic. Registers sw.js if the browser
+// supports it. Failure to register is non-fatal (app keeps working).
+// ════════════════════════════════════════════════════════════════════════════
+
+if ("serviceWorker" in navigator) {
+  // Wait until the page is fully loaded so registration doesn't compete with
+  // critical-path resources (script.js itself, Firebase SDK, fonts, etc.)
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("sw.js")
+      .then((reg) => {
+        console.log("[PWA] Service worker registered, scope:", reg.scope);
+      })
+      .catch((err) => {
+        // Non-fatal: app works fine without SW, just no offline install.
+        console.warn("[PWA] Service worker registration failed:", err);
+      });
+  });
+}
