@@ -1,5 +1,5 @@
 /**
- * validators/transactionValidators.js
+ * validators/transactionValidators.js 
  *
  * Pure, side-effect-free validation functions for every transaction type
  * present in script.js.  "Pure" means: no alert(), no Firestore reads, no
