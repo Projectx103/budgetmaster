@@ -1,0 +1,80 @@
+// ════════════════════════════════════════════════════════════════════════════
+// firestore.rules — current production rules (for reference)
+//
+// This file is for your records. Firebase does NOT load rules from your
+// app source — you must publish them via the Firebase Console or `firebase
+// deploy --only firestore:rules`. Keep this file in sync with what's
+// actually deployed.
+//
+// Last reviewed: 2026-06 with the auth refactor pass.
+//
+// COVERAGE:
+//   ✅ approved == true enforced server-side via isApproved()
+//   ✅ Users can only read their own /users/{uid} doc
+//   ✅ Users cannot self-approve (approved field is admin-only)
+//   ✅ Self-create allowed for sign-up, but with allowlist + approved:false
+//   ✅ All cross-user access denied
+//
+// NOT COVERED (would require Cloud Functions):
+//   ❌ Server-side failed-login attempt counter / lockout
+//      → We rely on Firebase Auth's built-in IP rate limiting
+//        (auth/too-many-requests) which kicks in at ~5 attempts/min.
+// ════════════════════════════════════════════════════════════════════════════
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── HELPERS ──────────────────────────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isApproved(uid) {
+      return isOwner(uid) &&
+             get(/databases/$(database)/documents/users/$(uid)).data.approved == true;
+    }
+
+    // Server-side guarantee: client cannot flip their own approved status
+    function clientCannotSetApproval() {
+      return !('approved' in request.resource.data) ||
+             request.resource.data.approved == resource.data.approved;
+    }
+
+    // ── USERS COLLECTION ─────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+
+      // Self-create on sign-up: forces approved=false and restricts to
+      // the known field allowlist (sign_auth.html form fields + metadata).
+      allow create: if isOwner(uid)
+                    && request.resource.data.approved == false
+                    && request.resource.data.keys().hasOnly([
+                         'email', 'displayName', 'approved', 'createdAt',
+                         'firstName', 'lastName', 'dob', 'gender', 'currency'
+                       ]);
+
+      allow update: if isOwner(uid) && clientCannotSetApproval();
+      allow delete: if false;
+    }
+
+    // ── BUDGET DATA ──────────────────────────────────────────────────────
+    match /budget/{uid} {
+      allow read, write: if isOwner(uid) && isApproved(uid);
+
+      match /{subCol}/{doc=**} {
+        allow read, write: if isOwner(uid) && isApproved(uid);
+      }
+    }
+
+    // ── DENY EVERYTHING ELSE ─────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
