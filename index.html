@@ -228,7 +228,7 @@
         </div>
     </header>
 
-<div class="current-theme bm-desktop-only">
+<div class="current-theme">
   Current Theme: <span id="themeDisplay">Ocean Explorer</span>
 </div>
 
@@ -368,8 +368,8 @@
 <div class="bm-tooltip-global" id="bmGlobalTip"></div>
 
 
-      <!-- Actions (desktop: inline row. Mobile: see FAB + sheet below) -->
-      <div class="actions bm-desktop-only">
+      <!-- Actions -->
+      <div class="actions">
         <button onclick="openModal('incomeModal')">+ Income</button>
         <button onclick="openModal('categoryModal')">+ Category</button>
         <button onclick="openModal('transactionModal')">+ Transaction</button>
@@ -383,77 +383,31 @@
 
  <!-- Transaction History with Sort & Filter -->
 <div class="transactions-container">
-  <div class="bm-section-headline">
-    <h2 class="bm-section-title">Recent transactions</h2>
-    <button class="bm-filter-trigger" id="openFilterSheet" aria-label="Filter transactions">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/></svg>
-      <span>Filter</span>
-      <span class="bm-filter-badge" id="filterActiveBadge" hidden></span>
-    </button>
-  </div>
-
-  <!-- Desktop filter row (hidden on mobile, see CSS) -->
-  <div class="table-controls bm-desktop-only">
+  <!-- Sort & Filter Controls -->
+  <div class="table-controls">
     <div class="filter-group">
       <label>Search:</label>
       <input type="text" class="filter-input" id="searchTransactions" placeholder="Search payee or category...">
     </div>
+    
     <div class="filter-group">
       <label>Category:</label>
       <select class="filter-select" id="filterCategory">
         <option value="">All Categories</option>
       </select>
     </div>
+    
     <div class="filter-group">
       <label>Date Range:</label>
       <input type="date" class="filter-input" id="filterDateFrom">
       <span style="color: var(--text-light);">to</span>
       <input type="date" class="filter-input" id="filterDateTo">
     </div>
+    
     <button class="clear-filters-btn" onclick="clearTransactionFilters()">Clear Filters</button>
   </div>
 
-  <!-- Mobile: mirrored filter list, rendered into a bottom sheet -->
-  <div id="mobileFilterSheet" class="bm-sheet-overlay hidden" aria-hidden="true">
-    <div class="bm-sheet-panel" role="dialog" aria-modal="true" aria-label="Filter transactions">
-      <div class="bm-sheet-handle"></div>
-      <div class="bm-sheet-header">
-        <h3>Filter transactions</h3>
-        <button class="bm-sheet-close" id="closeFilterSheet" aria-label="Close">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-      <div class="bm-sheet-body">
-        <div class="bm-sheet-field">
-          <label for="searchTransactionsMobile">Search</label>
-          <input type="text" id="searchTransactionsMobile" placeholder="Search payee or category...">
-        </div>
-        <div class="bm-sheet-field">
-          <label for="filterCategoryMobile">Category</label>
-          <select id="filterCategoryMobile">
-            <option value="">All Categories</option>
-          </select>
-        </div>
-        <div class="bm-sheet-field-row">
-          <div class="bm-sheet-field">
-            <label for="filterDateFromMobile">From</label>
-            <input type="date" id="filterDateFromMobile">
-          </div>
-          <div class="bm-sheet-field">
-            <label for="filterDateToMobile">To</label>
-            <input type="date" id="filterDateToMobile">
-          </div>
-        </div>
-      </div>
-      <div class="bm-sheet-footer">
-        <button class="bm-sheet-btn-secondary" id="clearFilterSheet">Clear filters</button>
-        <button class="bm-sheet-btn-primary" id="applyFilterSheet">Show results</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Desktop table (hidden on mobile, see CSS) -->
-  <div class="transactions-wrapper bm-desktop-only">
+  <div class="transactions-wrapper">
     <table class="transactions-table">
       <thead>
         <tr>
@@ -479,11 +433,6 @@
         <!-- Transactions go here -->
       </tbody>
     </table>
-  </div>
-
-  <!-- Mobile: div-based transaction list -->
-  <div class="bm-txn-list bm-mobile-only" id="transactionsListMobile">
-    <!-- Rows injected by renderTransactionsMobile() -->
   </div>
 </div>
   </section>
@@ -773,7 +722,7 @@
     <div class="bm-card-head">
       <h2>Categories</h2>
     </div>
-    <table class="budget-table bm-desktop-only">
+    <table class="budget-table">
       <thead>
         <tr>
           <th></th>
@@ -787,9 +736,6 @@
         <!-- Rows inserted by renderBudgetSection() -->
       </tbody>
     </table>
-    <div class="bm-budget-list bm-mobile-only" id="budget-list-mobile">
-      <!-- Rows inserted by renderBudgetListMobile() -->
-    </div>
   </div>
 
   <!-- Income This Month card -->
@@ -1533,20 +1479,23 @@
 </section>
 
 <!-- Rollover Confirmation Modal -->
-<div id="rolloverModal" class="modal hidden">
-  <div class="modal-content">
-    <span class="close" onclick="closeRolloverModal()">&times;</span>
-    <h3>Confirm rollover</h3>
-    <p>Are you sure you want to rollover the current month to next month? This action will:</p>
-    <ul>
+<div id="rolloverModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center;">
+  <div style="background: white; border-radius: 12px; padding: 24px; max-width: 400px; width: 90%; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+    <h3 style="margin: 0 0 16px 0; color: var(--text, #2d3748);">⚠️ Confirm Rollover</h3>
+    <p style="color: var(--text-muted, #718096); margin-bottom: 20px;">
+      Are you sure you want to rollover the current month to next month? This action will:
+    </p>
+    <ul style="color: var(--text-muted, #718096); margin-bottom: 20px; padding-left: 20px;">
       <li>Carry forward positive balances to next month</li>
       <li>Reset negative balances to zero</li>
       <li>Move any negative amounts to "To Be Budgeted"</li>
     </ul>
-    <p><strong>This action cannot be undone.</strong></p>
-    <div class="modal-actions">
-      <button onclick="closeRolloverModal()">Cancel</button>
-      <button class="btn-primary" onclick="proceedWithRollover()">Continue</button>
+    <p style="color: var(--text-muted, #718096); margin-bottom: 20px;">
+      <strong>This action cannot be undone.</strong>
+    </p>
+    <div style="display: flex; gap: 12px; justify-content: flex-end;">
+      <button class="btn btn-secondary" onclick="closeRolloverModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="proceedWithRollover()">Continue</button>
     </div>
   </div>
 </div>
@@ -1570,37 +1519,6 @@
       <line x1="12" y1="17" x2="12.01" y2="17"/>
     </svg>
   </a>
-
-  <!-- Primary add FAB — mobile only, bottom-center -->
-  <button id="bm-add-fab" class="bm-mobile-only" aria-label="Add" aria-haspopup="true" aria-expanded="false">
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-  </button>
-
-  <!-- Add action sheet — opened by bm-add-fab -->
-  <div id="addActionSheet" class="bm-sheet-overlay hidden" aria-hidden="true">
-    <div class="bm-sheet-panel bm-sheet-panel-compact" role="dialog" aria-modal="true" aria-label="Add">
-      <div class="bm-sheet-handle"></div>
-      <button class="bm-sheet-action" onclick="closeAddSheet(); openModal('incomeModal');">
-        <span class="bm-sheet-action-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
-        </span>
-        <span class="bm-sheet-action-label">Add Income</span>
-      </button>
-      <button class="bm-sheet-action" onclick="closeAddSheet(); openModal('categoryModal');">
-        <span class="bm-sheet-action-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-        </span>
-        <span class="bm-sheet-action-label">Add Category</span>
-      </button>
-      <button class="bm-sheet-action" onclick="closeAddSheet(); openModal('transactionModal');">
-        <span class="bm-sheet-action-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        </span>
-        <span class="bm-sheet-action-label">Add Transaction</span>
-      </button>
-      <button class="bm-sheet-btn-secondary bm-sheet-cancel" id="cancelAddSheet">Cancel</button>
-    </div>
-  </div>
 </div>
 
 
