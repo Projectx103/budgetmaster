@@ -8683,6 +8683,75 @@ function openModal(id) {
 })();
 
 
+
+// ════════════════════════════════════════════════════════════════════════════
+// MOBILE NAVIGATION — hamburger toggle + sidebar overlay
+// Only active on screens ≤ 768px. Desktop layout is untouched.
+// ════════════════════════════════════════════════════════════════════════════
+
+(function setupMobileNav() {
+  const MOBILE_BREAKPOINT = 768;
+
+  function isMobile() {
+    return window.innerWidth <= MOBILE_BREAKPOINT;
+  }
+
+  function init() {
+    const menuBtn  = document.getElementById("bm-mobile-menu-btn");
+    const sidebar  = document.getElementById("bm-sidebar");
+    const backdrop = document.getElementById("bm-sidebar-backdrop");
+    if (!menuBtn || !sidebar || !backdrop) return;
+
+    function openSidebar() {
+      sidebar.classList.add("bm-sidebar-open");
+      backdrop.classList.add("bm-sidebar-backdrop-visible");
+      menuBtn.setAttribute("aria-expanded", "true");
+      document.body.style.overflow = "hidden"; // prevent body scroll behind overlay
+    }
+
+    function closeSidebar() {
+      sidebar.classList.remove("bm-sidebar-open");
+      backdrop.classList.remove("bm-sidebar-backdrop-visible");
+      menuBtn.setAttribute("aria-expanded", "false");
+      document.body.style.overflow = "";
+    }
+
+    function toggleSidebar() {
+      if (sidebar.classList.contains("bm-sidebar-open")) closeSidebar();
+      else openSidebar();
+    }
+
+    menuBtn.addEventListener("click", toggleSidebar);
+    backdrop.addEventListener("click", closeSidebar);
+
+    // Close sidebar when user taps any nav link on mobile
+    sidebar.querySelectorAll("a").forEach(link => {
+      link.addEventListener("click", () => {
+        if (isMobile()) closeSidebar();
+      });
+    });
+
+    // Close on Escape key (accessibility)
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && sidebar.classList.contains("bm-sidebar-open")) {
+        closeSidebar();
+      }
+    });
+
+    // If user resizes from mobile → desktop, reset state
+    window.addEventListener("resize", () => {
+      if (!isMobile()) closeSidebar();
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+
+
 // ════════════════════════════════════════════════════════════════════════════
 // SERVICE WORKER REGISTRATION (PWA support)
 // Isolated block — touches no app logic. Registers sw.js if the browser
