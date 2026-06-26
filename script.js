@@ -350,7 +350,6 @@ function applyTransactionFilters() {
   
   // Render filtered and sorted transactions
   renderTransactionsTable();
-  renderTransactionsMobile();
 }
 
 function sortTransactions(column) {
@@ -407,69 +406,59 @@ function sortTransactionsArray() {
   });
 }
 
-
-// Shared helper — computes the display values (outflow/inflow/source label)
-// for a single transaction. Used by both the desktop table renderer and the
-// mobile list renderer so the two can never drift out of sync.
-function getTxnDisplayData(t) {
-  let outflow = "";
-  let inflow = "";
-
-  if (typeof t.outflow === "number" && t.outflow > 0) {
-    outflow = formatCurrency(t.outflow, true);
-  }
-  if (typeof t.inflow === "number" && t.inflow > 0) {
-    inflow = formatCurrency(t.inflow, false);
-  }
-
-  if (t.type === "expense") {
-    outflow = formatCurrency(t.amount, true);
-  } else if (t.type === "income") {
-    inflow = formatCurrency(t.amount, false);
-  } else if (t.type === "transfer") {
-    outflow = t.fromAccount ? formatCurrency(t.amount, true) : "";
-    inflow = t.toAccount ? formatCurrency(t.amount, false) : "";
-  }
-
-  // --- Determine "Source" label ---
-  let sourceLabel = "";
-  let sourceBadgeClass = "txn-source-badge";
-
-  if (t.isLiabilityPayment) {
-    sourceLabel = `Payment from Available Balance`;
-    sourceBadgeClass += " txn-source-available";
-  } else if (t.fromLiability && t.fromAccount) {
-    sourceLabel = `Charged to ${t.fromAccount}`;
-    sourceBadgeClass += " txn-source-liability";
-  } else if (t.fromAsset && t.fromAccount) {
-    sourceLabel = `Deducted from ${t.fromAccount}`;
-    sourceBadgeClass += " txn-source-asset";
-  } else if (t.type === "transfer" && (t.fromAccount || t.toAccount)) {
-    if (t.fromAccount && t.toAccount) {
-      sourceLabel = `${t.fromAccount} → ${t.toAccount}`;
-    } else if (t.fromAccount) {
-      sourceLabel = `From ${t.fromAccount}`;
-    } else {
-      sourceLabel = `To ${t.toAccount}`;
-    }
-    sourceBadgeClass += " txn-source-transfer";
-  } else if (t.type === "income") {
-    sourceLabel = `Added to Available Balance`;
-    sourceBadgeClass += " txn-source-available";
-  } else {
-    sourceLabel = `Deducted from Available Balance`;
-    sourceBadgeClass += " txn-source-available";
-  }
-
-  return { outflow, inflow, sourceLabel, sourceBadgeClass };
-}
-
 function renderTransactionsTable() {
   const tbody = document.getElementById("transactionsBody");
   tbody.innerHTML = "";
 
   filteredTransactions.forEach(t => {
-    const { outflow, inflow, sourceLabel, sourceBadgeClass } = getTxnDisplayData(t);
+    let outflow = "";
+    let inflow = "";
+
+    if (typeof t.outflow === "number" && t.outflow > 0) {
+      outflow = formatCurrency(t.outflow, true);
+    }
+    if (typeof t.inflow === "number" && t.inflow > 0) {
+      inflow = formatCurrency(t.inflow, false);
+    }
+
+    if (t.type === "expense") {
+      outflow = formatCurrency(t.amount, true);
+    } else if (t.type === "income") {
+      inflow = formatCurrency(t.amount, false);
+    } else if (t.type === "transfer") {
+      outflow = t.fromAccount ? formatCurrency(t.amount, true) : "";
+      inflow = t.toAccount ? formatCurrency(t.amount, false) : "";
+    }
+
+    // --- Determine "Source" label ---
+    let sourceLabel = "";
+    let sourceBadgeClass = "txn-source-badge";
+
+    if (t.isLiabilityPayment) {
+      sourceLabel = `Payment from Available Balance`;
+      sourceBadgeClass += " txn-source-available";
+    } else if (t.fromLiability && t.fromAccount) {
+      sourceLabel = `Charged to ${t.fromAccount}`;
+      sourceBadgeClass += " txn-source-liability";
+    } else if (t.fromAsset && t.fromAccount) {
+      sourceLabel = `Deducted from ${t.fromAccount}`;
+      sourceBadgeClass += " txn-source-asset";
+    } else if (t.type === "transfer" && (t.fromAccount || t.toAccount)) {
+      if (t.fromAccount && t.toAccount) {
+        sourceLabel = `${t.fromAccount} → ${t.toAccount}`;
+      } else if (t.fromAccount) {
+        sourceLabel = `From ${t.fromAccount}`;
+      } else {
+        sourceLabel = `To ${t.toAccount}`;
+      }
+      sourceBadgeClass += " txn-source-transfer";
+    } else if (t.type === "income") {
+      sourceLabel = `Added to Available Balance`;
+      sourceBadgeClass += " txn-source-available";
+    } else {
+      sourceLabel = `Deducted from Available Balance`;
+      sourceBadgeClass += " txn-source-available";
+    }
 
     tbody.innerHTML += `
       <tr>
@@ -488,42 +477,6 @@ function renderTransactionsTable() {
     console.log(`Showing ${filteredTransactions.length} of ${allTransactions.length} transactions`);
   }
 }
-
-// Mobile list renderer — same data, same source-label logic, different markup.
-// Row layout: payee (bold) + date · category (muted) on the left,
-// amount (bold, color-coded) on the right — per the mobile redesign spec.
-function renderTransactionsMobile() {
-  const list = document.getElementById("transactionsListMobile");
-  if (!list) return;
-  list.innerHTML = "";
-
-  if (filteredTransactions.length === 0) {
-    list.innerHTML = `<div class="bm-txn-empty">No transactions match your filters.</div>`;
-    return;
-  }
-
-  filteredTransactions.forEach(t => {
-    const { outflow, inflow } = getTxnDisplayData(t);
-    const isOutflow = !!outflow;
-    const amount = isOutflow ? outflow : inflow;
-    const amountClass = isOutflow ? "outflow" : "inflow";
-    const sign = isOutflow ? "−" : "+";
-    const dateStr = t.date ? formatDate(t.date) : "";
-    const payee = t.name || t.payee || "";
-    const category = t.category || "";
-
-    list.innerHTML += `
-      <div class="bm-txn-row">
-        <div class="bm-txn-row-main">
-          <div class="bm-txn-row-payee">${payee}</div>
-          <div class="bm-txn-row-meta">${dateStr}${category ? `<span class="bm-txn-dot">·</span>${category}` : ""}</div>
-        </div>
-        <div class="bm-txn-row-amount ${amountClass}">${sign}${amount}</div>
-      </div>
-    `;
-  });
-}
-
 
 function clearTransactionFilters() {
   document.getElementById("searchTransactions").value = '';
@@ -1390,12 +1343,12 @@ function initiateRollover() {
   }
   
   // Show confirmation modal
-  document.getElementById("rolloverModal").classList.remove("hidden");
+  document.getElementById("rolloverModal").style.display = "flex";
 }
 
 // Close rollover modal
 function closeRolloverModal() {
-  document.getElementById("rolloverModal").classList.add("hidden");
+  document.getElementById("rolloverModal").style.display = "none";
 }
 
 // Proceed with rollover after confirmation
@@ -2749,54 +2702,6 @@ function renderBudgetSection(categories, transactions) {
 
   // Also render the Income This Month list
   renderIncomeList(transactions);
-
-  // Mobile div-list version of the same data
-  renderBudgetListMobile(categories, transactions);
-}
-
-// Mobile list renderer for the Budget page categories — single-line rows
-// (name + progress bar, balance right-aligned), tap to open the same
-// category modal the desktop checkbox path opens. Read-only mirror of
-// renderBudgetSection's data; doesn't touch save/delete logic.
-function renderBudgetListMobile(categories, transactions) {
-  const list = document.getElementById("budget-list-mobile");
-  if (!list) return;
-  list.innerHTML = "";
-
-  if (!categories.length) {
-    list.innerHTML = `<div class="bm-budget-empty">No categories yet. Tap the + button to add your first one.</div>`;
-    return;
-  }
-
-  categories.forEach((c, index) => {
-    const balance = c.assigned - c.spent;
-    const pct = c.assigned > 0 ? Math.min(100, (c.spent / c.assigned) * 100) : 0;
-    const balanceClass = balance < 0 ? "negative" : "positive";
-
-    const row = document.createElement("div");
-    row.className = "bm-budget-row";
-    row.setAttribute("role", "button");
-    row.setAttribute("tabindex", "0");
-    row.innerHTML = `
-      <div class="bm-budget-row-main">
-        <div class="bm-budget-row-name">${c.name}</div>
-        <div class="bm-budget-row-sub">${formatCurrency(c.spent)} of ${formatCurrency(c.assigned)}</div>
-        <div class="bm-budget-row-track"><div class="bm-budget-row-fill" style="width:${pct}%"></div></div>
-      </div>
-      <div class="bm-budget-row-figures">
-        <div class="bm-budget-row-balance ${balanceClass}">${formatCurrency(balance)}</div>
-      </div>
-    `;
-    const openThisCategory = async () => {
-      selectedCategoryIndex = index;
-      await openCategoryModal(categories[index], transactions);
-    };
-    row.addEventListener("click", openThisCategory);
-    row.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openThisCategory(); }
-    });
-    list.appendChild(row);
-  });
 }
 
 // ── Render income transactions as a minimal table inside Budget section ───
@@ -8421,118 +8326,6 @@ function openModal(id) {
 
   function closeModal(id) { document.getElementById(id).classList.add("hidden"); }
   async function logout() { if (currentUser) await auth.signOut(); }
-
-// =====================================================
-// === Mobile: Add FAB sheet + Filter sheet ===========
-// =====================================================
-function closeAddSheet() {
-  const sheet = document.getElementById("addActionSheet");
-  if (sheet) { sheet.classList.add("hidden"); sheet.setAttribute("aria-hidden", "true"); }
-  const fab = document.getElementById("bm-add-fab");
-  if (fab) fab.setAttribute("aria-expanded", "false");
-}
-function openAddSheet() {
-  const sheet = document.getElementById("addActionSheet");
-  if (sheet) { sheet.classList.remove("hidden"); sheet.setAttribute("aria-hidden", "false"); }
-  const fab = document.getElementById("bm-add-fab");
-  if (fab) fab.setAttribute("aria-expanded", "true");
-}
-
-function closeFilterSheetFn() {
-  const sheet = document.getElementById("mobileFilterSheet");
-  if (sheet) { sheet.classList.add("hidden"); sheet.setAttribute("aria-hidden", "true"); }
-}
-function openFilterSheetFn() {
-  const sheet = document.getElementById("mobileFilterSheet");
-  if (!sheet) return;
-  // Mirror current desktop filter values into the sheet fields
-  const search = document.getElementById("searchTransactions");
-  const cat = document.getElementById("filterCategory");
-  const from = document.getElementById("filterDateFrom");
-  const to = document.getElementById("filterDateTo");
-  const searchM = document.getElementById("searchTransactionsMobile");
-  const catM = document.getElementById("filterCategoryMobile");
-  const fromM = document.getElementById("filterDateFromMobile");
-  const toM = document.getElementById("filterDateToMobile");
-  if (search && searchM) searchM.value = search.value;
-  if (from && fromM) fromM.value = from.value;
-  if (to && toM) toM.value = to.value;
-  if (cat && catM) {
-    catM.innerHTML = cat.innerHTML;
-    catM.value = cat.value;
-  }
-  sheet.classList.remove("hidden");
-  sheet.setAttribute("aria-hidden", "false");
-}
-
-function updateFilterBadge() {
-  const badge = document.getElementById("filterActiveBadge");
-  if (!badge) return;
-  const search = document.getElementById("searchTransactions")?.value || "";
-  const cat = document.getElementById("filterCategory")?.value || "";
-  const from = document.getElementById("filterDateFrom")?.value || "";
-  const to = document.getElementById("filterDateTo")?.value || "";
-  const hasActive = !!(search || cat || from || to);
-  badge.hidden = !hasActive;
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  // FAB → add-action sheet
-  const fab = document.getElementById("bm-add-fab");
-  if (fab) fab.addEventListener("click", openAddSheet);
-  const cancelAdd = document.getElementById("cancelAddSheet");
-  if (cancelAdd) cancelAdd.addEventListener("click", closeAddSheet);
-  const addOverlay = document.getElementById("addActionSheet");
-  if (addOverlay) addOverlay.addEventListener("click", (e) => {
-    if (e.target === addOverlay) closeAddSheet();
-  });
-
-  // Filter trigger → filter sheet
-  const openFilterBtn = document.getElementById("openFilterSheet");
-  if (openFilterBtn) openFilterBtn.addEventListener("click", openFilterSheetFn);
-  const closeFilterBtn = document.getElementById("closeFilterSheet");
-  if (closeFilterBtn) closeFilterBtn.addEventListener("click", closeFilterSheetFn);
-  const filterOverlay = document.getElementById("mobileFilterSheet");
-  if (filterOverlay) filterOverlay.addEventListener("click", (e) => {
-    if (e.target === filterOverlay) closeFilterSheetFn();
-  });
-
-  // Apply: copy sheet field values back into the (hidden) desktop filter
-  // inputs, then call the existing filter pipeline — no duplicated filter logic.
-  const applyBtn = document.getElementById("applyFilterSheet");
-  if (applyBtn) applyBtn.addEventListener("click", () => {
-    const search = document.getElementById("searchTransactions");
-    const cat = document.getElementById("filterCategory");
-    const from = document.getElementById("filterDateFrom");
-    const to = document.getElementById("filterDateTo");
-    const searchM = document.getElementById("searchTransactionsMobile");
-    const catM = document.getElementById("filterCategoryMobile");
-    const fromM = document.getElementById("filterDateFromMobile");
-    const toM = document.getElementById("filterDateToMobile");
-    if (search && searchM) search.value = searchM.value;
-    if (cat && catM) cat.value = catM.value;
-    if (from && fromM) from.value = fromM.value;
-    if (to && toM) to.value = toM.value;
-    applyTransactionFilters();
-    updateFilterBadge();
-    closeFilterSheetFn();
-  });
-
-  const clearBtn = document.getElementById("clearFilterSheet");
-  if (clearBtn) clearBtn.addEventListener("click", () => {
-    const searchM = document.getElementById("searchTransactionsMobile");
-    const catM = document.getElementById("filterCategoryMobile");
-    const fromM = document.getElementById("filterDateFromMobile");
-    const toM = document.getElementById("filterDateToMobile");
-    if (searchM) searchM.value = "";
-    if (catM) catM.value = "";
-    if (fromM) fromM.value = "";
-    if (toM) toM.value = "";
-    clearTransactionFilters();
-    updateFilterBadge();
-    closeFilterSheetFn();
-  });
-});
 
 // =====================================================
 // === Category Card Color Picker =====================
