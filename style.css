@@ -6947,3 +6947,400 @@ th.sorted .ie-sort-icon { color: var(--primary); }
     padding: 32px 24px;
   }
 }
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE — Phase 1
+   Activates at ≤ 768px. Desktop styles above this breakpoint are untouched.
+   Components covered:
+     1. Hamburger menu + slide-in sidebar with backdrop
+     2. Dashboard cards stack vertically
+     3. Wide data tables convert to vertical card layout (Budget / Income / Recurring)
+     4. Modal sizing
+     5. Input font sizes (prevent iOS zoom-on-focus)
+     6. Touch target minimums
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Hamburger button (hidden on desktop, shown on mobile) ────────── */
+.bm-mobile-menu-btn {
+  display: none;
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 9001;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--ynab-border, #e2e8f0);
+  color: var(--ynab-text, #1e293b);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  transition: background 0.15s, transform 0.15s;
+}
+.bm-mobile-menu-btn:active {
+  transform: scale(0.95);
+  background: var(--ynab-light-gray, #f1f5f9);
+}
+
+/* ── 2. Backdrop (covers content when sidebar is open) ───────────────── */
+.bm-sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 8999;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.bm-sidebar-backdrop-visible {
+  opacity: 1;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ≤ 768px: MOBILE LAYOUT BEGINS
+   ════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* Show hamburger, hide it again when sidebar open (avoid double-button) */
+  .bm-mobile-menu-btn { display: flex; }
+  .bm-sidebar-backdrop.bm-sidebar-backdrop-visible { display: block; }
+
+  /* ── Sidebar slides in from the left (Gmail-style overlay) ────────── */
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 9000;
+    width: 240px !important;        /* a bit wider on mobile for easier taps */
+    box-shadow: 4px 0 24px rgba(15, 23, 42, 0.18);
+    padding-top: 12px;
+  }
+  .sidebar.bm-sidebar-open {
+    transform: translateX(0);
+  }
+
+  /* Sidebar links — larger tap targets on mobile */
+  .sidebar a {
+    padding: 14px 20px !important;
+    font-size: 15px !important;
+  }
+
+  /* Main content takes the whole screen */
+  .main-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+    padding: 64px 14px 24px !important;  /* top padding for hamburger button */
+  }
+
+  /* Section headers: reduce font sizes */
+  section.section > header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  section.section > header span {
+    font-size: 22px !important;
+  }
+
+  /* ── 3. Dashboard cards stack vertically ──────────────────────────── */
+  .dashboard-grid,
+  .stats-grid,
+  .summary-grid,
+  .cards-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .stat-card,
+  .summary-card,
+  .dashboard-card {
+    padding: 16px !important;
+  }
+
+  /* Action buttons row stays horizontal but wraps if needed */
+  .actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .actions button {
+    flex: 1 1 calc(50% - 4px);   /* 2 buttons per row */
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  /* Account two-col layout stacks */
+  .accounts-two-col {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+
+  /* Net worth bar: stack vertically */
+  .net-worth-bar {
+    flex-direction: column;
+    gap: 0;
+  }
+  .nw-cell {
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--ynab-border, #e2e8f0);
+    padding: 12px 0 !important;
+  }
+  .nw-cell:last-child {
+    border-bottom: none;
+  }
+
+  /* ── 4. Wide tables → card layout (Q2=C) ──────────────────────────── */
+
+  /* Budget table */
+  .budget-table thead { display: none; }
+  .budget-table,
+  .budget-table tbody,
+  .budget-table tr,
+  .budget-table td {
+    display: block;
+    width: 100%;
+  }
+  .budget-table tr {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--ynab-border, #e2e8f0);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03);
+  }
+  .budget-table td {
+    padding: 6px 0 !important;
+    border: none !important;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+  }
+  /* The 2nd cell (Category name) becomes the header of the card */
+  .budget-table td:nth-child(2) {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ynab-text, #1e293b);
+    border-bottom: 1px solid var(--ynab-border, #f1f5f9) !important;
+    padding-bottom: 10px !important;
+    margin-bottom: 6px;
+    justify-content: flex-start;
+  }
+  /* Label before each value using data-label trick — fallback to column index */
+  .budget-table td:nth-child(3)::before { content: "Assigned"; color: var(--ynab-text-light,#64748b); font-size:12px; font-weight:600; }
+  .budget-table td:nth-child(4)::before { content: "Spent";    color: var(--ynab-text-light,#64748b); font-size:12px; font-weight:600; }
+  .budget-table td:nth-child(5)::before { content: "Balance";  color: var(--ynab-text-light,#64748b); font-size:12px; font-weight:600; }
+  /* Hide the checkbox cell entirely on mobile to save space */
+  .budget-table td:nth-child(1) { display: none !important; }
+
+  /* Income table */
+  .bm-income-table thead { display: none; }
+  .bm-income-table,
+  .bm-income-table tbody,
+  .bm-income-table tr,
+  .bm-income-table td {
+    display: block;
+    width: 100%;
+  }
+  .bm-income-table tbody tr {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--ynab-border, #e2e8f0);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+  }
+  .bm-income-table tbody td {
+    padding: 4px 0 !important;
+    border: none !important;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: left !important;
+  }
+  /* Description becomes the card header */
+  .bm-income-table td.bm-income-name {
+    font-size: 15px;
+    font-weight: 700;
+    border-bottom: 1px solid var(--ynab-border, #f1f5f9) !important;
+    padding-bottom: 8px !important;
+    margin-bottom: 4px;
+    justify-content: flex-start;
+  }
+  .bm-income-table td.bm-income-date::before  { content: "Date";   color: var(--ynab-text-light,#64748b); font-size:12px; font-weight:600; }
+  .bm-income-table td.bm-income-amount::before { content: "Amount"; color: var(--ynab-text-light,#64748b); font-size:12px; font-weight:600; }
+  /* Actions row at the bottom of each card, right-aligned */
+  .bm-income-table td.bm-actions-col {
+    justify-content: flex-end;
+    padding-top: 8px !important;
+    border-top: 1px solid var(--ynab-border, #f1f5f9) !important;
+    margin-top: 4px;
+  }
+  /* Footer (total row) stays as a card too */
+  .bm-income-table tfoot tr {
+    background: var(--ynab-light-gray, #f8fafc);
+    border: 1px solid var(--ynab-border, #e2e8f0);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .bm-income-table tfoot td { padding: 4px 0 !important; border: none !important; }
+  .bm-income-table tfoot td[colspan] { font-weight: 600; }
+
+  /* Recurring rules table — same card pattern */
+  .bm-recur-table thead { display: none; }
+  .bm-recur-table,
+  .bm-recur-table tbody,
+  .bm-recur-table tr,
+  .bm-recur-table td {
+    display: block;
+    width: 100%;
+  }
+  .bm-recur-table tbody tr {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--ynab-border, #e2e8f0);
+    border-radius: 12px;
+    padding: 14px 16px !important;
+    margin-bottom: 10px;
+  }
+  .bm-recur-table tbody td {
+    padding: 5px 0 !important;
+    border: none !important;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: left !important;
+  }
+  .bm-recur-table td.bm-recur-name {
+    font-size: 15px;
+    font-weight: 700;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--ynab-border, #f1f5f9) !important;
+    padding-bottom: 10px !important;
+    margin-bottom: 6px;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+  /* Type column gets a "Type:" label */
+  .bm-recur-table tbody td:nth-child(2)::before {
+    content: "Type"; color: var(--ynab-text-light,#64748b); font-size:12px; font-weight:600;
+  }
+  .bm-recur-table tbody td:nth-child(3)::before {
+    content: "Day"; color: var(--ynab-text-light,#64748b); font-size:12px; font-weight:600;
+  }
+  .bm-recur-table tbody td:nth-child(4)::before {
+    content: "Amount"; color: var(--ynab-text-light,#64748b); font-size:12px; font-weight:600;
+  }
+  .bm-recur-table tbody td.bm-actions-col {
+    justify-content: flex-end;
+    padding-top: 10px !important;
+    border-top: 1px solid var(--ynab-border, #f1f5f9) !important;
+    margin-top: 6px;
+  }
+
+  /* Reports tables — fallback: horizontal scroll instead of card transform.
+     Reports have too many varied columns to convert safely, so we wrap them
+     in a scrollable container. */
+  .report-content table,
+  .ie-full-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ── 5. Modals — full-width, full-height on mobile ─────────────────── */
+  .modal-content {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    border-radius: 16px 16px 0 0 !important;
+    max-height: 92vh !important;
+    overflow-y: auto;
+  }
+  .modal {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  .modal-actions {
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+  .modal-actions button {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  /* ── 6. Form inputs — 16px font prevents iOS zoom-on-focus ────────── */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="date"],
+  input[type="month"],
+  input[type="tel"],
+  input[type="search"],
+  textarea,
+  select {
+    font-size: 16px !important;
+    min-height: 44px;
+  }
+
+  /* Buttons in general get a minimum tap target */
+  button {
+    min-height: 36px;
+  }
+  .btn,
+  .btn-primary,
+  .btn-secondary {
+    min-height: 44px;
+    padding: 11px 18px;
+  }
+
+  /* Tighten sections header on mobile */
+  .section-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Help FAB doesn't collide with content on mobile */
+  #bm-help-fab {
+    bottom: 16px !important;
+    right: 16px !important;
+  }
+
+  /* Settings sidebar: stack vertically on mobile */
+  .settings-sidebar {
+    width: 100% !important;
+    height: auto !important;
+    position: static !important;
+  }
+  .settings-sidebar ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .settings-sidebar li {
+    flex: 1 1 calc(50% - 4px);
+    text-align: center;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ≤ 480px: SMALL PHONE TIGHTENING
+   ════════════════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  .main-content {
+    padding: 60px 10px 20px !important;
+  }
+  section.section > header span {
+    font-size: 20px !important;
+  }
+  .actions button {
+    flex: 1 1 100%;        /* full-width action buttons */
+  }
+  .modal-content {
+    padding: 20px 16px !important;
+  }
+}
