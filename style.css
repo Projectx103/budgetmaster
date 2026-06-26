@@ -2074,7 +2074,7 @@ select.txn-pop-input { cursor: pointer; }
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 9600;
+  z-index: 1000;
   backdrop-filter: blur(2px);
 }
 
@@ -2924,7 +2924,7 @@ select.txn-pop-input { cursor: pointer; }
   align-items: start;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 768px) {
   .report-layout {
     grid-template-columns: 1fr;
   }
@@ -3630,7 +3630,7 @@ button {
     }
 
     /* === Responsive === */
-    @media (max-width: 767px) {
+    @media (max-width: 768px) {
       .theme-selector {
         position: relative;
         top: auto;
@@ -3969,7 +3969,7 @@ button {
 }
 
 /* === Responsive sidebar === */
-@media (max-width: 767px) {
+@media (max-width: 768px) {
   #settings header.settings-header {
     margin-left: 0;
     padding: 20px;
@@ -4034,7 +4034,7 @@ footer a:hover {
   justify-content: center;
   align-items: center;
   position: fixed;
-  z-index: 9600;
+  z-index: 1000;
   inset: 0;
   width: 100%;
   height: 100%;
@@ -4183,7 +4183,7 @@ footer a:hover {
 }
 
 /* === Responsive Design === */
-@media (max-width: 767px) {
+@media (max-width: 768px) {
   .sidebar {
     width: 200px;
   }
@@ -4213,7 +4213,15 @@ footer a:hover {
     flex-direction: column;
     align-items: stretch;
   }
+}
 
+ .main-content {
+        margin-left: 200px;
+        width: calc(100% - 200px);
+        padding: 16px 20px;
+      }
+    }
+  
   .card {
     padding: 16px;
   }
@@ -5944,7 +5952,7 @@ th.sorted .ie-sort-icon { color: var(--primary); }
     0 10px 28px rgba(79, 70, 229, .45),
     0 0 0 1px rgba(255, 255, 255, .12) inset,
     0 -2px 0 rgba(0, 0, 0, .15) inset !important;
-  z-index: 1500 !important;
+  z-index: 9000 !important;
   transition: transform .2s ease, box-shadow .2s ease !important;
   text-decoration: none !important;
   border: none !important;
@@ -6996,7 +7004,7 @@ th.sorted .ie-sort-icon { color: var(--primary); }
 /* ════════════════════════════════════════════════════════════════════
    ≤ 768px: MOBILE LAYOUT BEGINS
    ════════════════════════════════════════════════════════════════════ */
-@media (max-width: 767px) {
+@media (max-width: 768px) {
 
   /* Show hamburger, hide it again when sidebar open (avoid double-button) */
   .bm-mobile-menu-btn { display: flex; }
@@ -7037,9 +7045,203 @@ th.sorted .ie-sort-icon { color: var(--primary); }
     font-size: 22px !important;
   }
 
+  /* ── 3. Dashboard cards stack vertically ──────────────────────────── */
+  .dashboard-grid,
+  .stats-grid,
+  .summary-grid,
+  .cards-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .stat-card,
+  .summary-card,
+  .dashboard-card {
+    padding: 16px !important;
+  }
+
+  /* Action buttons row stays horizontal but wraps if needed */
+  .actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .actions button {
+    flex: 1 1 calc(50% - 4px);   /* 2 buttons per row */
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  /* Account two-col layout stacks */
+  .accounts-two-col {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+
+  /* Net worth bar: stack vertically */
+  .net-worth-bar {
+    flex-direction: column;
+    gap: 0;
+  }
+  .nw-cell {
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--ynab-border, #e2e8f0);
+    padding: 12px 0 !important;
+  }
+  .nw-cell:last-child {
+    border-bottom: none;
+  }
+
+  /* ── 4. Wide tables → card layout (Q2=C) ──────────────────────────── */
+
+  /* Budget table */
+  .budget-table thead { display: none; }
+  .budget-table,
+  .budget-table tbody,
+  .budget-table tr,
+  .budget-table td {
+    display: block;
+    width: 100%;
+  }
+  .budget-table tr {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--ynab-border, #e2e8f0);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03);
+  }
+  .budget-table td {
+    padding: 6px 0 !important;
+    border: none !important;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+  }
+  /* The 2nd cell (Category name) becomes the header of the card */
+  .budget-table td:nth-child(2) {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ynab-text, #1e293b);
+    border-bottom: 1px solid var(--ynab-border, #f1f5f9) !important;
+    padding-bottom: 10px !important;
+    margin-bottom: 6px;
+    justify-content: flex-start;
+  }
+  /* Label before each value using data-label trick — fallback to column index */
+  .budget-table td:nth-child(3)::before { content: "Assigned"; color: var(--ynab-text-light,#64748b); font-size:12px; font-weight:600; }
+  .budget-table td:nth-child(4)::before { content: "Spent";    color: var(--ynab-text-light,#64748b); font-size:12px; font-weight:600; }
+  .budget-table td:nth-child(5)::before { content: "Balance";  color: var(--ynab-text-light,#64748b); font-size:12px; font-weight:600; }
+  /* Hide the checkbox cell entirely on mobile to save space */
+  .budget-table td:nth-child(1) { display: none !important; }
+
+  /* Income table */
+  .bm-income-table thead { display: none; }
+  .bm-income-table,
+  .bm-income-table tbody,
+  .bm-income-table tr,
+  .bm-income-table td {
+    display: block;
+    width: 100%;
+  }
+  .bm-income-table tbody tr {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--ynab-border, #e2e8f0);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+  }
+  .bm-income-table tbody td {
+    padding: 4px 0 !important;
+    border: none !important;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: left !important;
+  }
+  /* Description becomes the card header */
+  .bm-income-table td.bm-income-name {
+    font-size: 15px;
+    font-weight: 700;
+    border-bottom: 1px solid var(--ynab-border, #f1f5f9) !important;
+    padding-bottom: 8px !important;
+    margin-bottom: 4px;
+    justify-content: flex-start;
+  }
+  .bm-income-table td.bm-income-date::before  { content: "Date";   color: var(--ynab-text-light,#64748b); font-size:12px; font-weight:600; }
+  .bm-income-table td.bm-income-amount::before { content: "Amount"; color: var(--ynab-text-light,#64748b); font-size:12px; font-weight:600; }
+  /* Actions row at the bottom of each card, right-aligned */
+  .bm-income-table td.bm-actions-col {
+    justify-content: flex-end;
+    padding-top: 8px !important;
+    border-top: 1px solid var(--ynab-border, #f1f5f9) !important;
+    margin-top: 4px;
+  }
+  /* Footer (total row) stays as a card too */
+  .bm-income-table tfoot tr {
+    background: var(--ynab-light-gray, #f8fafc);
+    border: 1px solid var(--ynab-border, #e2e8f0);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .bm-income-table tfoot td { padding: 4px 0 !important; border: none !important; }
+  .bm-income-table tfoot td[colspan] { font-weight: 600; }
+
+  /* Recurring rules table — same card pattern */
+  .bm-recur-table thead { display: none; }
+  .bm-recur-table,
+  .bm-recur-table tbody,
+  .bm-recur-table tr,
+  .bm-recur-table td {
+    display: block;
+    width: 100%;
+  }
+  .bm-recur-table tbody tr {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--ynab-border, #e2e8f0);
+    border-radius: 12px;
+    padding: 14px 16px !important;
+    margin-bottom: 10px;
+  }
+  .bm-recur-table tbody td {
+    padding: 5px 0 !important;
+    border: none !important;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: left !important;
+  }
+  .bm-recur-table td.bm-recur-name {
+    font-size: 15px;
+    font-weight: 700;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--ynab-border, #f1f5f9) !important;
+    padding-bottom: 10px !important;
+    margin-bottom: 6px;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+  /* Type column gets a "Type:" label */
+  .bm-recur-table tbody td:nth-child(2)::before {
+    content: "Type"; color: var(--ynab-text-light,#64748b); font-size:12px; font-weight:600;
+  }
+  .bm-recur-table tbody td:nth-child(3)::before {
+    content: "Day"; color: var(--ynab-text-light,#64748b); font-size:12px; font-weight:600;
+  }
+  .bm-recur-table tbody td:nth-child(4)::before {
+    content: "Amount"; color: var(--ynab-text-light,#64748b); font-size:12px; font-weight:600;
+  }
+  .bm-recur-table tbody td.bm-actions-col {
+    justify-content: flex-end;
+    padding-top: 10px !important;
+    border-top: 1px solid var(--ynab-border, #f1f5f9) !important;
+    margin-top: 6px;
+  }
+
   /* Reports tables — fallback: horizontal scroll instead of card transform.
      Reports have too many varied columns to convert safely, so we wrap them
-     in a scrollable container. (Reports redesign is a separate pass.) */
+     in a scrollable container. */
   .report-content table,
   .ie-full-table {
     display: block;
@@ -7048,7 +7250,29 @@ th.sorted .ie-sort-icon { color: var(--primary); }
     -webkit-overflow-scrolling: touch;
   }
 
-  /* ── Form inputs — 16px font prevents iOS zoom-on-focus ────────────── */
+  /* ── 5. Modals — full-width, full-height on mobile ─────────────────── */
+  .modal-content {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    border-radius: 16px 16px 0 0 !important;
+    max-height: 92vh !important;
+    overflow-y: auto;
+  }
+  .modal {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  .modal-actions {
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+  .modal-actions button {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  /* ── 6. Form inputs — 16px font prevents iOS zoom-on-focus ────────── */
   input[type="text"],
   input[type="email"],
   input[type="password"],
@@ -7063,6 +7287,7 @@ th.sorted .ie-sort-icon { color: var(--primary); }
     min-height: 44px;
   }
 
+  /* Buttons in general get a minimum tap target */
   button {
     min-height: 36px;
   }
@@ -7073,7 +7298,19 @@ th.sorted .ie-sort-icon { color: var(--primary); }
     padding: 11px 18px;
   }
 
-  /* Settings sidebar: stack vertically on mobile (unchanged from Phase 1, out of scope this pass) */
+  /* Tighten sections header on mobile */
+  .section-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Help FAB doesn't collide with content on mobile */
+  #bm-help-fab {
+    bottom: 16px !important;
+    right: 16px !important;
+  }
+
+  /* Settings sidebar: stack vertically on mobile */
   .settings-sidebar {
     width: 100% !important;
     height: auto !important;
@@ -7091,543 +7328,19 @@ th.sorted .ie-sort-icon { color: var(--primary); }
 }
 
 /* ════════════════════════════════════════════════════════════════════
-   MOBILE-FIRST REDESIGN — Dashboard / Accounts / Budget / Modals
-   Base rules below target mobile by default. min-width queries scale
-   UP to tablet/desktop. This whole block supersedes the old "Phase 1"
-   max-width patches for these sections.
+   ≤ 480px: SMALL PHONE TIGHTENING
    ════════════════════════════════════════════════════════════════════ */
-
-/* ── Visibility helpers: swap desktop table/row markup for mobile
-       list markup without touching data flow in script.js ──────────── */
-.bm-mobile-only { display: block; }
-.bm-desktop-only { display: none; }
-
-@media (min-width: 768px) {
-  .bm-mobile-only { display: none !important; }
-  .bm-desktop-only { display: block; }
-  .current-theme.bm-desktop-only { display: block; }
-  .transactions-wrapper.bm-desktop-only { display: block; }
-  .budget-table.bm-desktop-only { display: table; }
-  .table-controls.bm-desktop-only { display: flex; }
-  .actions.bm-desktop-only { display: flex; }
-}
-
-/* ── Safe-area aware page padding (PWA, gesture-bar phones) ────────── */
-.main-content {
-  padding-bottom: calc(96px + env(safe-area-inset-bottom)) !important; /* room for FAB */
-}
-@media (min-width: 768px) {
-  .main-content { padding-bottom: 32px !important; }
-}
-
-/* ── Typography scale — distinct sizes so the eye finds the number ─── */
-:root {
-  --bm-fs-hero: 36px;     /* TBB hero number */
-  --bm-fs-section: 13px;  /* section headings */
-  --bm-fs-primary: 18px;  /* transaction / account amounts */
-  --bm-fs-body: 15px;     /* names, payees */
-  --bm-fs-meta: 12px;     /* dates, categories, metadata */
-  --bm-fs-tiny: 11px;     /* card micro-labels */
-}
-@media (min-width: 768px) {
-  :root { --bm-fs-hero: 28px; }
-}
-
-.bm-section-headline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 28px 0 12px;
-}
-.bm-section-title {
-  font-size: var(--bm-fs-section);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-light);
-  margin: 0;
-}
-
-/* Hide the "Current Theme" decorative row on mobile — moved to Settings */
-@media (max-width: 767px) {
-  .current-theme.bm-desktop-only { display: none !important; }
-}
-
-/* ════════════════════════════════════════════════════
-   DASHBOARD — hero card + 2x2 secondary grid (pick A1)
-   ════════════════════════════════════════════════════ */
-@media (max-width: 767px) {
-
-  .bm-summary-root { margin-bottom: 28px; }
-
-  /* 2-column grid; TBB spans both columns as the hero, the other 4
-     cards fall into a natural 2x2 below it. */
-  .bm-summary-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-auto-rows: auto;
-    gap: 12px;
-  }
-
-  .bm-sc.tbb {
-    grid-column: 1 / -1;
-    min-height: 0;
-    padding: 24px 20px 22px;
-  }
-  .bm-sc.tbb .bm-label { font-size: var(--bm-fs-tiny); margin: 16px 0 6px; }
-  .bm-sc.tbb .bm-val   { font-size: var(--bm-fs-hero); }
-  .bm-sc.tbb .bm-icon-ring { width: 40px; height: 40px; }
-
-  /* Other 4 cards: secondary size, 2-up */
-  .bm-sc.asgn, .bm-sc.avail, .bm-sc.spent, .bm-sc.over {
-    min-height: 0;
-    padding: 16px 14px 14px;
-  }
-  .bm-sc.asgn  .bm-val,
-  .bm-sc.avail .bm-val,
-  .bm-sc.spent .bm-val,
-  .bm-sc.over  .bm-val { font-size: 17px; }
-  .bm-sc.asgn  .bm-label,
-  .bm-sc.avail .bm-label,
-  .bm-sc.spent .bm-label,
-  .bm-sc.over  .bm-label { font-size: 10px; margin: 10px 0 4px; }
-  .bm-sc.asgn  .bm-icon-ring,
-  .bm-sc.avail .bm-icon-ring,
-  .bm-sc.spent .bm-icon-ring,
-  .bm-sc.over  .bm-icon-ring { width: 30px; height: 30px; }
-  .bm-sc.asgn  .bm-icon-ring i,
-  .bm-sc.avail .bm-icon-ring i,
-  .bm-sc.spent .bm-icon-ring i,
-  .bm-sc.over  .bm-icon-ring i { font-size: 14px; }
-
-  /* Touch target: whole card is tappable, no separate target needed */
-  .bm-sc { min-height: 44px; }
-}
-
-/* ════════════════════════════════════════════════════
-   BUDGET CATEGORIES — dashboard card grid → single rows
-   ════════════════════════════════════════════════════ */
-@media (max-width: 767px) {
-  .budget-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-top: 16px;
-  }
-  .budget-item {
-    min-height: 44px;
-    padding: 14px 16px;
-    border-radius: 14px;
-  }
-  .budget-item .item-header { margin-bottom: 4px; }
-  .budget-item .font-bold { font-size: var(--bm-fs-body); }
-  .budget-item .amounts { margin-top: 10px; gap: 8px; }
-  .budget-item .small { font-size: var(--bm-fs-tiny); text-transform: uppercase; letter-spacing: 0.04em; }
-  .budget-item .assigned-value,
-  .budget-item .amounts > div > div:last-child {
-    font-size: 15px;
-    font-weight: 700;
-  }
-}
-
-/* ════════════════════════════════════════════════════
-   BUDGET PAGE — categories table → div list (pick C1)
-   ════════════════════════════════════════════════════ */
-.bm-budget-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
-.bm-budget-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 16px;
-  min-height: 44px;
-  border: 1px solid var(--ynab-border);
-  border-radius: 14px;
-  background: var(--card-bg);
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-.bm-budget-row:active { background: var(--ynab-light-gray); }
-.bm-budget-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-.bm-budget-row-name {
-  font-size: var(--bm-fs-body);
-  font-weight: 700;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.bm-budget-row-sub { font-size: var(--bm-fs-meta); color: var(--text-light); }
-.bm-budget-row-figures { text-align: right; flex-shrink: 0; }
-.bm-budget-row-balance {
-  font-size: var(--bm-fs-primary);
-  font-weight: 700;
-  line-height: 1.2;
-}
-.bm-budget-row-balance.negative { color: var(--danger); }
-.bm-budget-row-balance.positive { color: var(--ynab-green); }
-.bm-budget-row-track {
-  margin-top: 6px;
-  width: 100%;
-  height: 4px;
-  border-radius: 100px;
-  background: var(--ynab-border);
-  overflow: hidden;
-}
-.bm-budget-row-fill { height: 100%; border-radius: 100px; background: var(--primary); transition: width 0.4s ease; }
-.bm-budget-empty {
-  padding: 28px 16px;
-  text-align: center;
-  color: var(--text-light);
-  font-size: var(--bm-fs-body);
-}
-
-/* ════════════════════════════════════════════════════
-   TRANSACTIONS — table → div list (pick C1)
-   ════════════════════════════════════════════════════ */
-.bm-txn-list { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
-.bm-txn-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 0;
-  min-height: 44px;
-  border-bottom: 1px solid var(--ynab-border);
-}
-.bm-txn-row:last-child { border-bottom: none; }
-.bm-txn-row-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
-.bm-txn-row-payee {
-  font-size: var(--bm-fs-body);
-  font-weight: 600;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.bm-txn-row-meta { font-size: var(--bm-fs-meta); color: var(--text-light); }
-.bm-txn-row-meta .bm-txn-dot { margin: 0 5px; opacity: 0.6; }
-.bm-txn-row-amount {
-  font-size: var(--bm-fs-primary);
-  font-weight: 700;
-  flex-shrink: 0;
-  text-align: right;
-  white-space: nowrap;
-}
-.bm-txn-row-amount.outflow { color: var(--danger); }
-.bm-txn-row-amount.inflow { color: var(--ynab-green); }
-.bm-txn-empty {
-  padding: 32px 16px;
-  text-align: center;
-  color: var(--text-light);
-  font-size: var(--bm-fs-body);
-}
-
-/* Filter trigger button (mobile) */
-.bm-filter-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 44px;
-  padding: 0 16px;
-  border: 1px solid var(--ynab-border);
-  border-radius: 10px;
-  background: var(--card-bg);
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  position: relative;
-}
-.bm-filter-badge {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: var(--primary);
-  position: absolute;
-  top: 8px; right: 10px;
-}
-@media (min-width: 768px) {
-  .bm-section-headline { display: none; } /* desktop keeps its own header + filter row */
-}
-
-/* ════════════════════════════════════════════════════
-   ACCOUNTS — net worth bar + account rows
-   ════════════════════════════════════════════════════ */
-@media (max-width: 767px) {
-  .net-worth-bar {
-    padding: 14px 4px;
-  }
-  .nw-cell { padding: 0 10px; gap: 3px; }
-  .nw-value { font-size: 15px; }
-  /* Net Worth is the headline number — visually largest of the three */
-  .nw-cell:last-child .nw-value { font-size: 19px; }
-  .nw-label { font-size: 9px; }
-
-  .account-item {
-    padding: 14px 12px;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-  .acc-icon { width: 38px; height: 38px; font-size: 16px; }  .acc-name { font-size: var(--bm-fs-body); font-weight: 700; }
-  .acc-type-label { font-size: var(--bm-fs-meta); }
-  .acc-balance-main { font-size: var(--bm-fs-primary); }
-  .acc-balance-col { min-width: 92px; }
-
-  .account-actions {
-    gap: 6px;
-    margin-left: 0;
-    margin-top: 4px;
-    flex-basis: 100%;
-    justify-content: flex-end;
-  }
-  .account-actions button {
-    width: 44px;
-    height: 44px;
-    border-radius: 10px;
-  }
-  .account-actions button svg { width: 16px; height: 16px; }
-}
-
-/* ════════════════════════════════════════════════════
-   MODALS — true bottom sheets on mobile
-   ════════════════════════════════════════════════════ */
-@media (max-width: 767px) {
-  .modal,
-  .acct-modal-overlay,
-  #catColorModal.open {
-    align-items: flex-end !important;
-    padding: 0 !important;
-  }
-
-  .modal-content,
-  .cat-modal-panel,
-  .acct-modal-card,
-  .cat-color-panel {
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
-    margin: 0 !important;
-    border-radius: 20px 20px 0 0 !important;
-    max-height: 88vh !important;
-    overflow-y: auto;
-    padding-bottom: calc(20px + env(safe-area-inset-bottom)) !important;
-    position: relative;
-    padding-top: 28px !important; /* room for drag handle */
-  }
-
-  /* Drag handle — added via pseudo-element so no markup changes needed */
-  .modal-content::before,
-  .cat-modal-panel::before,
-  .acct-modal-card::before,
-  .cat-color-panel::before {
-    content: "";
-    position: absolute;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 36px;
-    height: 4px;
-    border-radius: 100px;
-    background: var(--ynab-border);
-  }
-
-  .modal-actions {
-    flex-direction: column-reverse;
-    gap: 8px;
-    position: sticky;
-    bottom: 0;
-    background: var(--card-bg);
-    padding-top: 12px;
-    margin-top: 16px;
-  }
-  .modal-actions button {
-    width: 100%;
-    min-height: 48px;
-  }
-
-  /* Category modal: rename row + amount fields stack instead of cramming
-     input + 2 buttons into one row */
-  .cat-modal-edit-row {
-    flex-wrap: wrap;
-    padding: 12px 16px;
-  }
-  .cat-name-input {
-    flex: 1 1 100%;
-    font-size: 16px; /* prevents iOS zoom */
-    min-height: 44px;
-    order: 1;
-  }
-  .cat-save-btn,
-  .cat-delete-cat-btn {
-    flex: 1;
-    min-height: 44px;
-    justify-content: center;
-    font-size: 13px;
-    order: 2;
-  }
-
-  .acct-modal-footer {
-    padding-bottom: calc(16px + env(safe-area-inset-bottom)) !important;
-  }
-  .cat-modal-header { padding-top: 4px; }
-}
-
-/* ════════════════════════════════════════════════════
-   BOTTOM SHEETS — filter sheet + add-action sheet
-   (shared by mobileFilterSheet and addActionSheet)
-   ════════════════════════════════════════════════════ */
-.bm-sheet-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9500;
-  background: rgba(15, 23, 42, 0.5);
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  opacity: 1;
-  transition: opacity 0.2s ease;
-}
-.bm-sheet-overlay.hidden { display: none; }
-
-.bm-sheet-panel {
-  width: 100%;
-  max-width: 560px;
-  background: var(--card-bg);
-  border-radius: 20px 20px 0 0;
-  padding: 28px 20px calc(20px + env(safe-area-inset-bottom));
-  box-shadow: 0 -8px 40px rgba(0,0,0,0.18);
-  position: relative;
-  animation: bm-sheet-up 0.22s cubic-bezier(0.4,0,0.2,1);
-  max-height: 85vh;
-  overflow-y: auto;
-}
-@keyframes bm-sheet-up {
-  from { transform: translateY(16px); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
-}
-.bm-sheet-handle {
-  position: absolute;
-  top: 10px; left: 50%;
-  transform: translateX(-50%);
-  width: 36px; height: 4px;
-  border-radius: 100px;
-  background: var(--ynab-border);
-}
-.bm-sheet-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-.bm-sheet-header h3 { margin: 0; font-size: 17px; font-weight: 700; color: var(--text); }
-.bm-sheet-close {
-  width: 36px; height: 36px;
-  border-radius: 10px;
-  border: none;
-  background: var(--ynab-light-gray);
-  color: var(--text-light);
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-}
-.bm-sheet-body { display: flex; flex-direction: column; gap: 16px; }
-.bm-sheet-field { display: flex; flex-direction: column; gap: 6px; }
-.bm-sheet-field label { font-size: 13px; font-weight: 600; color: var(--text); }
-.bm-sheet-field input,
-.bm-sheet-field select {
-  min-height: 48px;
-  padding: 12px 14px;
-  border: 1.5px solid var(--ynab-border);
-  border-radius: 10px;
-  font-size: 16px;
-  background: var(--card-bg);
-  color: var(--text);
-  font-family: inherit;
-}
-.bm-sheet-field-row { display: flex; gap: 12px; }
-.bm-sheet-field-row .bm-sheet-field { flex: 1; }
-.bm-sheet-footer { display: flex; gap: 10px; margin-top: 20px; }
-.bm-sheet-btn-secondary,
-.bm-sheet-btn-primary {
-  flex: 1;
-  min-height: 48px;
-  border-radius: 12px;
-  font-size: 15px;
-  font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-  border: none;
-}
-.bm-sheet-btn-secondary { background: var(--ynab-light-gray); color: var(--text); }
-.bm-sheet-btn-primary { background: var(--primary); color: #fff; }
-
-/* Add-action sheet: list of actions instead of fields */
-.bm-sheet-panel-compact { padding-top: 24px; }
-.bm-sheet-action {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  min-height: 56px;
-  padding: 12px 8px;
-  border: none;
-  background: none;
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-  border-bottom: 1px solid var(--ynab-border);
-}
-.bm-sheet-action:last-of-type { border-bottom: none; }
-.bm-sheet-action-icon {
-  width: 38px; height: 38px;
-  border-radius: 10px;
-  background: var(--ynab-light-blue);
-  color: var(--primary);
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-}
-.bm-sheet-action-label { font-size: 15px; font-weight: 600; color: var(--text); }
-.bm-sheet-cancel { width: 100%; margin-top: 8px; }
-
-/* ════════════════════════════════════════════════════
-   PRIMARY FAB — bottom-center (pick B1), Help FAB stays
-   bottom-right so neither button competes for thumb reach
-   ════════════════════════════════════════════════════ */
-#bm-add-fab {
-  position: fixed;
-  bottom: calc(20px + env(safe-area-inset-bottom));
-  left: 50%;
-  transform: translateX(-50%);
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
-  background: var(--primary);
-  color: #fff;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 10px 28px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.12) inset;
-  z-index: 1500; /* above page content, below modal overlays (9000+) */
-  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
-}
-#bm-add-fab:active {
-  transform: translateX(-50%) scale(0.94);
-}
-
-/* ════════════════════════════════════════════════════
-   SECTION SPACING — generous rest space (16px+ section
-   padding, 12px+ gaps), per the audit's spacing finding
-   ════════════════════════════════════════════════════ */
-@media (max-width: 767px) {
-  section.section { padding: 0 4px; }
-  .card { padding: 18px 16px; margin-bottom: 20px; }
-  h2 { font-size: 17px; margin-bottom: 14px; }
-}
-
 @media (max-width: 480px) {
-  .main-content { padding: 60px 12px calc(96px + env(safe-area-inset-bottom)) !important; }
-  section.section > header span { font-size: 20px !important; }
-  .modal-content { padding: 24px 16px !important; }
+  .main-content {
+    padding: 60px 10px 20px !important;
+  }
+  section.section > header span {
+    font-size: 20px !important;
+  }
+  .actions button {
+    flex: 1 1 100%;        /* full-width action buttons */
+  }
+  .modal-content {
+    padding: 20px 16px !important;
+  }
 }
