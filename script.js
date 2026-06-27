@@ -255,6 +255,18 @@ let filteredTransactions = []; // Store filtered results
 
 
 // ==== Render Functions ====
+
+// Canonical category balance: carried-forward starting balance + assigned - spent.
+// startingBalance is set by rollover (Cover carries a negative deficit forward;
+// positive leftovers carry forward positive). Categories that never rolled over
+// have no startingBalance, so it defaults to 0 and this reduces to assigned-spent.
+function categoryBalance(c) {
+  const starting = Number(c.startingBalance) || 0;
+  const assigned = Number(c.assigned) || 0;
+  const spent    = Number(c.spent) || 0;
+  return starting + assigned - spent;
+}
+
 function renderCategories(categories) {
   const div = document.getElementById("categories");
   const select = document.getElementById("transactionCategory");
@@ -262,9 +274,15 @@ function renderCategories(categories) {
   select.innerHTML = "";
 
   categories.forEach((c, index) => {
-    // ✅ Always compute fresh balance
-    const balance = c.assigned - c.spent;
+    const balance = categoryBalance(c);
+    const starting = Number(c.startingBalance) || 0;
     const monthLabel = c.month ? `<span class="pill">${c.month}</span>` : "";
+    // Show a small note when a category started the month with a carried balance
+    const startNote = starting !== 0
+      ? `<div class="small" style="color:${starting < 0 ? '#ef4444' : '#10b981'};margin-top:2px;">
+           ${starting < 0 ? 'Carried over' : 'Rolled in'}: ${formatCurrency(starting)}
+         </div>`
+      : "";
 
     div.innerHTML += `
       <div class="budget-item">
@@ -291,6 +309,7 @@ function renderCategories(categories) {
             <div style="color:${balance < 0 ? 'red' : 'green'}">
               ${formatCurrency(balance)}
             </div>
+            ${startNote}
           </div>
         </div>
       </div>
@@ -753,7 +772,8 @@ async function saveAssigned(index, newValue) {
   } else {
     // ── Legacy inline path (original code, untouched) ────────────────────
     monthData.categories[index].assigned = val;
-    monthData.categories[index].balance  = val - monthData.categories[index].spent;
+    monthData.categories[index].balance  = (Number(monthData.categories[index].startingBalance) || 0) +
+      val - monthData.categories[index].spent;
     monthData.tbb = newTBB;
 
     await monthDocRef.set(monthData);
@@ -1157,6 +1177,7 @@ async function addTransaction() {
     if (catIndex !== -1) {
       monthData.categories[catIndex].spent  += amount;
       monthData.categories[catIndex].balance =
+        (Number(monthData.categories[catIndex].startingBalance) || 0) +
         monthData.categories[catIndex].assigned - monthData.categories[catIndex].spent;
     }
 
@@ -2658,7 +2679,8 @@ async function openTransactionPanel(index) {
       // Deduct from budget category spent
       if (monthData.categories[catIndex]) {
         monthData.categories[catIndex].spent   = (monthData.categories[catIndex].spent || 0) + amount;
-        monthData.categories[catIndex].balance = monthData.categories[catIndex].assigned - monthData.categories[catIndex].spent;
+        monthData.categories[catIndex].balance = (Number(monthData.categories[catIndex].startingBalance) || 0) +
+          monthData.categories[catIndex].assigned - monthData.categories[catIndex].spent;
       }
 
       const expenseTransaction = {
@@ -2738,7 +2760,8 @@ async function openTransactionPanel(index) {
 
       if (monthData.categories[catIndex]) {
         monthData.categories[catIndex].spent   = (monthData.categories[catIndex].spent || 0) + amount;
-        monthData.categories[catIndex].balance = monthData.categories[catIndex].assigned - monthData.categories[catIndex].spent;
+        monthData.categories[catIndex].balance = (Number(monthData.categories[catIndex].startingBalance) || 0) +
+          monthData.categories[catIndex].assigned - monthData.categories[catIndex].spent;
       }
 
       newTransaction.category = categoryName;
@@ -2841,7 +2864,7 @@ function renderBudgetSection(categories, transactions) {
     </td></tr>`;
   } else {
     categories.forEach((c, index) => {
-      const balance = c.assigned - c.spent;
+      const balance = categoryBalance(c);
       const row = document.createElement("tr");
       row.innerHTML = `
         <td><input type="checkbox" class="category-checkbox" data-index="${index}" /></td>
@@ -3314,7 +3337,7 @@ async function deleteTransaction(categoryName, txId) {
           // Reverse expense: restore category spent and balance
           if (cat) {
             cat.spent   = Math.max(0, (cat.spent || 0) - tx.amount);
-            cat.balance = cat.assigned - cat.spent;
+            cat.balance = (Number(cat.startingBalance) || 0) + cat.assigned - cat.spent;
           }
         } else if (tx.type === "income" && !tx.isAccountOnlyTxn) {
           // A5 fix: income always goes to TBB — restore it regardless of whether
@@ -3396,7 +3419,7 @@ async function deleteTransaction(categoryName, txId) {
     if (cat) {
       cat.spent -= tx.amount;
       if (cat.spent < 0) cat.spent = 0;
-      cat.balance = cat.assigned - cat.spent;
+      cat.balance = (Number(cat.startingBalance) || 0) + cat.assigned - cat.spent;
     }
   } else if (tx.type === "income" && !tx.isAccountOnlyTxn) {
     // A5 fix: income goes to TBB — restore it directly, not via category
