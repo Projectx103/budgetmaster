@@ -1192,59 +1192,37 @@ async function addTransaction() {
 
 
 
-function initiateRollover() {
+// NOTE: The old fake initiateRollover() (button animation that did nothing)
+// was removed. The real initiateRollover() is defined further below and opens
+// the rollover modal with per-category Cover/Absorb choices.
+
+// Ripple click effect on the rollover button (visual only)
+(function attachRolloverRipple() {
   const btn = document.getElementById('rolloverBtn');
-  const text = btn.querySelector('.btn-text');
-
-  btn.classList.add('loading');
-  text.textContent = 'Processing...';
-
-  setTimeout(() => {
-    btn.classList.remove('loading');
-    btn.classList.add('success');
-    text.textContent = 'Rollover Complete';
-
-    setTimeout(() => {
-      btn.classList.remove('success');
-      text.textContent = 'Rollover';
-    }, 4000);
-  }, 4000);
-}
-
-// Keyboard accessibility
-document.getElementById('rolloverBtn').addEventListener('keydown', e => {
-  if (e.key === 'Enter' || e.key === ' ') {
-    e.preventDefault();
-    initiateRollover();
-  }
-});
-
-// Ripple click effect
-document.getElementById('rolloverBtn').addEventListener('click', function (e) {
-  const ripple = document.createElement('span');
-  const rect = this.getBoundingClientRect();
-  const size = Math.max(rect.width, rect.height);
-  const x = e.clientX - rect.left - size / 2;
-  const y = e.clientY - rect.top - size / 2;
-
-  ripple.style.cssText = `
-    position: absolute;
-    width: ${size}px;
-    height: ${size}px;
-    left: ${x}px;
-    top: ${y}px;
-    background: rgba(255, 255, 255, 0.3);
-    border-radius: 50%;
-    transform: scale(0);
-    animation: ripple 1.2s ease-out forwards;
-    pointer-events: none;
-    z-index: 0;
-  `;
-
-  this.appendChild(ripple);
-
-  setTimeout(() => ripple.remove(), 1200);
-});
+  if (!btn) return;
+  btn.addEventListener('click', function (e) {
+    const ripple = document.createElement('span');
+    const rect = this.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    const x = e.clientX - rect.left - size / 2;
+    const y = e.clientY - rect.top - size / 2;
+    ripple.style.cssText = `
+      position: absolute;
+      width: ${size}px;
+      height: ${size}px;
+      left: ${x}px;
+      top: ${y}px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      transform: scale(0);
+      animation: ripple 1.2s ease-out forwards;
+      pointer-events: none;
+      z-index: 0;
+    `;
+    this.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 1200);
+  });
+})();
 
 
 
@@ -1330,20 +1308,149 @@ document.getElementById("saveRolloverBtn").addEventListener("click", async () =>
 });
 
 // Initiate manual rollover (called from dashboard button)
-function initiateRollover() {
-  // Check if already rolled over this month
+// ════════════════════════════════════════════════════════════════════════════
+// ROLLOVER — with per-category Cover / Absorb choices for overspent categories
+// ════════════════════════════════════════════════════════════════════════════
+//
+//   Cover  → carry the deficit forward as a NEGATIVE starting balance next month
+//            (you must assign new money next month to clear it)
+//   Absorb → reset the category to ₱0 next month, and reduce next month's TBB
+//            by the overspent amount (the pool eats the loss now)
+//
+// Positive leftover balances always carry forward. The choice only applies to
+// categories where spent > assigned.
+
+// Holds the scan result between opening the modal and confirming
+let _rolloverPlan = null;
+
+async function initiateRollover() {
+  if (!currentUser) return;
+
+  // Guard: one rollover per month
   if (lastRolloverDate) {
     const lastRollover = new Date(lastRolloverDate);
     const now = new Date();
-    if (lastRollover.getFullYear() === now.getFullYear() && 
+    if (lastRollover.getFullYear() === now.getFullYear() &&
         lastRollover.getMonth() === now.getMonth()) {
       showToast("Rollover already performed this month. Only one rollover per month is allowed.", "warning");
       return;
     }
   }
-  
-  // Show confirmation modal
+
+  // Load the current month so we can scan for overspent categories
+  const docRef = db.collection("budget").doc(currentUser.uid);
+  const docSnap = await docRef.get();
+  if (!docSnap.exists) { showToast("Budget not found.", "error"); return; }
+
+  const data = docSnap.data();
+  const baseMonthKey = data.currentMonth || new Date().toISOString().slice(0, 7);
+  const monthSnap = await docRef.collection("months").doc(baseMonthKey).get();
+  if (!monthSnap.exists) { showToast("Current month data not found.", "error"); return; }
+
+  const monthData = monthSnap.data();
+  const categories = monthData.categories || [];
+
+  // Identify overspent categories (spent > assigned)
+  const overspentCategories = categories
+    .filter(c => (c.spent || 0) > (c.assigned || 0))
+    .map(c => ({
+      name: c.name,
+      assigned: c.assigned || 0,
+      spent: c.spent || 0,
+      deficit: (c.spent || 0) - (c.assigned || 0),
+    }));
+
+  // Stash the plan for proceedWithRollover()
+  _rolloverPlan = {
+    baseMonthKey,
+    overspentCategories,
+    // default every overspent category to "cover"
+    choices: Object.fromEntries(overspentCategories.map(c => [c.name, "cover"])),
+  };
+
+  _renderRolloverModal();
   document.getElementById("rolloverModal").style.display = "flex";
+}
+
+// Builds the modal body dynamically based on the scan
+function _renderRolloverModal() {
+  const body = document.getElementById("rolloverModalBody");
+  if (!body || !_rolloverPlan) return;
+
+  const { overspentCategories } = _rolloverPlan;
+
+  // No overspending → simple confirm
+  if (overspentCategories.length === 0) {
+    body.innerHTML = `
+      <p class="bm-ro-intro">
+        Roll the current month over to next month. Positive category balances
+        carry forward, and your available balance becomes next month's
+        starting <strong>To Be Budgeted</strong>.
+      </p>
+      <p class="bm-ro-note">This action cannot be undone.</p>
+    `;
+    return;
+  }
+
+  // Overspending → per-category choice
+  const rows = overspentCategories.map(c => `
+    <div class="bm-ro-row" data-cat="${_escapeHtml(c.name)}">
+      <div class="bm-ro-row-head">
+        <span class="bm-ro-cat">${_escapeHtml(c.name)}</span>
+        <span class="bm-ro-deficit">−${formatCurrency(c.deficit)}</span>
+      </div>
+      <div class="bm-ro-choices">
+        <label class="bm-ro-choice">
+          <input type="radio" name="ro-${_escapeHtml(c.name)}" value="cover" checked
+                 onchange="_setRolloverChoice('${_escapeHtmlAttr(c.name)}','cover')">
+          <span class="bm-ro-choice-label">
+            <strong>Cover</strong>
+            <small>Carry the −${formatCurrency(c.deficit)} into next month. You'll
+            assign new money to clear it.</small>
+          </span>
+        </label>
+        <label class="bm-ro-choice">
+          <input type="radio" name="ro-${_escapeHtml(c.name)}" value="absorb"
+                 onchange="_setRolloverChoice('${_escapeHtmlAttr(c.name)}','absorb')">
+          <span class="bm-ro-choice-label">
+            <strong>Absorb</strong>
+            <small>Reset to ₱0 and take ${formatCurrency(c.deficit)} from next
+            month's To Be Budgeted now.</small>
+          </span>
+        </label>
+      </div>
+    </div>
+  `).join("");
+
+  const totalDeficit = overspentCategories.reduce((s, c) => s + c.deficit, 0);
+
+  body.innerHTML = `
+    <p class="bm-ro-intro">
+      You overspent in <strong>${overspentCategories.length}</strong>
+      ${overspentCategories.length === 1 ? "category" : "categories"}
+      (total <strong>−${formatCurrency(totalDeficit)}</strong>).
+      Choose how to handle each one:
+    </p>
+    <div class="bm-ro-list">${rows}</div>
+    <p class="bm-ro-note">Positive balances carry forward automatically. This action cannot be undone.</p>
+  `;
+}
+
+// Called by the radio buttons
+function _setRolloverChoice(catName, choice) {
+  if (_rolloverPlan && _rolloverPlan.choices) {
+    _rolloverPlan.choices[catName] = choice;
+  }
+}
+
+// Small HTML escapers so category names can't break the markup
+function _escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, ch => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]
+  ));
+}
+function _escapeHtmlAttr(s) {
+  return String(s).replace(/'/g, "\\'").replace(/"/g, "&quot;");
 }
 
 // Close rollover modal
@@ -1354,14 +1461,14 @@ function closeRolloverModal() {
 // Proceed with rollover after confirmation
 async function proceedWithRollover() {
   closeRolloverModal();
-  
+
   // Request reauthentication
   const authenticated = await reauthenticateUserModal();
   if (!authenticated) return;
-  
-  // Perform rollover
+
   await performRollover();
 }
+
 
 // Updated rollover function with tracking
 async function performRollover() {
@@ -1381,21 +1488,63 @@ async function performRollover() {
 
   const currentMonthData = currentMonthSnap.data();
   const categories = currentMonthData.categories || [];
-  
-// ✅ Use Available Balance instead of calculating from TBB
-  const availableBalance = currentMonthData.availableBalance || 0;
-  const totalRemainingBalance = availableBalance;
 
-  // Save current month data
+  // Available Balance is the carry-forward pool (source of truth)
+  const availableBalance = currentMonthData.availableBalance || 0;
+
+  // Use the choices captured when the modal opened (default to "cover")
+  const choices = (_rolloverPlan && _rolloverPlan.choices) ? _rolloverPlan.choices : {};
+
+  // Save a snapshot of the closing month
   await currentMonthDocRef.set({ ...currentMonthData, savedAt: new Date().toISOString() });
 
-  // ✅ NEW: Reset all categories to zero (don't carry forward assigned amounts)
-  const newCategories = categories.map(c => ({
-    name: c.name,
-    assigned: 0,  // ✅ Start fresh, don't carry forward
-    spent: 0,
-    balance: 0
-  }));
+  // ── Build next month's categories based on each category's situation ──────
+  // Positive balance   → carries forward as a positive starting balance
+  // Overspent + cover  → carries forward as a NEGATIVE starting balance
+  // Overspent + absorb → resets to 0, and we subtract the deficit from TBB
+  let tbbAdjustment = 0;        // total absorbed (reduces next month's TBB)
+  const auditDecisions = [];
+
+  const newCategories = categories.map(c => {
+    const assigned = c.assigned || 0;
+    const spent    = c.spent || 0;
+    const balance  = assigned - spent;
+
+    if (balance >= 0) {
+      // Not overspent — carry the leftover forward as starting balance
+      auditDecisions.push({
+        categoryName: c.name, previousAssigned: assigned, previousSpent: spent,
+        previousBalance: balance, action: "carry_positive",
+        carriedForward: balance, absorbedFromTbb: 0,
+      });
+      return { name: c.name, assigned: 0, spent: 0, balance: balance, startingBalance: balance };
+    }
+
+    // Overspent
+    const deficit = Math.abs(balance);
+    const choice = choices[c.name] || "cover";
+
+    if (choice === "absorb") {
+      tbbAdjustment += deficit;
+      auditDecisions.push({
+        categoryName: c.name, previousAssigned: assigned, previousSpent: spent,
+        previousBalance: balance, action: "absorb",
+        carriedForward: 0, absorbedFromTbb: deficit,
+      });
+      return { name: c.name, assigned: 0, spent: 0, balance: 0, startingBalance: 0 };
+    }
+
+    // Cover (default): carry the deficit forward as a negative starting balance
+    auditDecisions.push({
+      categoryName: c.name, previousAssigned: assigned, previousSpent: spent,
+      previousBalance: balance, action: "cover",
+      carriedForward: balance, absorbedFromTbb: 0,
+    });
+    return { name: c.name, assigned: 0, spent: 0, balance: balance, startingBalance: balance };
+  });
+
+  // Next month's TBB = carried available balance, minus anything absorbed
+  const nextMonthTbb = availableBalance - tbbAdjustment;
 
   // Compute next month key
   const [year, month] = baseMonthKey.split("-").map(Number);
@@ -1405,50 +1554,66 @@ async function performRollover() {
 
   const rolloverDate = new Date().toISOString().slice(0, 10);
 
-  // ✅ Create rollover transaction showing what was carried forward
+  // Carry-forward shows up as a "BALANCE FROM LAST MONTH" income line
   const rolloverTransaction = {
     id: `rollover-${Date.now()}`,
-    amount: totalRemainingBalance,
+    amount: nextMonthTbb,
     category: "BALANCE FROM LAST MONTH",
     date: rolloverDate,
     name: "ROLLOVER AMOUNT",
     type: "income",
-    inflow: totalRemainingBalance,
+    inflow: nextMonthTbb,
     outflow: 0
   };
+  const transactions = nextMonthTbb !== 0 ? [rolloverTransaction] : [];
 
-  const transactions = totalRemainingBalance > 0 ? [rolloverTransaction] : [];
-
-  // ✅ Create next month with only the remaining balance as TBB
+  // Create / overwrite next month
   const nextMonthDocRef = docRef.collection("months").doc(nextMonthKey);
   await nextMonthDocRef.set({
-    categories: newCategories,  // ✅ All categories start at zero
+    categories: newCategories,
     transactions: transactions,
-    tbb: totalRemainingBalance,  // ✅ This is the ONLY money available
+    tbb: nextMonthTbb,
+    availableBalance: nextMonthTbb,
     currentMonth: nextMonthKey
+  });
+
+  // Write a rollover-history audit record for the closing month
+  const totalCarried = auditDecisions.reduce((s, d) => s + (d.carriedForward > 0 ? d.carriedForward : 0), 0);
+  await docRef.collection("rolloverHistory").doc(baseMonthKey).set({
+    monthKey: baseMonthKey,
+    rolledOverAt: new Date().toISOString(),
+    decisions: auditDecisions,
+    totalAbsorbed: tbbAdjustment,
+    totalCarriedForward: totalCarried,
+    nextMonthTbbStart: nextMonthTbb,
+    triggeredBy: "manual",
   });
 
   // Update main doc pointer
   await docRef.update({ currentMonth: nextMonthKey });
-  
+
   // Update last rollover date
   lastRolloverDate = new Date().toISOString();
   await firebase.firestore().collection("users").doc(currentUser.uid).update({
     "rolloverSettings.lastRollover": lastRolloverDate
   });
 
-  // ✅ Reload available months and navigate to new month
+  // Clear the plan
+  _rolloverPlan = null;
+
+  // Reload and navigate to the new month
   await loadAvailableMonths();
-  
   currentMonthIndex = availableMonths.indexOf(nextMonthKey);
-  if (currentMonthIndex === -1) {
-    currentMonthIndex = availableMonths.length - 1;
-  }
-  
+  if (currentMonthIndex === -1) currentMonthIndex = availableMonths.length - 1;
   updateMonthDisplay();
   await loadMonthData(nextMonthKey);
 
-showToast("Rollover completed successfully!", "success");
+  // Summary toast
+  if (tbbAdjustment > 0) {
+    showToast(`Rollover complete. ${formatCurrency(tbbAdjustment)} absorbed from next month's budget.`, "success");
+  } else {
+    showToast("Rollover completed successfully!", "success");
+  }
 }
 
 // Setup automatic rollover checking
