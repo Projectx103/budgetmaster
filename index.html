@@ -1480,20 +1480,12 @@
 
 <!-- Rollover Confirmation Modal -->
 <div id="rolloverModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center;">
-  <div style="background: white; border-radius: 12px; padding: 24px; max-width: 400px; width: 90%; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
-    <h3 style="margin: 0 0 16px 0; color: var(--text, #2d3748);">⚠️ Confirm Rollover</h3>
-    <p style="color: var(--text-muted, #718096); margin-bottom: 20px;">
-      Are you sure you want to rollover the current month to next month? This action will:
-    </p>
-    <ul style="color: var(--text-muted, #718096); margin-bottom: 20px; padding-left: 20px;">
-      <li>Carry forward positive balances to next month</li>
-      <li>Reset negative balances to zero</li>
-      <li>Move any negative amounts to "To Be Budgeted"</li>
-    </ul>
-    <p style="color: var(--text-muted, #718096); margin-bottom: 20px;">
-      <strong>This action cannot be undone.</strong>
-    </p>
-    <div style="display: flex; gap: 12px; justify-content: flex-end;">
+  <div class="bm-ro-card">
+    <h3 class="bm-ro-title">Confirm Rollover</h3>
+    <div id="rolloverModalBody" class="bm-ro-body">
+      <!-- Dynamically filled by _renderRolloverModal() -->
+    </div>
+    <div class="bm-ro-actions">
       <button class="btn btn-secondary" onclick="closeRolloverModal()">Cancel</button>
       <button class="btn btn-primary" onclick="proceedWithRollover()">Continue</button>
     </div>
