@@ -202,10 +202,15 @@ function applyBudgetDeltaToMonth(monthDoc, delta) {
     categoryFound = true;
     const currentSpentCents    = toCents(cat.spent    || 0);
     const currentAssignedCents = toCents(cat.assigned || 0);
+    const startingBalanceCents = toCents(cat.startingBalance || 0);
     const assignedDeltaCents   = delta.assignedDelta || 0;
     const newSpentCents        = currentSpentCents + delta.categorySpentDelta;
     const newAssignedCents     = currentAssignedCents + assignedDeltaCents;
-    const newBalanceCents      = newAssignedCents - newSpentCents;
+    // Balance includes any carried-forward starting balance from rollover.
+    // Cover carries a negative deficit forward; positive leftovers carry
+    // forward positive. Categories that never rolled over have no
+    // startingBalance, so this term is 0 and balance = assigned - spent.
+    const newBalanceCents      = startingBalanceCents + newAssignedCents - newSpentCents;
 
     return {
       ...cat,
@@ -267,5 +272,3 @@ function _bmsRequireDelta(delta) {
 function _bmsFmt(cents) {
   return (cents / 100).toFixed(2);
 }
-
-	
