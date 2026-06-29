@@ -7364,517 +7364,709 @@ th.sorted .ie-sort-icon { color: var(--primary); }
 }
 
 
-/* ============================================================
-   COMPREHENSIVE MOBILE FIX — Portrait Android Chrome
-   Phase 1 Mobile Pass. Appended block — nothing above modified.
-   ============================================================ */
+/* ════════════════════════════════════════════════════════════════════════════
+   BUDGETMASTER — PHASE 1 COMPLETE MOBILE OVERHAUL
+   Single authoritative block. Appended last so it wins all conflicts.
+   Covers: sidebar collapse (desktop), full mobile layout (portrait Android).
+   Nothing above this line was modified.
+   ════════════════════════════════════════════════════════════════════════════ */
 
-/* ── GLOBAL: Box sizing, overflow prevention ─────────────── */
-*, *::before, *::after {
-  box-sizing: border-box;
+/* ── Global box-sizing ───────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { overflow-x: hidden; width: 100%; max-width: 100%; }
+
+/* ── CSS width tokens ────────────────────────────────────────────────────── */
+:root {
+  --sidebar-w:           220px;
+  --sidebar-collapsed-w:  64px;
+  --sidebar-anim: 0.26s cubic-bezier(0.4,0,0.2,1);
 }
 
-html, body {
-  overflow-x: hidden;
-  width: 100%;
-}
+/* ════════════════════════════════════════════════════════════════════════════
+   DESKTOP SIDEBAR (≥ 769px) — collapsible
+   ════════════════════════════════════════════════════════════════════════════ */
+@media (min-width: 769px) {
 
-/* ── GLOBAL: Base mobile reset (≤ 768px) ─────────────────── */
-@media (max-width: 768px) {
-
-  /* ── Layout root ──────────────────────────────────────── */
-  body {
-    display: block;
+  .sidebar {
+    width: var(--sidebar-w) !important;
+    position: fixed !important;
+    top: 0; left: 0;
+    height: 100vh !important;
+    overflow: hidden !important;
+    transition: width var(--sidebar-anim) !important;
+    z-index: 200 !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
 
-  /* ── Main content: full width, top pad clears hamburger ─ */
+  .main-content {
+    margin-left: var(--sidebar-w) !important;
+    width: calc(100% - var(--sidebar-w)) !important;
+    transition: margin-left var(--sidebar-anim), width var(--sidebar-anim) !important;
+  }
+
+  /* Collapsed */
+  .sidebar.bm-sidebar-collapsed {
+    width: var(--sidebar-collapsed-w) !important;
+  }
+  .main-content.bm-content-shifted {
+    margin-left: var(--sidebar-collapsed-w) !important;
+    width: calc(100% - var(--sidebar-collapsed-w)) !important;
+  }
+
+  /* Collapse toggle button */
+  .bm-sidebar-toggle {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 28px; height: 28px;
+    flex-shrink: 0;
+    background: var(--ynab-light-gray);
+    border: 1px solid var(--ynab-border);
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--sidebar-text);
+    transition: background 0.15s, transform var(--sidebar-anim);
+  }
+  .bm-sidebar-toggle:hover { background: var(--sidebar-hover); color: var(--primary); }
+  .sidebar.bm-sidebar-collapsed .bm-sidebar-toggle { transform: rotate(180deg); }
+
+  /* Sidebar header */
+  .sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 16px 16px 20px;
+    flex-shrink: 0;
+    gap: 8px;
+    border-bottom: 1px solid var(--ynab-border);
+    min-height: 64px;
+  }
+  .sidebar.bm-sidebar-collapsed .sidebar-header {
+    justify-content: center;
+    padding: 20px 0 16px;
+  }
+
+  /* Wordmark */
+  .sidebar-wordmark {
+    font-size: 15px; font-weight: 700;
+    color: var(--primary);
+    white-space: nowrap; overflow: hidden;
+    opacity: 1;
+    transition: opacity 0.18s ease, width 0.26s ease;
+    letter-spacing: -0.02em;
+  }
+  .sidebar.bm-sidebar-collapsed .sidebar-wordmark {
+    opacity: 0; width: 0; pointer-events: none;
+  }
+
+  /* Nav links */
+  .sidebar a {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    padding: 12px 20px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+  }
+  .sidebar a svg { flex-shrink: 0; opacity: 0.7; transition: opacity 0.15s; }
+  .sidebar a:hover svg, .sidebar a.active svg { opacity: 1; }
+
+  .nav-label { opacity: 1; transition: opacity 0.15s; font-size: 14px; }
+  .sidebar.bm-sidebar-collapsed .nav-label { opacity: 0; pointer-events: none; }
+  .sidebar.bm-sidebar-collapsed a {
+    justify-content: center !important;
+    padding: 12px 0 !important;
+  }
+
+  /* Tooltip on collapsed icons */
+  .sidebar.bm-sidebar-collapsed a { position: relative; }
+  .sidebar.bm-sidebar-collapsed a::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: calc(var(--sidebar-collapsed-w) + 8px);
+    top: 50%; transform: translateY(-50%);
+    background: var(--text); color: var(--card-bg);
+    font-size: 12px; font-weight: 600;
+    padding: 5px 10px; border-radius: 6px;
+    white-space: nowrap; opacity: 0; pointer-events: none;
+    z-index: 9999; transition: opacity 0.15s;
+  }
+  .sidebar.bm-sidebar-collapsed a:hover::after { opacity: 1; }
+
+  /* Hamburger hidden on desktop */
+  .bm-mobile-menu-btn { display: none !important; }
+
+  /* Backdrop hidden on desktop */
+  .bm-sidebar-backdrop { display: none !important; }
+
+  /* Reports scroll */
+  .bm-reports-scroll {
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   TABLET (769–1100px)
+   ════════════════════════════════════════════════════════════════════════════ */
+@media (min-width: 769px) and (max-width: 1100px) {
+  :root { --sidebar-w: 190px; }
+  .main-content { padding: 24px 20px !important; }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   MOBILE (≤ 768px) — PORTRAIT ANDROID CHROME
+   This block OVERRIDES all earlier conflicting mobile rules.
+   ════════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* ── 1. KILL ALL OLD CONFLICTING LAYOUT RULES ─────────────────────────── */
+  .sidebar {
+    /* Take sidebar completely out of layout flow */
+    position: fixed !important;
+    top: 0 !important; left: 0 !important;
+    height: 100vh !important;
+    width: 280px !important;
+    z-index: 9050 !important;
+    /* Hide off-screen by default */
+    transform: translateX(-100%) !important;
+    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    /* Reset collapse state — not relevant on mobile */
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* Open state */
+  .sidebar.bm-sidebar-open {
+    transform: translateX(0) !important;
+    box-shadow: 4px 0 40px rgba(15,23,42,0.22) !important;
+  }
+
+  /* Collapsed classes do nothing on mobile */
+  .sidebar.bm-sidebar-collapsed {
+    width: 280px !important;
+    transform: translateX(-100%) !important;
+  }
+  .sidebar.bm-sidebar-collapsed.bm-sidebar-open {
+    transform: translateX(0) !important;
+  }
+  .sidebar.bm-sidebar-collapsed .sidebar-wordmark { opacity: 1 !important; width: auto !important; }
+  .sidebar.bm-sidebar-collapsed .nav-label        { opacity: 1 !important; pointer-events: auto !important; }
+  .sidebar.bm-sidebar-collapsed a                 { justify-content: flex-start !important; padding: 14px 20px !important; }
+  .sidebar.bm-sidebar-collapsed .sidebar-header   { justify-content: space-between !important; padding: 20px 16px 16px 20px !important; }
+  .sidebar.bm-sidebar-collapsed .bm-sidebar-toggle { transform: none !important; }
+
+  /* Desktop collapse toggle hidden on mobile */
+  .bm-sidebar-toggle { display: none !important; }
+
+  /* Sidebar nav links — normal expanded style */
+  .sidebar a {
+    display: flex !important;
+    align-items: center !important;
+    gap: 14px !important;
+    padding: 14px 20px !important;
+    font-size: 15px !important;
+    min-height: 52px !important;
+  }
+  .sidebar a::after { display: none !important; } /* no tooltips on mobile */
+
+  /* ── 2. MAIN CONTENT — FULL WIDTH, NO MARGIN ──────────────────────────── */
   .main-content {
     margin-left: 0 !important;
     width: 100% !important;
-    padding: 72px 16px 100px 16px !important;
-    min-height: 100vh;
+    max-width: 100% !important;
+    padding: 70px 14px 90px 14px !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+  }
+  /* Kill the bm-content-shifted on mobile */
+  .main-content.bm-content-shifted {
+    margin-left: 0 !important;
+    width: 100% !important;
   }
 
-  /* ── Section headers ──────────────────────────────────── */
+  /* ── 3. HAMBURGER BUTTON ──────────────────────────────────────────────── */
+  .bm-mobile-menu-btn {
+    display: flex !important;
+    position: fixed !important;
+    top: 14px !important; left: 14px !important;
+    z-index: 9100 !important;
+    width: 44px !important; height: 44px !important;
+    background: var(--card-bg) !important;
+    border: 1.5px solid var(--ynab-border) !important;
+    border-radius: 12px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    color: var(--text) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.10) !important;
+  }
+
+  /* ── 4. BACKDROP ──────────────────────────────────────────────────────── */
+  .bm-sidebar-backdrop {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 9000 !important;
+    background: rgba(15,23,42,0.52) !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transition: opacity 0.28s ease !important;
+  }
+  .bm-sidebar-backdrop.bm-sidebar-backdrop-visible {
+    opacity: 1 !important;
+    pointer-events: all !important;
+  }
+
+  /* ── 5. THEME SELECTOR ────────────────────────────────────────────────── */
+  .theme-selector {
+    position: fixed !important;
+    top: 14px !important;
+    right: 14px !important;
+    left: auto !important;
+    z-index: 300 !important;
+  }
+  .theme-toggle {
+    min-width: 0 !important;
+    padding: 8px 10px !important;
+    font-size: 12px !important;
+    border-radius: 10px !important;
+    gap: 6px !important;
+  }
+  /* Hide the long theme name, keep the icon */
+  .theme-toggle .theme-name-text,
+  .theme-toggle span:not([class]) {
+    display: none !important;
+  }
+  /* Theme dropdown repositioned */
+  .theme-dropdown {
+    right: 0 !important;
+    left: auto !important;
+    top: calc(100% + 6px) !important;
+    min-width: 180px !important;
+    max-height: 60vh !important;
+    overflow-y: auto !important;
+  }
+
+  /* ── 6. SECTION HEADERS ───────────────────────────────────────────────── */
   .section > header,
   .section > .header,
-  header {
+  section > header {
     display: flex !important;
     flex-wrap: wrap !important;
     align-items: center !important;
     gap: 10px !important;
-    padding: 12px 0 16px 0 !important;
+    padding: 0 0 14px 0 !important;
     font-size: 18px !important;
+    margin-bottom: 4px !important;
   }
 
-  header > div,
-  header > .export-menu {
-    flex-shrink: 0;
-  }
-
-  /* ── Cards ────────────────────────────────────────────── */
+  /* ── 7. CARDS ─────────────────────────────────────────────────────────── */
   .card {
-    padding: 14px 14px !important;
-    border-radius: 12px !important;
-    margin-bottom: 16px !important;
+    padding: 14px !important;
+    margin-bottom: 14px !important;
+    border-radius: 14px !important;
   }
 
-  /* ── Dashboard: Actions buttons ───────────────────────── */
-  .actions {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr 1fr !important;
-    gap: 8px !important;
-    margin: 14px 0 !important;
+  /* ── 8. DASHBOARD — ROLLOVER BUTTON ──────────────────────────────────── */
+  .rollover-container { flex-shrink: 0; }
+  .rollover-btn {
+    padding: 10px 14px !important;
+    font-size: 13px !important;
+    min-height: 40px !important;
   }
 
-  .actions button {
-    padding: 12px 8px !important;
-    font-size: 12px !important;
-    border-radius: 10px !important;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-height: 44px;
-  }
-
-  /* ── Dashboard: Summary cards grid ───────────────────── */
-  .bm-summary-grid {
-    grid-template-columns: 1fr 1fr !important;
-    gap: 10px !important;
-  }
-
-  .bm-sc {
-    padding: 12px !important;
-  }
-
-  .bm-val {
-    font-size: 16px !important;
-  }
-
-  /* ── Dashboard: Month selector ───────────────────────── */
+  /* ── 9. DASHBOARD — MONTH SELECTOR ───────────────────────────────────── */
   .month-selector-container {
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 12px !important;
-    margin: 12px 0 !important;
+    gap: 16px !important;
+    margin: 10px 0 16px !important;
   }
-
-  .month-label {
-    font-size: 16px !important;
-    font-weight: 700 !important;
-  }
-
+  .month-label { font-size: 17px !important; font-weight: 700 !important; }
   .month-nav-btn {
-    width: 36px !important;
-    height: 36px !important;
-    min-width: 36px !important;
+    width: 38px !important; height: 38px !important;
+    min-width: 38px !important; border-radius: 10px !important;
   }
-
-  /* ── Dashboard: Theme display pill ───────────────────── */
   .current-theme {
     font-size: 12px !important;
-    padding: 6px 10px !important;
-    margin-bottom: 8px !important;
+    margin-bottom: 6px !important;
   }
 
-  /* ── Dashboard: Transaction filter controls ───────────── */
+  /* ── 10. DASHBOARD — SUMMARY CARDS ───────────────────────────────────── */
+  .bm-summary-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+  .bm-sc { padding: 12px 10px !important; }
+  .bm-val { font-size: 15px !important; }
+  .bm-label { font-size: 11px !important; }
+
+  /* ── 11. DASHBOARD — ACTION BUTTONS ──────────────────────────────────── */
+  .actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr 1fr !important;
+    gap: 8px !important;
+    margin: 12px 0 !important;
+  }
+  .actions button {
+    padding: 12px 6px !important;
+    font-size: 12px !important;
+    min-height: 46px !important;
+    border-radius: 10px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* ── 12. DASHBOARD — TRANSACTION FILTERS ─────────────────────────────── */
   .table-controls {
     display: flex !important;
     flex-direction: column !important;
     gap: 10px !important;
-    align-items: stretch !important;
     margin-bottom: 12px !important;
   }
-
   .filter-group {
     display: flex !important;
     flex-direction: column !important;
     gap: 4px !important;
     width: 100% !important;
   }
-
-  .filter-input,
-  .filter-select {
+  .filter-group label { font-size: 12px !important; }
+  .filter-input, .filter-select {
     width: 100% !important;
-    font-size: 15px !important;
+    font-size: 16px !important;
     padding: 10px 12px !important;
-    min-height: 44px !important;
+    min-height: 46px !important;
   }
-
   .clear-filters-btn {
     width: 100% !important;
     padding: 12px !important;
-    min-height: 44px !important;
+    min-height: 46px !important;
     font-size: 14px !important;
   }
 
-  /* ── Dashboard: Transaction table horizontal scroll ───── */
+  /* ── 13. DASHBOARD — TRANSACTION TABLE ───────────────────────────────── */
   .transactions-wrapper {
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch !important;
     max-height: none !important;
     border-radius: 10px !important;
   }
-
   .transactions-table {
-    min-width: 560px !important;
+    min-width: 540px !important;
     font-size: 13px !important;
   }
-
   .transactions-table th,
   .transactions-table td {
-    padding: 10px 12px !important;
+    padding: 10px 10px !important;
     white-space: nowrap !important;
   }
 
-  /* ── Dashboard: Budget categories grid ───────────────── */
+  /* ── 14. DASHBOARD — BUDGET CATEGORIES ───────────────────────────────── */
   .budget-grid {
     grid-template-columns: 1fr !important;
-    gap: 12px !important;
+    gap: 10px !important;
   }
 
-  /* ── Accounts: Net worth bar ──────────────────────────── */
+  /* ── 15. ACCOUNTS ─────────────────────────────────────────────────────── */
+  .accounts-section-header {
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+  }
+  .acct-add-inline-btn {
+    min-height: 44px !important;
+    padding: 10px 14px !important;
+  }
+
+  /* Net worth bar stacks */
   .net-worth-bar {
     display: flex !important;
     flex-direction: column !important;
-    gap: 0 !important;
   }
-
   .nw-cell {
     padding: 12px 16px !important;
     border-left: none !important;
     border-right: none !important;
     border-bottom: 1px solid var(--ynab-border) !important;
   }
+  .nw-value { font-size: 18px !important; }
 
-  .nw-value {
-    font-size: 18px !important;
-  }
-
-  /* ── Accounts: Two-column → single column ─────────────── */
+  /* Accounts panels single column */
   .accounts-two-col {
     grid-template-columns: 1fr !important;
-    gap: 16px !important;
+    gap: 14px !important;
   }
 
-  .accounts-section-header {
-    flex-wrap: wrap !important;
-    gap: 10px !important;
-    padding: 12px 0 16px 0 !important;
-  }
-
-  /* ── Accounts: Account type grid in modal ─────────────── */
-  .acct-type-grid {
-    grid-template-columns: 1fr 1fr !important;
-    gap: 8px !important;
-  }
-
-  .acct-type-btn {
-    padding: 12px 8px !important;
-    font-size: 12px !important;
-    min-height: 60px !important;
-  }
-
-  /* ── Accounts: Modal full-screen on mobile ────────────── */
+  /* ── 16. ACCOUNT MODAL — bottom sheet ────────────────────────────────── */
   .acct-modal-overlay {
     padding: 0 !important;
     align-items: flex-end !important;
   }
-
   .acct-modal-card {
     width: 100% !important;
     max-width: 100% !important;
-    max-height: 92vh !important;
+    max-height: 93vh !important;
     border-radius: 20px 20px 0 0 !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch !important;
   }
+  .acct-type-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+  .acct-type-btn {
+    padding: 12px 8px !important;
+    min-height: 58px !important;
+    font-size: 12px !important;
+  }
+  .acct-field-input, .acct-select, .acct-textarea {
+    font-size: 16px !important;
+    min-height: 46px !important;
+  }
+  .acct-submit-btn {
+    min-height: 48px !important;
+    font-size: 15px !important;
+  }
 
-  /* ── Accounts: Transaction popover → full-width ───────── */
+  /* ── 17. ACCOUNT TRANSACTION POPOVER — bottom sheet ──────────────────── */
   .txn-popover {
     position: fixed !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
+    bottom: 0 !important; left: 0 !important; right: 0 !important;
     width: 100% !important;
     border-radius: 20px 20px 0 0 !important;
     z-index: 9100 !important;
     max-height: 90vh !important;
     overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
   }
-
   .txn-pop-tabs {
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch !important;
+    display: flex !important;
     flex-wrap: nowrap !important;
   }
-
   .txn-pop-tab {
     flex-shrink: 0 !important;
-    min-height: 44px !important;
+    min-height: 46px !important;
     padding: 10px 14px !important;
-  }
-
-  .txn-pop-row {
-    flex-direction: column !important;
-    gap: 12px !important;
-  }
-
-  .txn-pop-field {
-    flex: 1 1 100% !important;
-    min-width: 0 !important;
-  }
-
-  .txn-pop-input {
-    width: 100% !important;
-    font-size: 16px !important; /* prevents iOS zoom */
-    min-height: 44px !important;
-    padding: 10px 14px !important;
-  }
-
-  /* ── Budget: Table horizontal scroll ─────────────────── */
-  .budget-table {
-    min-width: 480px !important;
     font-size: 13px !important;
   }
+  .txn-pop-row {
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+  .txn-pop-field { flex: 1 1 100% !important; }
+  .txn-pop-input {
+    width: 100% !important;
+    font-size: 16px !important;
+    min-height: 46px !important;
+    padding: 10px 14px !important;
+  }
+  .txn-pop-actions {
+    display: flex !important;
+    gap: 10px !important;
+    padding: 12px 16px !important;
+  }
+  .txn-pop-cancel, .txn-pop-save {
+    flex: 1 !important;
+    min-height: 46px !important;
+    font-size: 14px !important;
+  }
 
-  /* Wrap budget table in scrollable container */
+  /* ── 18. BUDGET TABLE ─────────────────────────────────────────────────── */
   #budget .card {
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch !important;
   }
+  .budget-table {
+    min-width: 460px !important;
+    font-size: 13px !important;
+  }
+  .budget-table th, .budget-table td {
+    padding: 10px 10px !important;
+    white-space: nowrap !important;
+  }
 
-  /* ── Reports: Header buttons ──────────────────────────── */
-  #reports header {
+  /* ── 19. REPORTS ──────────────────────────────────────────────────────── */
+  #reports > header {
     flex-direction: column !important;
     align-items: flex-start !important;
     gap: 10px !important;
   }
-
-  #reports header > div {
+  #reports > header > div {
     display: flex !important;
     gap: 8px !important;
     flex-wrap: wrap !important;
   }
-
-  #reports header .btn {
-    font-size: 13px !important;
-    padding: 10px 14px !important;
+  #reports .btn {
     min-height: 44px !important;
+    padding: 10px 14px !important;
+    font-size: 13px !important;
   }
 
-  /* ── Reports: Tabs scroll horizontally ────────────────── */
+  /* Reports scroll container */
+  .bm-reports-scroll {
+    max-height: none !important;
+    overflow-y: visible !important;
+  }
+
+  /* Report tabs scroll */
   .report-nav {
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch !important;
+    margin-bottom: 4px !important;
   }
-
   .report-tabs {
     display: flex !important;
     flex-wrap: nowrap !important;
-    gap: 6px !important;
-    padding: 0 0 8px 0 !important;
     min-width: max-content !important;
+    gap: 4px !important;
+    padding: 0 0 6px 0 !important;
   }
-
   .report-tab {
     flex-shrink: 0 !important;
-    padding: 10px 16px !important;
+    padding: 10px 14px !important;
     font-size: 13px !important;
     white-space: nowrap !important;
     min-height: 44px !important;
   }
 
-  /* ── Reports: Filter panel stack ─────────────────────── */
+  /* Filter panel */
   .filter-panel {
     display: flex !important;
     flex-direction: column !important;
-    gap: 12px !important;
-    padding: 14px !important;
-    margin-bottom: 14px !important;
+    gap: 10px !important;
+    padding: 12px !important;
   }
-
-  .filter-panel .form-group {
-    width: 100% !important;
-  }
-
+  .filter-panel .form-group { width: 100% !important; }
   .filter-panel .form-input,
   .filter-panel select {
     width: 100% !important;
     font-size: 16px !important;
-    min-height: 44px !important;
+    min-height: 46px !important;
   }
-
   .filter-panel .btn-primary {
     width: 100% !important;
-    min-height: 44px !important;
+    min-height: 46px !important;
   }
 
-  /* ── Reports: Metric cards 2-col ──────────────────────── */
+  /* Metric cards */
   .metric-cards {
     grid-template-columns: 1fr 1fr !important;
     gap: 10px !important;
     padding: 0 !important;
-    margin-bottom: 16px !important;
-  }
-
-  .metric-card {
-    padding: 14px 12px !important;
-  }
-
-  .metric-value {
-    font-size: 18px !important;
-  }
-
-  .metric-label {
-    font-size: 11px !important;
-  }
-
-  /* ── Reports: Chart controls wrap ────────────────────── */
-  .report-controls {
-    display: flex !important;
-    flex-wrap: wrap !important;
-    gap: 10px !important;
-    padding: 0 !important;
     margin-bottom: 14px !important;
   }
+  .metric-card { padding: 12px 10px !important; }
+  .metric-value { font-size: 16px !important; }
+  .metric-label { font-size: 11px !important; }
 
-  .chart-type-selector {
-    display: flex !important;
+  /* Report controls */
+  .report-controls {
     flex-wrap: wrap !important;
-    gap: 6px !important;
+    gap: 8px !important;
+    padding: 0 !important;
+    margin-bottom: 12px !important;
   }
-
-  .chart-type-btn,
-  .chart-control-btn {
+  .chart-type-selector { flex-wrap: wrap !important; gap: 6px !important; }
+  .chart-type-btn, .chart-control-btn {
     min-height: 40px !important;
-    padding: 8px 14px !important;
+    padding: 8px 12px !important;
     font-size: 13px !important;
   }
 
-  /* ── Reports: Layout stacks ───────────────────────────── */
+  /* Chart layout single column */
   .report-layout {
     grid-template-columns: 1fr !important;
     padding: 0 !important;
-    gap: 16px !important;
+    gap: 14px !important;
   }
-
   .chart-container {
     width: 100% !important;
-    min-width: 0 !important;
     overflow: hidden !important;
   }
-
   .chart-container canvas {
     max-width: 100% !important;
-    height: auto !important;
   }
+  .summary-panel, .category-breakdown { width: 100% !important; }
 
-  .summary-panel,
-  .category-breakdown {
-    width: 100% !important;
-  }
-
-  /* ── Reports: Data tables horizontal scroll ───────────── */
-  .data-table,
-  #spendingDataTable {
-    min-width: 400px !important;
+  /* Data tables */
+  .data-table, #spendingDataTable {
+    min-width: 380px !important;
     font-size: 13px !important;
   }
-
   .ie-table-wrap {
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch !important;
   }
+  .ie-table-header-row { min-width: 440px !important; }
 
-  .ie-table-header-row {
-    min-width: 460px !important;
-  }
-
-  /* ── Reports: Comparison mode stack ──────────────────── */
+  /* Comparison */
   .comparison-mode {
     flex-direction: column !important;
     gap: 12px !important;
     align-items: stretch !important;
   }
-
-  .comparison-selector {
-    max-width: 100% !important;
-  }
-
+  .comparison-selector { max-width: 100% !important; }
   .comparison-selector select {
     width: 100% !important;
     font-size: 16px !important;
-    min-height: 44px !important;
+    min-height: 46px !important;
   }
-
   .comparison-mode .btn {
     width: 100% !important;
-    min-height: 44px !important;
-    align-self: auto !important;
+    min-height: 46px !important;
+    align-self: stretch !important;
   }
 
-  /* ── Reports: overflow container fix ─────────────────── */
-  .container[style*="max-height"] {
-    max-height: none !important;
-    overflow-y: visible !important;
-  }
-
-  /* ── Goals: grid 1 col ────────────────────────────────── */
-  .goals-grid {
-    grid-template-columns: 1fr !important;
-    gap: 16px !important;
-  }
-
-  .goals-grid .goal-card,
-  .goal-card {
-    padding: 16px !important;
-  }
-
-  #goals .header {
+  /* ── 20. GOALS ────────────────────────────────────────────────────────── */
+  #goals .header, #goals > .header {
     display: flex !important;
     flex-wrap: wrap !important;
-    gap: 10px !important;
     align-items: center !important;
-    margin-bottom: 16px !important;
+    gap: 10px !important;
+    margin-bottom: 14px !important;
   }
-
-  #goals .header h1 {
-    font-size: 20px !important;
-    flex: 1 1 auto !important;
-  }
-
+  #goals .header h1 { font-size: 20px !important; flex: 1 !important; margin: 0 !important; }
   .add-goal-btn {
     flex-shrink: 0 !important;
     min-height: 44px !important;
     padding: 10px 16px !important;
     font-size: 14px !important;
   }
+  .goals-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+  .goal-card { padding: 16px !important; }
 
-  /* ── Goals: modal form ────────────────────────────────── */
   #goal-modal .modal-content {
     width: 95vw !important;
     max-width: 95vw !important;
     padding: 20px 16px !important;
     max-height: 90vh !important;
     overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 
-  /* ── Settings: sidebar nav + content stack ────────────── */
+  /* ── 21. SETTINGS ─────────────────────────────────────────────────────── */
   .settings-container {
     flex-direction: column !important;
     gap: 0 !important;
   }
-
   .settings-sidebar {
     width: 100% !important;
+    min-width: 0 !important;
     border-right: none !important;
     border-bottom: 1px solid var(--ynab-border) !important;
     padding: 0 !important;
-    margin-bottom: 16px !important;
+    margin-bottom: 14px !important;
   }
-
   .settings-sidebar ul {
     display: flex !important;
     flex-wrap: nowrap !important;
@@ -7885,213 +8077,174 @@ html, body {
     margin: 0 !important;
     list-style: none !important;
   }
-
   .settings-sidebar li {
     flex-shrink: 0 !important;
     padding: 12px 16px !important;
     font-size: 13px !important;
     font-weight: 600 !important;
     white-space: nowrap !important;
-    min-height: 44px !important;
+    min-height: 46px !important;
     display: flex !important;
     align-items: center !important;
     border-bottom: 3px solid transparent !important;
+    border-radius: 0 !important;
     cursor: pointer !important;
+    margin: 0 !important;
   }
-
   .settings-sidebar li.active {
     border-bottom-color: var(--primary) !important;
     color: var(--primary) !important;
+    background: none !important;
   }
-
   .settings-content {
     padding: 0 !important;
     width: 100% !important;
+    min-width: 0 !important;
   }
-
   #settings .card {
-    border-radius: 12px !important;
+    border-radius: 14px !important;
     padding: 16px !important;
-    margin-bottom: 16px !important;
+    margin-bottom: 14px !important;
   }
-
-  /* ── Settings: form inputs full width ─────────────────── */
   #settings input,
   #settings select,
   #settings textarea {
     width: 100% !important;
-    font-size: 16px !important; /* prevents iOS/Android zoom */
-    min-height: 44px !important;
+    font-size: 16px !important;
+    min-height: 46px !important;
     padding: 10px 14px !important;
+    box-sizing: border-box !important;
   }
-
-  #settings .btn {
+  #settings .btn, #settings button.btn {
     width: 100% !important;
-    min-height: 44px !important;
+    min-height: 46px !important;
     margin-top: 8px !important;
+    font-size: 14px !important;
+  }
+  #settings header.settings-header {
+    margin-left: 0 !important;
+    padding: 0 0 14px 0 !important;
   }
 
-  /* ── All modals: full screen bottom sheet ─────────────── */
+  /* ── 22. ALL MODALS — bottom sheet pattern ───────────────────────────── */
   .modal {
     align-items: flex-end !important;
     padding: 0 !important;
   }
-
   .modal-content {
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0 !important;
-    max-height: 92vh !important;
+    max-height: 93vh !important;
     border-radius: 20px 20px 0 0 !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch !important;
-    padding: 24px 18px !important;
+    padding: 24px 16px !important;
   }
-
   .modal-actions {
     display: flex !important;
     flex-direction: column !important;
     gap: 10px !important;
+    margin-top: 16px !important;
   }
-
   .modal-actions button {
     width: 100% !important;
     min-height: 48px !important;
     font-size: 15px !important;
   }
 
-  /* ── Category modal ───────────────────────────────────── */
+  /* Category modal */
   .cat-modal-panel {
+    position: fixed !important;
+    bottom: 0 !important; left: 0 !important; right: 0 !important;
     width: 100% !important;
-    max-width: 100% !important;
-    max-height: 92vh !important;
+    max-height: 93vh !important;
     border-radius: 20px 20px 0 0 !important;
     overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    z-index: 9100 !important;
   }
-
   .cat-modal-edit-row {
     flex-direction: column !important;
     gap: 10px !important;
     align-items: stretch !important;
   }
-
   .cat-name-input {
     width: 100% !important;
     font-size: 16px !important;
-    min-height: 44px !important;
+    min-height: 46px !important;
   }
-
-  .cat-save-btn,
-  .cat-delete-cat-btn {
+  .cat-save-btn, .cat-delete-cat-btn {
     width: 100% !important;
-    min-height: 44px !important;
+    min-height: 46px !important;
   }
 
-  /* ── Theme selector: move below hamburger ─────────────── */
-  .theme-selector {
-    top: 14px !important;
-    right: 14px !important;
-    z-index: 300 !important;
+  /* Month note modal */
+  #monthNoteModal .modal-content {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+  #monthNoteText {
+    font-size: 16px !important;
+    min-height: 120px !important;
   }
 
-  .theme-toggle {
-    min-width: 0 !important;
-    padding: 8px 12px !important;
-    font-size: 12px !important;
-    border-radius: 10px !important;
-  }
-
-  /* Hide theme label text, show only icon */
-  .theme-toggle .theme-name-text {
-    display: none !important;
-  }
-
-  /* ── Rollover button in dashboard header ──────────────── */
-  .rollover-btn {
-    padding: 10px 14px !important;
-    font-size: 13px !important;
-    min-height: 40px !important;
-  }
-
-  /* ── Help FAB position ────────────────────────────────── */
-  #bm-help-fab {
-    bottom: 80px !important;
-    right: 16px !important;
-    width: 48px !important;
-    height: 48px !important;
-  }
-
-  /* ── Footer ───────────────────────────────────────────── */
-  footer {
-    text-align: center !important;
-    font-size: 12px !important;
-    padding: 20px 16px !important;
-    flex-wrap: wrap !important;
-  }
-
-  /* ── Income list ──────────────────────────────────────── */
-  .bm-income-list {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 10px !important;
-  }
-
-  /* ── Rollover modal ───────────────────────────────────── */
+  /* Rollover modal */
   .bm-ro-card {
     width: 95vw !important;
     max-width: 95vw !important;
     padding: 20px 16px !important;
   }
-
   .bm-ro-actions {
     flex-direction: column !important;
     gap: 10px !important;
   }
-
   .bm-ro-actions .btn {
     width: 100% !important;
     min-height: 48px !important;
   }
+
+  /* ── 23. HELP FAB ─────────────────────────────────────────────────────── */
+  #bm-help-fab {
+    bottom: 20px !important;
+    right: 16px !important;
+    width: 50px !important;
+    height: 50px !important;
+  }
+
+  /* ── 24. FOOTER ───────────────────────────────────────────────────────── */
+  footer {
+    text-align: center !important;
+    font-size: 12px !important;
+    padding: 16px 14px 24px !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    display: flex !important;
+    justify-content: center !important;
+  }
+
+  /* ── 25. PREVENT ANY ELEMENT BLOCKING TAPS ────────────────────────────── */
+  /* Sidebar when closed must not block any touch event */
+  .sidebar:not(.bm-sidebar-open) {
+    pointer-events: none !important;
+  }
+  .sidebar.bm-sidebar-open {
+    pointer-events: all !important;
+  }
+  /* Backdrop when not visible must not block */
+  .bm-sidebar-backdrop:not(.bm-sidebar-backdrop-visible) {
+    pointer-events: none !important;
+  }
 }
 
-/* ── Small phones (≤ 390px) ──────────────────────────────── */
+/* ── Extra small phones ≤ 390px ──────────────────────────────────────────── */
 @media (max-width: 390px) {
   .main-content {
-    padding: 68px 12px 90px 12px !important;
+    padding: 66px 12px 86px 12px !important;
   }
-
-  .bm-summary-grid {
-    grid-template-columns: 1fr !important;
-  }
-
-  .metric-cards {
-    grid-template-columns: 1fr !important;
-  }
-
-  .actions {
-    grid-template-columns: 1fr !important;
-  }
-
-  .acct-type-grid {
-    grid-template-columns: 1fr !important;
-  }
-
-  .report-tab {
-    padding: 10px 12px !important;
-    font-size: 12px !important;
-  }
-}
-
-
-/* Reports scroll container — desktop keeps max-height, mobile is unrestricted */
-.bm-reports-scroll {
-  max-height: calc(100vh - 200px);
-  overflow-y: auto;
-}
-
-@media (max-width: 768px) {
-  .bm-reports-scroll {
-    max-height: none !important;
-    overflow-y: visible !important;
-  }
+  .bm-summary-grid { grid-template-columns: 1fr !important; }
+  .metric-cards    { grid-template-columns: 1fr !important; }
+  .actions         { grid-template-columns: 1fr !important; }
+  .acct-type-grid  { grid-template-columns: 1fr !important; }
+  .report-tab      { padding: 10px 10px !important; font-size: 12px !important; }
 }
