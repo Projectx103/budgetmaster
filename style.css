@@ -9317,3 +9317,391 @@ h3 {
     grid-template-columns: 1fr !important;
   }
 }
+
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   MATERIAL 3 ANDROID NAVIGATION SYSTEM
+   Bottom Nav + FAB + Top App Bar — mobile only (≤ 768px)
+   Desktop unchanged. Nothing above modified.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── M3 Top App Bar ──────────────────────────────────────────────────────── */
+.bm-top-bar {
+  display: none; /* hidden desktop */
+}
+
+/* ── M3 Bottom Navigation Bar ────────────────────────────────────────────── */
+.bm-bottom-nav {
+  display: none; /* hidden desktop */
+}
+
+/* ── M3 FAB ──────────────────────────────────────────────────────────────── */
+.bm-m3-fab {
+  display: none; /* hidden desktop */
+}
+.bm-fab-menu    { display: none; }
+.bm-fab-backdrop { display: none; }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   MOBILE ACTIVATION (≤ 768px)
+   ════════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* ── Hide desktop elements that mobile replaces ─────────────────────── */
+  .bm-mobile-menu-btn  { display: none !important; }  /* no hamburger */
+  #bm-help-fab         { display: none !important; }  /* FAB replaces this */
+
+  /* Theme selector — moved into top bar visually */
+  .theme-selector {
+    position: fixed !important;
+    top: 9px !important;
+    right: 14px !important;
+    z-index: 9500 !important;
+  }
+
+  /* ── Top App Bar ────────────────────────────────────────────────────── */
+  .bm-top-bar {
+    display: flex !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 56px !important;
+    z-index: 9400 !important;
+    background: var(--card-bg) !important;
+    border-bottom: 1px solid var(--ynab-border) !important;
+    align-items: center !important;
+    padding: 0 16px 0 20px !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
+  }
+
+  .bm-top-bar-title {
+    font-size: 18px !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.03em !important;
+    color: var(--text) !important;
+    flex: 1 !important;
+    /* right side is the theme toggle which floats fixed */
+  }
+
+  /* Main content: top pad = top bar height; bottom pad = bottom nav + safe area */
+  .main-content {
+    padding: 68px 16px 100px 16px !important;
+  }
+
+  /* Section headers: hidden on mobile — top bar shows the title */
+  .section > header,
+  .accounts-section-header {
+    display: none !important;
+  }
+
+  /* Goals header — different DOM structure */
+  #goals .header {
+    display: none !important;
+  }
+
+  /* ── M3 Bottom Navigation Bar ───────────────────────────────────────── */
+  .bm-bottom-nav {
+    display: flex !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 64px !important;
+    z-index: 9400 !important;
+    background: var(--card-bg) !important;
+    border-top: 1px solid var(--ynab-border) !important;
+    align-items: center !important;
+    justify-content: space-around !important;
+    padding: 0 4px env(safe-area-inset-bottom, 0px) !important;
+    box-shadow: 0 -1px 8px rgba(0,0,0,0.06) !important;
+  }
+
+  .bm-bn-item {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex: 1 !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    padding: 4px 0 !important;
+    text-decoration: none !important;
+    color: var(--text-light) !important;
+    position: relative !important;
+    gap: 2px !important;
+    transition: color 180ms cubic-bezier(0.4,0,0.2,1) !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  .bm-bn-item.active {
+    color: var(--primary) !important;
+  }
+
+  /* M3 active pill indicator */
+  .bm-bn-indicator {
+    position: absolute !important;
+    top: 4px !important;
+    left: 50% !important;
+    transform: translateX(-50%) scaleX(0) !important;
+    width: 64px !important;
+    height: 32px !important;
+    background: color-mix(in srgb, var(--primary) 14%, transparent) !important;
+    border-radius: 100px !important;
+    transition: transform 200ms cubic-bezier(0.34,1.56,0.64,1) !important;
+    z-index: 0 !important;
+    pointer-events: none !important;
+  }
+
+  .bm-bn-item.active .bm-bn-indicator {
+    transform: translateX(-50%) scaleX(1) !important;
+  }
+
+  .bm-bn-icon {
+    width: 22px !important;
+    height: 22px !important;
+    position: relative !important;
+    z-index: 1 !important;
+    transition: transform 200ms cubic-bezier(0.34,1.56,0.64,1) !important;
+    flex-shrink: 0 !important;
+  }
+
+  .bm-bn-item.active .bm-bn-icon {
+    transform: scale(1.1) !important;
+    stroke: var(--primary) !important;
+  }
+
+  .bm-bn-label {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.01em !important;
+    position: relative !important;
+    z-index: 1 !important;
+    transition: font-size 180ms ease !important;
+  }
+
+  .bm-bn-item.active .bm-bn-label {
+    font-size: 12px !important;
+  }
+
+  /* Centre FAB slot — spacer so items spread around FAB */
+  .bm-bn-fab-slot {
+    width: 72px !important;
+    flex-shrink: 0 !important;
+    pointer-events: none !important;
+  }
+
+  /* ── M3 FAB ─────────────────────────────────────────────────────────── */
+  .bm-m3-fab {
+    display: flex !important;
+    position: fixed !important;
+    bottom: 20px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 9450 !important;
+    width: 60px !important;
+    height: 60px !important;
+    border-radius: 18px !important;
+    background: var(--primary) !important;
+    color: #fff !important;
+    border: none !important;
+    cursor: pointer !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow:
+      0 3px 8px color-mix(in srgb, var(--primary) 45%, transparent),
+      0 1px 3px rgba(0,0,0,0.12) !important;
+    transition:
+      box-shadow 200ms ease,
+      background 180ms ease,
+      transform 200ms cubic-bezier(0.34,1.56,0.64,1) !important;
+    -webkit-tap-highlight-color: transparent !important;
+    /* bottom nav is 64px; we sit 6px above its top edge */
+    bottom: calc(64px + 6px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .bm-m3-fab:active {
+    transform: translateX(-50%) scale(0.93) !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
+  }
+
+  /* FAB open state */
+  .bm-m3-fab.bm-fab-open {
+    background: var(--card-bg) !important;
+    color: var(--text) !important;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.14) !important;
+  }
+
+  /* Plus / X icon morph */
+  .bm-fab-icon {
+    position: absolute !important;
+    transition: opacity 150ms ease, transform 200ms cubic-bezier(0.34,1.56,0.64,1) !important;
+  }
+
+  .bm-fab-plus { opacity: 1; transform: rotate(0deg); }
+  .bm-fab-x    { opacity: 0; transform: rotate(-90deg); }
+
+  .bm-m3-fab.bm-fab-open .bm-fab-plus { opacity: 0; transform: rotate(90deg); }
+  .bm-m3-fab.bm-fab-open .bm-fab-x    { opacity: 1; transform: rotate(0deg); }
+
+  /* ── FAB Speed Dial ─────────────────────────────────────────────────── */
+  .bm-fab-menu {
+    display: flex !important;
+    flex-direction: column-reverse !important;
+    gap: 10px !important;
+    position: fixed !important;
+    bottom: calc(64px + 6px + 68px + env(safe-area-inset-bottom, 0px)) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 9440 !important;
+    pointer-events: none !important;
+    opacity: 0 !important;
+    transition: opacity 180ms ease !important;
+    align-items: center !important;
+  }
+
+  .bm-fab-menu.bm-fab-menu-open {
+    pointer-events: all !important;
+    opacity: 1 !important;
+  }
+
+  .bm-fab-action {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 0 !important;
+    background: none !important;
+    border: none !important;
+    cursor: pointer !important;
+    transform: translateY(16px) !important;
+    opacity: 0 !important;
+    transition:
+      transform 220ms cubic-bezier(0.34,1.56,0.64,1),
+      opacity 180ms ease !important;
+    -webkit-tap-highlight-color: transparent !important;
+    white-space: nowrap !important;
+  }
+
+  .bm-fab-menu.bm-fab-menu-open .bm-fab-action {
+    transform: translateY(0) !important;
+    opacity: 1 !important;
+  }
+
+  /* Stagger delays */
+  .bm-fab-menu.bm-fab-menu-open .bm-fab-action:nth-child(1) { transition-delay: 0ms; }
+  .bm-fab-menu.bm-fab-menu-open .bm-fab-action:nth-child(2) { transition-delay: 40ms; }
+  .bm-fab-menu.bm-fab-menu-open .bm-fab-action:nth-child(3) { transition-delay: 80ms; }
+
+  .bm-fa-label {
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: var(--text) !important;
+    background: var(--card-bg) !important;
+    padding: 7px 14px !important;
+    border-radius: 100px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.06) !important;
+    border: 1px solid var(--ynab-border) !important;
+    pointer-events: none !important;
+  }
+
+  .bm-fa-icon {
+    width: 48px !important;
+    height: 48px !important;
+    border-radius: 14px !important;
+    background: var(--card-bg) !important;
+    border: 1.5px solid var(--ynab-border) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: var(--text) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.10) !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Transaction — primary action gets filled icon */
+  .bm-fa-primary .bm-fa-icon {
+    background: var(--primary) !important;
+    border-color: var(--primary) !important;
+    color: #fff !important;
+    box-shadow: 0 3px 10px color-mix(in srgb, var(--primary) 40%, transparent) !important;
+  }
+
+  .bm-fab-action:active .bm-fa-icon {
+    transform: scale(0.93) !important;
+  }
+
+  /* ── FAB Backdrop ───────────────────────────────────────────────────── */
+  .bm-fab-backdrop {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 9430 !important;
+    background: rgba(0,0,0,0.36) !important;
+    backdrop-filter: blur(2px) !important;
+    -webkit-backdrop-filter: blur(2px) !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transition: opacity 200ms ease !important;
+  }
+
+  .bm-fab-backdrop.bm-fab-backdrop-open {
+    opacity: 1 !important;
+    pointer-events: all !important;
+  }
+
+  /* ── Dashboard: Actions row — hidden on mobile (FAB replaces) ───────── */
+  .actions {
+    display: none !important;
+  }
+
+  /* ── Goals section: Add Goal button moved to top bar area ───────────── */
+  .add-goal-btn {
+    position: fixed !important;
+    /* sits in top bar right area, left of theme toggle */
+    top: 10px !important;
+    right: 56px !important;
+    z-index: 9500 !important;
+    font-size: 13px !important;
+    padding: 8px 12px !important;
+    border-radius: 10px !important;
+    display: none !important; /* shown only when goals section active via JS */
+  }
+
+  /* ── Reports: Add account button in top bar area ────────────────────── */
+  .acct-add-inline-btn {
+    position: fixed !important;
+    top: 10px !important;
+    right: 56px !important;
+    z-index: 9500 !important;
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+    display: none !important; /* shown when accounts section active via JS */
+  }
+
+  /* ── Rollover button — moved inline above month selector ────────────── */
+  .rollover-container {
+    display: none !important; /* it was in the hidden header; JS will re-show it */
+  }
+
+  /* Rollover button shown as secondary above summary cards */
+  .bm-rollover-mobile {
+    display: flex !important;
+    justify-content: flex-end !important;
+    margin-bottom: 12px !important;
+  }
+
+}
+
+/* ── Safe area padding for notched / pill phones ─────────────────────────── */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  @media (max-width: 768px) {
+    .bm-bottom-nav {
+      padding-bottom: env(safe-area-inset-bottom) !important;
+      height: calc(64px + env(safe-area-inset-bottom)) !important;
+    }
+    .main-content {
+      padding-bottom: calc(100px + env(safe-area-inset-bottom)) !important;
+    }
+  }
+}
