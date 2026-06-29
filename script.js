@@ -9039,3 +9039,226 @@ if ("serviceWorker" in navigator) {
     init();
   }
 })();
+
+
+
+
+
+
+
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// MATERIAL 3 ANDROID NAVIGATION — Bottom Nav + FAB + Top Bar
+// Appended block. Zero changes to existing code above.
+// ════════════════════════════════════════════════════════════════════════════
+
+(function setupM3Navigation() {
+
+  // Section → display name mapping for top bar title
+  const SECTION_TITLES = {
+    dashboard: 'Dashboard',
+    accounts:  'Accounts',
+    budget:    'Budget',
+    reports:   'Reports',
+    goals:     'Goals',
+    settings:  'Settings',
+  };
+
+  // Sections accessible via bottom nav
+  // Budget and Goals are accessed via FAB or sidebar (desktop)
+  // but we still handle them if navigated to
+  const ALL_SECTIONS = Object.keys(SECTION_TITLES);
+
+  function isMobile() { return window.innerWidth <= 768; }
+
+  // ── Top bar title sync ────────────────────────────────────────────────
+  function setTopBarTitle(sectionId) {
+    const el = document.getElementById('bm-top-bar-title');
+    if (el) el.textContent = SECTION_TITLES[sectionId] || sectionId;
+  }
+
+  // ── Bottom nav active state ───────────────────────────────────────────
+  function setBottomNavActive(sectionId) {
+    document.querySelectorAll('.bm-bn-item').forEach(item => {
+      const href = item.getAttribute('href');
+      if (href === '#' + sectionId) {
+        item.classList.add('active');
+      } else {
+        item.classList.remove('active');
+      }
+    });
+  }
+
+  // ── Contextual top-bar actions ────────────────────────────────────────
+  // Show section-specific action buttons in the top bar area
+  function updateTopBarActions(sectionId) {
+    // Hide all contextual buttons first
+    const addGoalBtn  = document.querySelector('.add-goal-btn');
+    const addAcctBtn  = document.getElementById('add-account-btn');
+
+    if (addGoalBtn) addGoalBtn.style.display = 'none';
+    if (addAcctBtn) addAcctBtn.style.display = 'none';
+
+    if (!isMobile()) return;
+
+    if (sectionId === 'goals'    && addGoalBtn) addGoalBtn.style.display = 'flex';
+    if (sectionId === 'accounts' && addAcctBtn) addAcctBtn.style.display = 'flex';
+  }
+
+  // ── FAB visibility ────────────────────────────────────────────────────
+  // FAB only shown on sections where quick-add makes sense
+  const FAB_SECTIONS = ['dashboard', 'budget', 'accounts'];
+
+  function updateFabVisibility(sectionId) {
+    if (!isMobile()) return;
+    const fab = document.getElementById('bm-m3-fab');
+    if (!fab) return;
+    if (FAB_SECTIONS.includes(sectionId)) {
+      fab.style.display = 'flex';
+    } else {
+      fab.style.display = 'none';
+      closeFabMenu(); // make sure menu closes too
+    }
+  }
+
+  // ── FAB open / close ──────────────────────────────────────────────────
+  let fabOpen = false;
+
+  window.closeFabMenu = function () {
+    const fab      = document.getElementById('bm-m3-fab');
+    const menu     = document.getElementById('bm-fab-menu');
+    const backdrop = document.getElementById('bm-fab-backdrop');
+    if (!fab) return;
+    fabOpen = false;
+    fab.classList.remove('bm-fab-open');
+    fab.setAttribute('aria-expanded', 'false');
+    if (menu)     { menu.classList.remove('bm-fab-menu-open'); menu.setAttribute('aria-hidden', 'true'); }
+    if (backdrop) { backdrop.classList.remove('bm-fab-backdrop-open'); }
+  };
+
+  function openFabMenu() {
+    const fab      = document.getElementById('bm-m3-fab');
+    const menu     = document.getElementById('bm-fab-menu');
+    const backdrop = document.getElementById('bm-fab-backdrop');
+    if (!fab) return;
+    fabOpen = true;
+    fab.classList.add('bm-fab-open');
+    fab.setAttribute('aria-expanded', 'true');
+    if (menu)     { menu.classList.add('bm-fab-menu-open'); menu.setAttribute('aria-hidden', 'false'); }
+    if (backdrop) { backdrop.classList.add('bm-fab-backdrop-open'); }
+  }
+
+  // ── Hook into the existing sidebar navigation ─────────────────────────
+  // The existing DOMContentLoaded handler already processes sidebar clicks.
+  // We watch for section changes and sync the bottom nav + top bar.
+  // We use a MutationObserver on sections' display style — zero coupling risk.
+
+  function detectActiveSection() {
+    let active = 'dashboard';
+    document.querySelectorAll('.section').forEach(sec => {
+      if (sec.style.display !== 'none' && sec.id) {
+        active = sec.id;
+      }
+    });
+    return active;
+  }
+
+  function onSectionChange(sectionId) {
+    setTopBarTitle(sectionId);
+    setBottomNavActive(sectionId);
+    updateTopBarActions(sectionId);
+    updateFabVisibility(sectionId);
+    // Scroll to top on section switch (Android convention)
+    if (isMobile()) window.scrollTo({ top: 0, behavior: 'instant' });
+  }
+
+  // ── Bottom nav click handler ──────────────────────────────────────────
+  function initBottomNav() {
+    const bottomNavItems = document.querySelectorAll('.bm-bn-item');
+
+    bottomNavItems.forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.preventDefault();
+        closeFabMenu();
+
+        const targetId = item.getAttribute('href').substring(1);
+
+        // Dispatch to the EXISTING sidebar navigation system by
+        // clicking the equivalent sidebar link — keeps all business
+        // logic (tour guards, data reloads, etc.) intact.
+        const sidebarLink = document.querySelector(`.sidebar a[href="#${targetId}"]`);
+        if (sidebarLink) {
+          sidebarLink.click();
+        }
+
+        // Update bottom nav immediately for responsiveness
+        onSectionChange(targetId);
+      });
+    });
+  }
+
+  // ── FAB button handler ────────────────────────────────────────────────
+  function initFab() {
+    const fab      = document.getElementById('bm-m3-fab');
+    const backdrop = document.getElementById('bm-fab-backdrop');
+
+    if (!fab) return;
+
+    fab.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (fabOpen) closeFabMenu();
+      else openFabMenu();
+    });
+
+    if (backdrop) {
+      backdrop.addEventListener('click', closeFabMenu);
+    }
+
+    // Close on Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && fabOpen) closeFabMenu();
+    });
+  }
+
+  // ── MutationObserver: sync when sidebar navigation changes sections ───
+  function observeSectionChanges() {
+    const sections = document.querySelectorAll('.section');
+    const observer = new MutationObserver(() => {
+      const active = detectActiveSection();
+      onSectionChange(active);
+    });
+    sections.forEach(sec => {
+      observer.observe(sec, { attributes: true, attributeFilter: ['style'] });
+    });
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────
+  function init() {
+    initBottomNav();
+    initFab();
+    observeSectionChanges();
+
+    // Set initial state
+    const initial = detectActiveSection();
+    onSectionChange(initial);
+
+    // Re-evaluate on resize (mobile ↔ desktop)
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const active = detectActiveSection();
+        updateTopBarActions(active);
+        updateFabVisibility(active);
+      }, 120);
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+})();
