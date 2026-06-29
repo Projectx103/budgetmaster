@@ -8369,3 +8369,951 @@ html, body { overflow-x: hidden; width: 100%; max-width: 100%; }
     margin-bottom: 4px !important;
   }
 }
+
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   BUDGETMASTER — PREMIUM DESIGN SYSTEM
+   Clay · Linear · Mercury · Apple-quality redesign.
+   Appended block. Nothing above modified.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Design Tokens ───────────────────────────────────────────────────────── */
+:root {
+  /* Spacing — 8pt grid */
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+
+  /* Border radius system */
+  --r-xs:  6px;
+  --r-sm:  8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 20px;
+  --r-2xl: 24px;
+  --r-pill: 100px;
+
+  /* Elevation system — three levels only */
+  --e-0: none;
+  --e-1: 0 1px 2px rgba(0,0,0,0.05), 0 1px 4px rgba(0,0,0,0.04);
+  --e-2: 0 4px 8px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04);
+  --e-3: 0 12px 28px rgba(0,0,0,0.08), 0 4px 8px rgba(0,0,0,0.04);
+  --e-modal: 0 24px 56px rgba(0,0,0,0.14), 0 8px 16px rgba(0,0,0,0.06);
+
+  /* Animation */
+  --t-fast:   150ms cubic-bezier(0.4,0,0.2,1);
+  --t-base:   200ms cubic-bezier(0.4,0,0.2,1);
+  --t-slow:   280ms cubic-bezier(0.4,0,0.2,1);
+  --t-spring: 350ms cubic-bezier(0.34,1.56,0.64,1);
+
+  /* Premium flat background — replaces noisy gradient */
+  --surface: #f5f6f8;
+}
+
+/* ── Global reset for premium feel ──────────────────────────────────────── */
+
+/* Kill the noisy gradient body background on classic theme */
+body {
+  background: var(--surface) !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  /* Never transition all on body */
+  transition: background var(--t-slow), color var(--t-slow) !important;
+}
+
+/* Dark themes keep their bg */
+[data-theme="pastel-dream"] body,
+[data-theme="steel-blue"] body,
+[data-theme="royal-ember"] body {
+  background: var(--bg) !important;
+}
+
+/* ── Sidebar — redesigned ────────────────────────────────────────────────── */
+.sidebar {
+  background: var(--card-bg) !important;
+  border-right: 1px solid var(--ynab-border) !important;
+  box-shadow: var(--e-1) !important;
+}
+
+/* Sidebar wordmark */
+.sidebar-wordmark {
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.03em !important;
+  color: var(--text) !important;
+}
+
+/* Nav links — premium pill active state */
+.sidebar a {
+  margin: 2px 10px !important;
+  padding: 10px 12px !important;
+  border-radius: var(--r-md) !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  color: var(--sidebar-text) !important;
+  border-left: none !important; /* kill the old left border indicator */
+  transition: background var(--t-fast), color var(--t-fast) !important;
+  gap: 10px !important;
+  width: calc(100% - 20px) !important;
+}
+
+.sidebar a svg {
+  width: 16px !important;
+  height: 16px !important;
+  opacity: 0.6 !important;
+  transition: opacity var(--t-fast) !important;
+  flex-shrink: 0 !important;
+}
+
+.sidebar a:hover {
+  background: var(--ynab-light-gray) !important;
+  color: var(--text) !important;
+  transform: none !important;
+}
+.sidebar a:hover svg { opacity: 0.85 !important; }
+
+.sidebar a.active {
+  background: var(--primary) !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+  border-left: none !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 40%, transparent) !important;
+}
+.sidebar a.active svg { opacity: 1 !important; stroke: #fff !important; }
+
+/* Logout link — subtle at bottom */
+.logout-link {
+  color: var(--danger) !important;
+  opacity: 0.75 !important;
+  font-size: 13px !important;
+  margin-top: auto !important;
+  margin-bottom: 8px !important;
+}
+.logout-link:hover { opacity: 1 !important; background: rgba(220,38,38,0.07) !important; color: var(--danger) !important; }
+.logout-link svg { opacity: 0.7 !important; stroke: currentColor !important; }
+.logout-link.active { background: rgba(220,38,38,0.1) !important; color: var(--danger) !important; box-shadow: none !important; }
+
+/* ── Main content area ───────────────────────────────────────────────────── */
+.main-content {
+  background: var(--surface) !important;
+  padding: 32px 40px !important;
+  transition: margin-left var(--t-slow), width var(--t-slow) !important;
+}
+
+/* ── Section headers — large, airy, Apple-style ──────────────────────────── */
+.section > header,
+section > header {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 0 24px 0 !important;
+  margin-bottom: 0 !important;
+  font-size: 26px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.03em !important;
+  color: var(--text) !important;
+  align-items: center !important;
+}
+
+.section > header > span:first-child,
+section > header > span:first-child {
+  font-size: 26px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.03em !important;
+  color: var(--text) !important;
+}
+
+/* ── Cards — clean, elevated, no gradient ────────────────────────────────── */
+.card {
+  background: var(--card-bg) !important;
+  border-radius: var(--r-lg) !important;
+  border: 1px solid var(--ynab-border) !important;
+  box-shadow: var(--e-1) !important;
+  padding: 20px !important;
+  margin-bottom: 20px !important;
+  transition: box-shadow var(--t-base), transform var(--t-base) !important;
+}
+
+.card:hover {
+  box-shadow: var(--e-2) !important;
+}
+
+/* ── Current theme label — remove it entirely ────────────────────────────── */
+.current-theme {
+  display: none !important;
+}
+
+/* ── Theme selector — clean icon button ─────────────────────────────────── */
+.theme-selector {
+  top: 18px !important;
+  right: 20px !important;
+}
+
+.theme-toggle {
+  background: var(--card-bg) !important;
+  border: 1px solid var(--ynab-border) !important;
+  border-radius: var(--r-lg) !important;
+  padding: 8px 14px !important;
+  min-width: 0 !important;
+  box-shadow: var(--e-1) !important;
+  gap: 8px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: var(--text) !important;
+  transition: box-shadow var(--t-fast), border-color var(--t-fast) !important;
+}
+
+.theme-toggle:hover {
+  box-shadow: var(--e-2) !important;
+  border-color: var(--primary) !important;
+  transform: none !important;
+}
+
+/* Stop the spinning — it's noise */
+.theme-icon {
+  animation: none !important;
+  font-size: 16px !important;
+}
+
+/* Theme dropdown — premium card */
+.theme-dropdown {
+  border-radius: var(--r-xl) !important;
+  border: 1px solid var(--ynab-border) !important;
+  box-shadow: var(--e-modal) !important;
+  min-width: 320px !important;
+  max-width: 360px !important;
+}
+
+.theme-dropdown-header {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  color: var(--text-light) !important;
+  padding: 16px 16px 10px !important;
+}
+
+.theme-grid-section {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 8px !important;
+  padding: 0 12px 12px !important;
+}
+
+.theme-card {
+  border-radius: var(--r-md) !important;
+  border: 1.5px solid var(--ynab-border) !important;
+  padding: 10px !important;
+  transition: border-color var(--t-fast), transform var(--t-base), box-shadow var(--t-fast) !important;
+  background: var(--card-bg) !important;
+  cursor: pointer !important;
+}
+
+.theme-card:hover {
+  border-color: var(--primary) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: var(--e-2) !important;
+}
+
+.theme-card.active {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 25%, transparent) !important;
+}
+
+.palette-strip {
+  display: flex !important;
+  height: 16px !important;
+  border-radius: var(--r-sm) !important;
+  overflow: hidden !important;
+}
+
+.palette-strip span {
+  flex: 1 !important;
+}
+
+.theme-card-label {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  margin-top: 8px !important;
+  color: var(--text) !important;
+  text-align: left !important;
+}
+
+/* ── Dashboard: Month selector ───────────────────────────────────────────── */
+.month-selector-container {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 16px !important;
+  margin: 0 0 24px 0 !important;
+  padding: 12px 20px !important;
+  background: var(--card-bg) !important;
+  border-radius: var(--r-lg) !important;
+  border: 1px solid var(--ynab-border) !important;
+  box-shadow: var(--e-1) !important;
+  width: fit-content !important;
+  align-self: flex-start !important;
+}
+
+.month-label {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em !important;
+  color: var(--text) !important;
+  min-width: 90px !important;
+  text-align: center !important;
+}
+
+.month-nav-btn {
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: var(--r-sm) !important;
+  background: var(--ynab-light-gray) !important;
+  border: 1px solid var(--ynab-border) !important;
+  color: var(--text) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: background var(--t-fast), box-shadow var(--t-fast) !important;
+  flex-shrink: 0 !important;
+}
+
+.month-nav-btn:hover {
+  background: var(--card-bg) !important;
+  box-shadow: var(--e-2) !important;
+}
+
+.note-btn {
+  display: flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: var(--text-light) !important;
+  background: var(--ynab-light-gray) !important;
+  border: 1px solid var(--ynab-border) !important;
+  border-radius: var(--r-sm) !important;
+  padding: 5px 10px !important;
+  cursor: pointer !important;
+  transition: background var(--t-fast), color var(--t-fast) !important;
+  white-space: nowrap !important;
+}
+.note-btn:hover { background: var(--secondary) !important; color: var(--text) !important; }
+
+/* ── Dashboard: Summary cards — hierarchy redesign ───────────────────────── */
+.bm-summary-root {
+  margin-bottom: 20px !important;
+  font-family: inherit !important;
+}
+
+.bm-summary-grid {
+  display: grid !important;
+  /* TBB gets 1.3x the width — it's the hero metric */
+  grid-template-columns: 1.3fr 1fr 1fr 1fr 1fr !important;
+  gap: 12px !important;
+}
+
+.bm-sc {
+  border-radius: var(--r-lg) !important;
+  padding: 18px 16px 14px !important;
+  min-height: 120px !important;
+  border-width: 1px !important;
+  transition: transform var(--t-base), box-shadow var(--t-base) !important;
+}
+
+.bm-sc:hover {
+  transform: translateY(-3px) !important;
+}
+
+.bm-sc.tbb:hover   { box-shadow: 0 12px 32px var(--bm-tbb-s) !important; }
+.bm-sc.asgn:hover  { box-shadow: 0 12px 32px var(--bm-asgn-s) !important; }
+.bm-sc.avail:hover { box-shadow: 0 12px 32px var(--bm-avail-s) !important; }
+.bm-sc.spent:hover { box-shadow: 0 12px 32px var(--bm-spent-s) !important; }
+.bm-sc.over:hover  { box-shadow: 0 12px 32px var(--bm-over-s) !important; }
+
+.bm-icon-ring {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: var(--r-sm) !important;
+}
+
+.bm-icon-ring i { font-size: 15px !important; }
+
+.bm-label {
+  font-size: 9.5px !important;
+  letter-spacing: 0.1em !important;
+  margin: 12px 0 4px !important;
+  font-family: inherit !important;
+}
+
+.bm-val {
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Tabular Nums', sans-serif !important;
+  font-size: 20px !important;
+  font-variant-numeric: tabular-nums !important;
+  letter-spacing: -0.03em !important;
+  transition: transform var(--t-spring) !important;
+}
+
+/* TBB hero: bigger value */
+.bm-sc.tbb .bm-val {
+  font-size: 24px !important;
+}
+
+.bm-sc:hover .bm-val {
+  transform: scale(1.04) !important;
+}
+
+.bm-badge {
+  font-family: inherit !important;
+  font-size: 9px !important;
+  letter-spacing: 0.06em !important;
+}
+
+.bm-barw { margin-top: 10px !important; height: 3px !important; }
+
+/* ── Dashboard: Action buttons — hierarchy ───────────────────────────────── */
+.actions {
+  display: flex !important;
+  gap: 8px !important;
+  margin: 0 0 20px 0 !important;
+  flex-wrap: wrap !important;
+}
+
+/* Base for all action buttons */
+.actions button {
+  padding: 10px 16px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  border-radius: var(--r-lg) !important;
+  border: 1.5px solid var(--ynab-border) !important;
+  background: var(--card-bg) !important;
+  color: var(--text) !important;
+  box-shadow: var(--e-1) !important;
+  cursor: pointer !important;
+  transition: background var(--t-fast), box-shadow var(--t-fast), transform var(--t-fast), border-color var(--t-fast) !important;
+  letter-spacing: -0.01em !important;
+}
+
+.actions button:hover {
+  box-shadow: var(--e-2) !important;
+  border-color: var(--primary) !important;
+  transform: translateY(-1px) !important;
+  background: var(--card-bg) !important;
+  color: var(--primary) !important;
+}
+
+.actions button:active {
+  transform: translateY(0) scale(0.98) !important;
+  box-shadow: var(--e-0) !important;
+}
+
+/* Primary action — + Transaction */
+.actions button:last-child {
+  background: var(--primary) !important;
+  color: #fff !important;
+  border-color: var(--primary) !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 35%, transparent) !important;
+}
+.actions button:last-child:hover {
+  background: var(--primary-hover) !important;
+  color: #fff !important;
+  border-color: var(--primary-hover) !important;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 45%, transparent) !important;
+}
+
+/* ── Budget items — clean card ───────────────────────────────────────────── */
+.budget-item {
+  border-radius: var(--r-lg) !important;
+  border: 1px solid var(--ynab-border) !important;
+  box-shadow: var(--e-1) !important;
+  padding: 16px !important;
+  min-height: 0 !important;
+  transition: box-shadow var(--t-base), transform var(--t-base), border-color var(--t-fast) !important;
+}
+
+.budget-item:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: var(--e-2) !important;
+  border-color: color-mix(in srgb, var(--primary) 30%, var(--ynab-border)) !important;
+}
+
+/* ── Transaction table — subtle, clean ───────────────────────────────────── */
+.transactions-table th {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+  color: var(--text-light) !important;
+  background: var(--ynab-light-gray) !important;
+  padding: 10px 14px !important;
+}
+
+.transactions-table td {
+  font-size: 13.5px !important;
+  padding: 11px 14px !important;
+  color: var(--text) !important;
+}
+
+.transactions-table tr:hover {
+  background: var(--ynab-light-gray) !important;
+}
+
+/* ── Rollover button — demoted to secondary ──────────────────────────────── */
+.rollover-btn {
+  /* Remove the over-engineered multi-layer treatment */
+  padding: 9px 16px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  border-radius: var(--r-lg) !important;
+  border: 1.5px solid var(--ynab-border) !important;
+  background: var(--card-bg) !important;
+  color: var(--text) !important;
+  box-shadow: var(--e-1) !important;
+  transition: background var(--t-fast), box-shadow var(--t-fast), border-color var(--t-fast) !important;
+  letter-spacing: -0.01em !important;
+}
+
+.rollover-btn::before,
+.rollover-btn::after {
+  display: none !important; /* Kill all pseudo-element animations */
+}
+
+.rollover-btn:hover {
+  background: var(--ynab-light-gray) !important;
+  border-color: var(--primary) !important;
+  box-shadow: var(--e-2) !important;
+  transform: none !important;
+}
+
+.rollover-btn:active {
+  transform: scale(0.98) !important;
+}
+
+.rollover-btn .btn-text {
+  transition: none !important;
+}
+.rollover-btn:hover .btn-text {
+  transform: none !important;
+}
+
+/* ── Accounts — net worth bar premium ────────────────────────────────────── */
+.net-worth-bar {
+  background: var(--card-bg) !important;
+  border-radius: var(--r-lg) !important;
+  border: 1px solid var(--ynab-border) !important;
+  box-shadow: var(--e-1) !important;
+  overflow: hidden !important;
+}
+
+.nw-label {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+  color: var(--text-light) !important;
+  margin-bottom: 4px !important;
+}
+
+.nw-value {
+  font-size: 22px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.03em !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+/* ── Metric cards (Reports) — premium ────────────────────────────────────── */
+.metric-cards {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 12px !important;
+  margin-bottom: 20px !important;
+}
+
+.metric-card {
+  background: var(--card-bg) !important;
+  border-radius: var(--r-lg) !important;
+  border: 1px solid var(--ynab-border) !important;
+  box-shadow: var(--e-1) !important;
+  padding: 18px 16px !important;
+  transition: box-shadow var(--t-base) !important;
+}
+
+.metric-card:hover {
+  box-shadow: var(--e-2) !important;
+}
+
+.metric-value {
+  font-size: 22px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.03em !important;
+  font-variant-numeric: tabular-nums !important;
+  line-height: 1 !important;
+  margin-bottom: 6px !important;
+}
+
+.metric-label {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+  color: var(--text-light) !important;
+}
+
+/* ── Report tabs — pill style ────────────────────────────────────────────── */
+.report-tabs {
+  background: var(--ynab-light-gray) !important;
+  border-radius: var(--r-lg) !important;
+  padding: 4px !important;
+  gap: 2px !important;
+  border: 1px solid var(--ynab-border) !important;
+  display: inline-flex !important;
+  margin-bottom: 20px !important;
+}
+
+.report-tab {
+  border-radius: var(--r-md) !important;
+  padding: 8px 16px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: var(--text-light) !important;
+  background: transparent !important;
+  border: none !important;
+  transition: background var(--t-fast), color var(--t-fast), box-shadow var(--t-fast) !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+}
+
+.report-tab:hover {
+  color: var(--text) !important;
+  background: var(--card-bg) !important;
+}
+
+.report-tab.active {
+  background: var(--card-bg) !important;
+  color: var(--text) !important;
+  font-weight: 600 !important;
+  box-shadow: var(--e-1) !important;
+}
+
+/* ── Goals — card premium ────────────────────────────────────────────────── */
+.goals-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
+  gap: 14px !important;
+}
+
+.goal-card {
+  background: var(--card-bg) !important;
+  border-radius: var(--r-lg) !important;
+  border: 1px solid var(--ynab-border) !important;
+  box-shadow: var(--e-1) !important;
+  padding: 18px !important;
+  transition: box-shadow var(--t-base), transform var(--t-base) !important;
+}
+
+.goal-card:hover {
+  box-shadow: var(--e-2) !important;
+  transform: translateY(-2px) !important;
+}
+
+/* ── Settings sidebar — pill nav ─────────────────────────────────────────── */
+.settings-sidebar li {
+  border-radius: var(--r-md) !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  padding: 10px 14px !important;
+  margin: 2px 8px !important;
+  transition: background var(--t-fast), color var(--t-fast) !important;
+}
+
+.settings-sidebar li:hover {
+  transform: none !important;
+  background: var(--ynab-light-gray) !important;
+  color: var(--text) !important;
+}
+
+.settings-sidebar li.active {
+  background: var(--primary) !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 35%, transparent) !important;
+}
+
+/* ── Buttons — global premium system ─────────────────────────────────────── */
+.btn {
+  border-radius: var(--r-lg) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  padding: 9px 16px !important;
+  transition: background var(--t-fast), box-shadow var(--t-fast), transform var(--t-fast), border-color var(--t-fast) !important;
+  letter-spacing: -0.01em !important;
+  cursor: pointer !important;
+}
+
+.btn:active { transform: scale(0.97) !important; }
+
+.btn-primary {
+  background: var(--primary) !important;
+  color: #fff !important;
+  border: none !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 35%, transparent) !important;
+}
+
+.btn-primary:hover {
+  background: var(--primary-hover) !important;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 45%, transparent) !important;
+  transform: translateY(-1px) !important;
+}
+
+.btn-secondary {
+  background: var(--card-bg) !important;
+  color: var(--text) !important;
+  border: 1.5px solid var(--ynab-border) !important;
+  box-shadow: var(--e-1) !important;
+}
+
+.btn-secondary:hover {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  box-shadow: var(--e-2) !important;
+  transform: translateY(-1px) !important;
+  background: var(--card-bg) !important;
+}
+
+.btn-danger {
+  background: transparent !important;
+  color: var(--danger) !important;
+  border: 1.5px solid rgba(220,38,38,0.3) !important;
+  box-shadow: none !important;
+}
+
+.btn-danger:hover {
+  background: rgba(220,38,38,0.06) !important;
+  border-color: var(--danger) !important;
+  box-shadow: none !important;
+}
+
+/* ── Forms — clean inputs ────────────────────────────────────────────────── */
+input, select, textarea {
+  border-radius: var(--r-md) !important;
+  border: 1.5px solid var(--ynab-border) !important;
+  padding: 9px 12px !important;
+  font-size: 14px !important;
+  color: var(--text) !important;
+  background: var(--card-bg) !important;
+  transition: border-color var(--t-fast), box-shadow var(--t-fast) !important;
+  font-family: inherit !important;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none !important;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent) !important;
+}
+
+/* ── Modals — premium bottom sheet / centered ────────────────────────────── */
+.modal-content {
+  border-radius: var(--r-xl) !important;
+  box-shadow: var(--e-modal) !important;
+  border: 1px solid var(--ynab-border) !important;
+}
+
+/* ── Typography — consistent scale ──────────────────────────────────────── */
+h2 {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.02em !important;
+  margin: 0 0 14px !important;
+  color: var(--text) !important;
+}
+
+h3 {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em !important;
+  margin: 0 0 10px !important;
+}
+
+/* ── Focus states — accessible ───────────────────────────────────────────── */
+*:focus-visible {
+  outline: 2px solid var(--primary) !important;
+  outline-offset: 2px !important;
+}
+
+/* ── Accounts section header ─────────────────────────────────────────────── */
+.accounts-section-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 0 0 24px 0 !important;
+  font-size: 26px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.03em !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.acct-add-inline-btn {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 9px 14px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  border-radius: var(--r-lg) !important;
+  background: var(--primary) !important;
+  color: #fff !important;
+  border: none !important;
+  cursor: pointer !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 35%, transparent) !important;
+  transition: background var(--t-fast), box-shadow var(--t-fast), transform var(--t-fast) !important;
+}
+
+.acct-add-inline-btn:hover {
+  background: var(--primary-hover) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 45%, transparent) !important;
+}
+
+/* ── Empty states ────────────────────────────────────────────────────────── */
+.empty-state {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 64px 32px !important;
+  text-align: center !important;
+}
+
+.empty-icon {
+  font-size: 40px !important;
+  margin-bottom: 16px !important;
+  opacity: 0.5 !important;
+}
+
+.empty-title {
+  font-size: 17px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.02em !important;
+  color: var(--text) !important;
+  margin-bottom: 8px !important;
+}
+
+.empty-text {
+  font-size: 13.5px !important;
+  color: var(--text-light) !important;
+  max-width: 280px !important;
+  line-height: 1.6 !important;
+  margin-bottom: 20px !important;
+}
+
+/* ── Loading state ───────────────────────────────────────────────────────── */
+.loading {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  color: var(--text-light) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  padding: 24px !important;
+  justify-content: center !important;
+}
+
+.spinner {
+  width: 16px !important;
+  height: 16px !important;
+  border: 2px solid var(--ynab-border) !important;
+  border-top-color: var(--primary) !important;
+  border-radius: 50% !important;
+  animation: bm-spin 0.7s linear infinite !important;
+  flex-shrink: 0 !important;
+}
+
+@keyframes bm-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Scrollbar — subtle ──────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--ynab-border); border-radius: 100px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-light); }
+
+/* ── Dark theme override — surface color ────────────────────────────────── */
+[data-theme="pastel-dream"] body,
+[data-theme="steel-blue"] body,
+[data-theme="royal-ember"] body {
+  --surface: var(--bg);
+}
+
+[data-theme="pastel-dream"] .main-content,
+[data-theme="steel-blue"] .main-content,
+[data-theme="royal-ember"] .main-content {
+  background: transparent !important;
+}
+
+/* ── Desktop specific ────────────────────────────────────────────────────── */
+@media (min-width: 769px) {
+  .bm-summary-grid {
+    grid-template-columns: 1.3fr 1fr 1fr 1fr 1fr !important;
+  }
+
+  .main-content {
+    padding: 32px 40px !important;
+  }
+
+  /* Section title + action button row */
+  .section > header,
+  section > header {
+    justify-content: space-between !important;
+    padding: 0 0 28px 0 !important;
+  }
+}
+
+/* ── Mobile: premium adjustments ────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .main-content {
+    padding: 72px 16px 90px 16px !important;
+  }
+
+  .section > header > span:first-child,
+  section > header > span:first-child {
+    font-size: 22px !important;
+  }
+
+  .bm-summary-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  /* TBB spans full width on mobile — it's the hero */
+  .bm-sc.tbb {
+    grid-column: 1 / -1 !important;
+  }
+
+  .metric-cards {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .report-tabs {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    width: 100% !important;
+    overflow-x: auto !important;
+    border-radius: var(--r-lg) !important;
+  }
+
+  .goals-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
