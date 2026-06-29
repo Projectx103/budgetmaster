@@ -30,6 +30,19 @@
 </head>
 <body>
 
+<!-- ══════════════════════════════════════════════════════════
+     MATERIAL 3 TOP APP BAR — mobile only
+     Shows current section title + theme button.
+     Hidden on desktop (sidebar handles branding there).
+     ══════════════════════════════════════════════════════════ -->
+<div class="bm-top-bar" id="bm-top-bar" role="banner" aria-label="BudgetMaster">
+  <span class="bm-top-bar-title" id="bm-top-bar-title">Dashboard</span>
+  <div class="bm-top-bar-actions">
+    <!-- Theme button is moved here on mobile via CSS (it's still the same element,
+         we just re-anchor it visually; the actual .theme-selector stays in DOM) -->
+  </div>
+</div>
+
 <!-- ===== Boot Loader (shown until app data is ready) ===== -->
 <div id="bmBootLoader" class="bm-boot-loader" role="status" aria-live="polite" aria-label="Loading BudgetMaster">
   <div class="bm-boot-loader-inner">
@@ -1554,6 +1567,108 @@
     <a href="help.html">Help &amp; FAQ</a> ·
     <a href="#">Contact</a>
   </footer>
+
+  <!-- ══════════════════════════════════════════════════════
+       MATERIAL 3 BOTTOM NAVIGATION — mobile only (≤768px)
+       Mirrors sidebar links. JS wires clicks to same handler.
+       ══════════════════════════════════════════════════════ -->
+  <nav class="bm-bottom-nav" id="bm-bottom-nav" aria-label="Main navigation">
+
+    <a href="#dashboard" class="bm-bn-item active" aria-label="Dashboard">
+      <span class="bm-bn-indicator"></span>
+      <svg class="bm-bn-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+      </svg>
+      <span class="bm-bn-label">Home</span>
+    </a>
+
+    <a href="#accounts" class="bm-bn-item" aria-label="Accounts">
+      <span class="bm-bn-indicator"></span>
+      <svg class="bm-bn-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+      </svg>
+      <span class="bm-bn-label">Accounts</span>
+    </a>
+
+    <!-- Centre slot — FAB lives here, no label -->
+    <div class="bm-bn-fab-slot" aria-hidden="true"></div>
+
+    <a href="#reports" class="bm-bn-item" aria-label="Reports">
+      <span class="bm-bn-indicator"></span>
+      <svg class="bm-bn-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+      </svg>
+      <span class="bm-bn-label">Reports</span>
+    </a>
+
+    <a href="#settings" class="bm-bn-item" aria-label="Settings">
+      <span class="bm-bn-indicator"></span>
+      <svg class="bm-bn-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+      <span class="bm-bn-label">Settings</span>
+    </a>
+
+  </nav>
+
+  <!-- ══════════════════════════════════════════════════════
+       MATERIAL 3 FAB — Quick Add Transaction
+       Floats above bottom nav centre slot on mobile.
+       On desktop it is hidden (help FAB takes that role).
+       ══════════════════════════════════════════════════════ -->
+  <button
+    class="bm-m3-fab"
+    id="bm-m3-fab"
+    aria-label="Add transaction"
+    aria-haspopup="true"
+    aria-expanded="false"
+  >
+    <!-- Plus → X morphs on open -->
+    <svg class="bm-fab-icon bm-fab-plus" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+    <svg class="bm-fab-icon bm-fab-x" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+    </svg>
+  </button>
+
+  <!-- ══════════════════════════════════════════════════════
+       FAB SPEED DIAL — three quick actions
+       Opens upward from the FAB. Tap outside closes.
+       ══════════════════════════════════════════════════════ -->
+  <div class="bm-fab-menu" id="bm-fab-menu" aria-hidden="true">
+
+    <button class="bm-fab-action" id="fab-income" onclick="openModal('incomeModal'); closeFabMenu()" aria-label="Add income">
+      <span class="bm-fa-label">Income</span>
+      <span class="bm-fa-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+          <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+        </svg>
+      </span>
+    </button>
+
+    <button class="bm-fab-action" id="fab-category" onclick="openModal('categoryModal'); closeFabMenu()" aria-label="Add category">
+      <span class="bm-fa-label">Category</span>
+      <span class="bm-fa-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+      </span>
+    </button>
+
+    <button class="bm-fab-action bm-fa-primary" id="fab-transaction" onclick="openModal('transactionModal'); closeFabMenu()" aria-label="Add transaction">
+      <span class="bm-fa-label">Transaction</span>
+      <span class="bm-fa-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </span>
+    </button>
+
+  </div>
+
+  <!-- FAB backdrop — tap to close -->
+  <div class="bm-fab-backdrop" id="bm-fab-backdrop" aria-hidden="true"></div>
 
   <!-- Floating help button — always visible bottom-right -->
   <a href="help.html" id="bm-help-fab" aria-label="Help &amp; FAQ" title="Need help? Open the Help &amp; FAQ page">
