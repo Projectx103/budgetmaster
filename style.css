@@ -10217,3 +10217,261 @@ h3 {
 @media (min-width: 769px) {
   .bm-acct-action-sheet { display: none !important; }
 }
+
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   TASK FIXES — Theme in Settings, Account card cleanup, Txn panel UX
+   Appended. Nothing above modified.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Task 1: Hide floating theme selector on mobile ─────────────────────── */
+@media (max-width: 768px) {
+  .theme-selector {
+    display: none !important;
+  }
+
+  /* Show Appearance tab in settings nav only on mobile */
+  .bm-mobile-only-tab {
+    display: flex !important;
+  }
+}
+
+@media (min-width: 769px) {
+  /* Hide Appearance tab on desktop — theme selector handles it */
+  .bm-mobile-only-tab {
+    display: none !important;
+  }
+}
+
+/* ── Task 1: Settings Appearance / Theme grid ───────────────────────────── */
+.bm-settings-theme-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.bm-stg-card {
+  background: var(--card-bg);
+  border: 1.5px solid var(--ynab-border);
+  border-radius: 12px;
+  padding: 12px 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  font-family: inherit;
+}
+
+.bm-stg-card:hover {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.bm-stg-card.bm-stg-active {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent) !important;
+}
+
+.bm-stg-card .palette-strip {
+  display: flex;
+  height: 18px;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.bm-stg-card .palette-strip span { flex: 1; }
+
+.bm-stg-card .theme-card-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ── Task 2: Account card — single Recent button ────────────────────────── */
+
+/* Remove old account-actions multi-button layout */
+.account-actions {
+  display: flex !important;
+  gap: 6px !important;
+  align-items: center !important;
+  flex-shrink: 0 !important;
+}
+
+/* Single Recent button style */
+.btn-recent {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  padding: 7px 12px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: var(--primary) !important;
+  background: color-mix(in srgb, var(--primary) 10%, transparent) !important;
+  border: 1.5px solid color-mix(in srgb, var(--primary) 25%, transparent) !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  transition: background 0.15s ease, border-color 0.15s ease !important;
+  white-space: nowrap !important;
+  font-family: inherit !important;
+  min-height: 34px !important;
+}
+
+.btn-recent:hover {
+  background: color-mix(in srgb, var(--primary) 18%, transparent) !important;
+  border-color: var(--primary) !important;
+}
+
+.btn-recent.open {
+  background: var(--primary) !important;
+  color: #fff !important;
+  border-color: var(--primary) !important;
+}
+
+/* Account name — full width, no truncation */
+.acc-name {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: var(--text) !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  word-break: break-word !important;
+  line-height: 1.3 !important;
+}
+
+/* ── Task 3 & 4: Transaction panel — mobile type tab UX ─────────────────── */
+@media (max-width: 768px) {
+
+  /* Stack transaction type tabs as large card-style buttons */
+  .txn-pop-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)) !important;
+    gap: 8px !important;
+    padding: 14px 14px 4px !important;
+    flex-wrap: unset !important;
+    overflow-x: unset !important;
+  }
+
+  .txn-pop-tab {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    padding: 12px 8px !important;
+    min-height: 64px !important;
+    border-radius: 12px !important;
+    border: 1.5px solid var(--ynab-border) !important;
+    background: var(--ynab-light-gray) !important;
+    color: var(--text-light) !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    text-align: center !important;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
+    flex-shrink: unset !important;
+    white-space: normal !important;
+  }
+
+  .txn-pop-tab svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
+  .txn-pop-tab.active {
+    background: var(--primary) !important;
+    border-color: var(--primary) !important;
+    color: #fff !important;
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 35%, transparent) !important;
+  }
+
+  .txn-pop-tab.active svg {
+    stroke: #fff !important;
+  }
+
+  /* Tab section label */
+  .txn-pop-tabs::before {
+    content: 'What type of transaction?';
+    display: block;
+    grid-column: 1 / -1;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-light);
+    margin-bottom: 2px;
+  }
+
+  /* Fields below tabs */
+  .txn-pop-inner {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+  }
+
+  .txn-pop-row {
+    padding: 0 14px !important;
+    margin-top: 12px !important;
+  }
+
+  .txn-pop-field label {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.05em !important;
+    text-transform: uppercase !important;
+    color: var(--text-light) !important;
+    display: block !important;
+    margin-bottom: 6px !important;
+  }
+
+  .txn-pop-input {
+    font-size: 16px !important; /* prevents Android zoom */
+    min-height: 48px !important;
+    border-radius: 10px !important;
+    padding: 12px 14px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Amount field: larger on mobile */
+  .amount-field {
+    font-size: 24px !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.02em !important;
+    text-align: center !important;
+    min-height: 56px !important;
+  }
+
+  .txn-pop-actions {
+    padding: 14px !important;
+    gap: 10px !important;
+    margin-top: 8px !important;
+    /* sticky so it's always reachable above keyboard */
+    position: sticky !important;
+    bottom: 0 !important;
+    background: var(--card-bg) !important;
+    border-top: 1px solid var(--ynab-border) !important;
+  }
+
+  .txn-pop-cancel {
+    flex: 0 0 80px !important;
+    min-height: 48px !important;
+  }
+
+  .txn-pop-save {
+    flex: 1 !important;
+    min-height: 48px !important;
+    font-size: 15px !important;
+  }
+
+  /* Transaction popover header bar */
+  .txn-pop-bar {
+    width: 36px !important;
+    height: 4px !important;
+    background: var(--ynab-border) !important;
+    border-radius: 100px !important;
+    margin: 10px auto 0 !important;
+  }
+}
