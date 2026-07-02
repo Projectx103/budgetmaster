@@ -10510,3 +10510,575 @@ h3 {
 .btn-recent.open svg {
   stroke: #fff !important;
 }
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   REPORTS SECTION — Complete Layout & UX Redesign
+   Appended block. Nothing above modified.
+   Covers: desktop layout fix, mobile portrait, chart scrolling, tables.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── DESKTOP: Fix hardcoded 600px column ────────────────────────────────── */
+@media (min-width: 769px) {
+
+  /* Replace fixed 600px with flexible ratio — chart gets 58%, panel gets 42% */
+  .report-layout {
+    grid-template-columns: minmax(0, 1.4fr) minmax(260px, 1fr) !important;
+    gap: 20px !important;
+    padding: 0 24px 24px !important;
+    align-items: start !important;
+  }
+
+  /* chart-container: let it fill the grid cell naturally */
+  .chart-container {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 300px !important;
+    overflow: hidden !important;
+  }
+
+  /* Canvas inside: fill the container width, keep crisp height */
+  .chart-container canvas {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 260px !important;
+  }
+
+  /* Metric cards: consistent left padding with rest of section */
+  .metric-cards {
+    padding: 16px 24px !important;
+    gap: 12px !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    margin-bottom: 16px !important;
+  }
+
+  /* Report controls: tighten padding */
+  .report-controls {
+    padding: 0 24px 16px !important;
+    gap: 8px !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+  }
+
+  /* Filter panel: horizontal, clean */
+  .filter-panel {
+    padding: 16px 24px !important;
+    gap: 14px !important;
+    align-items: flex-end !important;
+    flex-wrap: wrap !important;
+    border-bottom: 1px solid var(--ynab-border) !important;
+  }
+
+  .filter-panel .form-group {
+    min-width: 140px !important;
+    flex: 1 1 140px !important;
+    max-width: 220px !important;
+  }
+
+  .filter-panel .btn-primary {
+    flex-shrink: 0 !important;
+    min-height: 38px !important;
+    align-self: flex-end !important;
+  }
+
+  /* Report nav: clean underline tab strip */
+  .report-nav {
+    padding: 0 24px !important;
+    background: var(--card-bg) !important;
+    border-bottom: 2px solid var(--ynab-border) !important;
+    margin-bottom: 0 !important;
+  }
+
+  .report-tabs {
+    display: flex !important;
+    gap: 0 !important;
+    width: auto !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+  }
+
+  .report-tab {
+    padding: 14px 20px !important;
+    font-size: 13.5px !important;
+    font-weight: 500 !important;
+    border-bottom: 3px solid transparent !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: var(--text-light) !important;
+    transition: color 0.15s ease, border-color 0.15s ease !important;
+    min-height: 48px !important;
+  }
+
+  .report-tab:hover {
+    color: var(--text) !important;
+    background: var(--ynab-light-gray) !important;
+  }
+
+  .report-tab.active {
+    color: var(--primary) !important;
+    border-bottom-color: var(--primary) !important;
+    background: transparent !important;
+    font-weight: 600 !important;
+  }
+
+  /* data-table: full width with border */
+  .data-table.visible {
+    display: table !important;
+    width: 100% !important;
+    margin: 0 24px !important;
+    width: calc(100% - 48px) !important;
+    border-radius: 10px !important;
+    overflow: hidden !important;
+    border: 1px solid var(--ynab-border) !important;
+  }
+
+  /* Category breakdown panel */
+  .category-breakdown {
+    min-width: 0 !important;
+  }
+
+  /* Summary panel */
+  .summary-panel {
+    min-width: 0 !important;
+  }
+
+  /* Comparison mode */
+  .comparison-mode {
+    display: flex !important;
+    gap: 14px !important;
+    align-items: flex-end !important;
+    flex-wrap: wrap !important;
+    padding: 0 24px 20px !important;
+  }
+
+  .comparison-selector {
+    flex: 1 1 180px !important;
+    min-width: 140px !important;
+  }
+
+  /* Interactive legend */
+  .interactive-legend {
+    padding: 12px 16px !important;
+    gap: 10px !important;
+    flex-wrap: wrap !important;
+  }
+
+  /* Reports outer container: clean, no fixed max-height clipping content */
+  .bm-reports-scroll {
+    max-height: calc(100vh - 180px) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+}
+
+/* ── MOBILE: Portrait Android Chrome ────────────────────────────────────── */
+@media (max-width: 768px) {
+
+  /* ── Container ── */
+  .bm-reports-scroll {
+    max-height: none !important;
+    overflow-y: visible !important;
+    overflow-x: hidden !important;
+    padding: 0 !important;
+  }
+
+  /* ── Report tabs: horizontal scroll strip ── */
+  .report-nav {
+    padding: 0 !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    border-bottom: 2px solid var(--ynab-border) !important;
+    background: var(--card-bg) !important;
+    /* Prevent height collapse */
+    display: block !important;
+  }
+
+  .report-tabs {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    width: max-content !important;
+    min-width: 100% !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 4px !important;
+    gap: 0 !important;
+  }
+
+  .report-tab {
+    flex-shrink: 0 !important;
+    padding: 14px 16px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    min-height: 48px !important;
+    white-space: nowrap !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    border-bottom: 3px solid transparent !important;
+    color: var(--text-light) !important;
+  }
+
+  .report-tab.active {
+    color: var(--primary) !important;
+    border-bottom-color: var(--primary) !important;
+    font-weight: 600 !important;
+  }
+
+  /* ── Filter panel: stacked full-width ── */
+  .filter-panel {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    padding: 14px 14px !important;
+    border-bottom: 1px solid var(--ynab-border) !important;
+  }
+
+  .filter-panel .form-group {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-bottom: 0 !important;
+  }
+
+  .filter-panel .form-input {
+    width: 100% !important;
+    font-size: 16px !important;
+    min-height: 48px !important;
+    padding: 10px 14px !important;
+    box-sizing: border-box !important;
+  }
+
+  .filter-panel .btn-primary {
+    width: 100% !important;
+    min-height: 48px !important;
+    font-size: 15px !important;
+    justify-content: center !important;
+    margin-top: 4px !important;
+  }
+
+  /* ── Metric cards: 2-col grid ── */
+  .metric-cards {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+    padding: 12px 14px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .metric-card {
+    padding: 14px 12px !important;
+  }
+
+  .metric-value {
+    font-size: 17px !important;
+  }
+
+  .metric-label {
+    font-size: 11px !important;
+  }
+
+  /* ── Report controls: horizontal scroll if needed ── */
+  .report-controls {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 10px 14px !important;
+    gap: 8px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .chart-type-selector {
+    display: flex !important;
+    flex-shrink: 0 !important;
+  }
+
+  .chart-type-btn {
+    flex-shrink: 0 !important;
+    padding: 8px 12px !important;
+    min-height: 40px !important;
+    font-size: 12px !important;
+  }
+
+  .chart-control-btn {
+    flex-shrink: 0 !important;
+    padding: 8px 12px !important;
+    min-height: 40px !important;
+    font-size: 12px !important;
+  }
+
+  /* ── Report layout: single column ── */
+  .report-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    padding: 0 !important;
+    margin-bottom: 14px !important;
+  }
+
+  /* ── Chart container: SCROLLABLE, not clipping ── */
+  .chart-container {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    /* KEY FIX: overflow-x scroll so 560px canvas scrolls not clips */
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    border-radius: 10px !important;
+    /* Add bottom padding for scrollbar visibility */
+    padding-bottom: 6px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Canvas: keep JS-set 560px width — it scrolls inside the container */
+  .chart-container canvas {
+    display: block !important;
+    /* Do NOT override width — JS sets 560px for HiDPI sharpness */
+    /* Do NOT set max-width: 100% — that would squash the chart */
+    height: 240px !important;
+    max-width: none !important;
+  }
+
+  /* Chart header stays full width above scroll area */
+  .chart-header {
+    min-width: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 14px 16px !important;
+  }
+
+  .chart-title { font-size: 14px !important; }
+  .chart-subtitle { font-size: 11px !important; }
+
+  /* ── Category breakdown: full width below chart ── */
+  .category-breakdown {
+    width: 100% !important;
+    min-width: 0 !important;
+    border-radius: 10px !important;
+  }
+
+  .breakdown-list {
+    max-height: 280px !important;
+    overflow-y: auto !important;
+  }
+
+  /* ── Summary panel: full width below chart ── */
+  .summary-panel {
+    width: 100% !important;
+    min-width: 0 !important;
+    border-radius: 10px !important;
+  }
+
+  /* ── Interactive legend: horizontal scroll ── */
+  .interactive-legend {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex-wrap: nowrap !important;
+    padding: 10px 12px !important;
+    gap: 8px !important;
+  }
+
+  .legend-item {
+    flex-shrink: 0 !important;
+    font-size: 12px !important;
+  }
+
+  /* ── Data table (Spending): horizontal scroll ── */
+  .data-table {
+    /* When .visible class added by JS, switch to block not table */
+    display: none !important;
+  }
+
+  .data-table.visible {
+    display: block !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    width: 100% !important;
+    border-radius: 10px !important;
+    border: 1px solid var(--ynab-border) !important;
+    margin: 12px 0 !important;
+  }
+
+  /* Force table display on inner table element when scrollable */
+  .data-table.visible > * {
+    display: table !important;
+    min-width: 380px !important;
+    width: 100% !important;
+  }
+
+  .data-table th,
+  .data-table td {
+    white-space: nowrap !important;
+    padding: 10px 12px !important;
+    font-size: 13px !important;
+  }
+
+  /* ── IE Table (Income vs Expense): horizontal scroll ── */
+  .ie-table-wrap {
+    display: none !important;
+    margin: 12px 0 !important;
+    border-radius: 10px !important;
+  }
+
+  .ie-table-wrap.visible {
+    display: block !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    width: 100% !important;
+  }
+
+  .ie-table-header-row {
+    min-width: 480px !important;
+    font-size: 11px !important;
+  }
+
+  .ie-table-scroll {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    max-height: 320px !important;
+  }
+
+  .ie-full-table {
+    min-width: 480px !important;
+    font-size: 12px !important;
+  }
+
+  /* ── Comparison mode: stacked ── */
+  .comparison-mode {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    padding: 14px !important;
+    align-items: stretch !important;
+  }
+
+  .comparison-selector {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .comparison-selector label {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    color: var(--text-light) !important;
+    margin-bottom: 6px !important;
+    display: block !important;
+  }
+
+  .comparison-selector select,
+  .comparison-selector .form-input {
+    width: 100% !important;
+    font-size: 16px !important;
+    min-height: 48px !important;
+    box-sizing: border-box !important;
+  }
+
+  .comparison-mode .btn {
+    width: 100% !important;
+    min-height: 48px !important;
+    font-size: 15px !important;
+    justify-content: center !important;
+    align-self: stretch !important;
+  }
+
+  /* ── Report header (title + export/print buttons) ── */
+  #reports header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+    padding: 0 0 12px 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  #reports header span {
+    font-size: 22px !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.03em !important;
+  }
+
+  #reports header > div {
+    display: flex !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+  }
+
+  #reports header .btn {
+    font-size: 13px !important;
+    padding: 9px 14px !important;
+    min-height: 44px !important;
+  }
+
+  /* Export dropdown: position relative to button not fixed viewport */
+  .export-dropdown {
+    right: 0 !important;
+    left: auto !important;
+    top: calc(100% + 4px) !important;
+    min-width: 140px !important;
+  }
+
+  /* filter chips */
+  .filter-chips {
+    padding: 0 14px 10px !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+
+  /* report-content spacing */
+  .report-content {
+    padding: 0 !important;
+  }
+
+  .report-content.active {
+    display: block !important;
+    padding: 12px 14px !important;
+  }
+}
+
+/* ── Small phones ≤ 390px ───────────────────────────────────────────────── */
+@media (max-width: 390px) {
+  .metric-cards {
+    grid-template-columns: 1fr !important;
+  }
+
+  .report-tab {
+    padding: 12px 12px !important;
+    font-size: 12px !important;
+  }
+}
+
+
+
+/* ── Data table scroll wrapper ───────────────────────────────────────────── */
+.bm-data-table-scroll {
+  /* transparent pass-through on desktop */
+  width: 100%;
+  padding: 0 24px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .bm-data-table-scroll {
+    padding: 0 !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    width: 100% !important;
+    border-radius: 10px !important;
+  }
+
+  /* Restore table to display:table inside the scroll wrapper */
+  .bm-data-table-scroll .data-table {
+    display: none !important;
+    min-width: 380px !important;
+    width: max-content !important;
+  }
+
+  .bm-data-table-scroll .data-table.visible {
+    display: table !important;
+  }
+}
