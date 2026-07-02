@@ -2005,17 +2005,9 @@ function createAccountCard(acc, index, typeInfo) {
         ${balanceSub}
       </div>
       <div class="account-actions">
-        <button class="btn-sm btn-outline" onclick="toggleAccountHistory(${index})" title="Transaction History">
+        <button class="btn-recent" onclick="toggleAccountHistory(${index})" id="btn-recent-${index}" title="View recent transactions">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        </button>
-        <button class="btn-sm btn-outline" onclick="editAccount(${index})" title="Edit">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        </button>
-        <button class="btn-sm btn-outline btn-add-txn" id="add-txn-btn-${index}" onclick="openTransactionPanel(${index})" title="Add Transaction">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        </button>
-        <button class="btn-sm btn-danger" onclick="deleteAccount(${index})" title="Delete">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          Recent
         </button>
       </div>
     </div>
@@ -3489,12 +3481,15 @@ async function deleteTransaction(categoryName, txId) {
 
 async function toggleAccountHistory(index) {
   const panel = document.getElementById(`acct-txn-history-${index}`);
+  const btn   = document.getElementById(`btn-recent-${index}`);
   if (!panel) return;
   if (panel.style.display === 'none' || panel.style.display === '') {
     panel.style.display = 'block';
+    if (btn) btn.classList.add('open');
     await loadAccountTransactionHistory(index);
   } else {
     panel.style.display = 'none';
+    if (btn) btn.classList.remove('open');
   }
 }
 
@@ -9586,5 +9581,73 @@ if ("serviceWorker" in navigator) {
   // Expose for external use
   window.openAccountActionSheet  = openAccountActionSheet;
   window.closeAccountActionSheet = closeAccountActionSheet;
+
+})();
+
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// SETTINGS APPEARANCE PANEL — Theme picker in Settings for mobile users
+// Appended. Nothing above modified.
+// ════════════════════════════════════════════════════════════════════════════
+
+(function setupSettingsThemePanel() {
+
+  function syncSettingsThemeActive(currentTheme) {
+    document.querySelectorAll('.bm-stg-card').forEach(card => {
+      if (card.dataset.theme === currentTheme) {
+        card.classList.add('bm-stg-active');
+      } else {
+        card.classList.remove('bm-stg-active');
+      }
+    });
+  }
+
+  function init() {
+    const grid = document.getElementById('bm-settings-theme-grid');
+    if (!grid) return;
+
+    // Wire each theme card to ThemeManager.setTheme
+    grid.querySelectorAll('.bm-stg-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const theme = card.dataset.theme;
+        // Use the existing ThemeManager instance
+        if (window.themeManager && typeof window.themeManager.setTheme === 'function') {
+          window.themeManager.setTheme(theme);
+        } else {
+          // Fallback: directly apply if ThemeManager not exposed
+          document.documentElement.removeAttribute('data-theme');
+          if (theme !== 'classic') {
+            document.documentElement.setAttribute('data-theme', theme);
+          }
+          localStorage.setItem('budgetmaster-theme', theme);
+        }
+        syncSettingsThemeActive(theme);
+      });
+    });
+
+    // Sync active state when panel is opened
+    // Watch for themeSection becoming visible
+    const themeSection = document.getElementById('themeSection');
+    if (themeSection) {
+      const obs = new MutationObserver(() => {
+        if (themeSection.style.display !== 'none') {
+          const current = localStorage.getItem('budgetmaster-theme') || 'classic';
+          syncSettingsThemeActive(current);
+        }
+      });
+      obs.observe(themeSection, { attributes: true, attributeFilter: ['style'] });
+    }
+
+    // Also sync on init
+    const current = localStorage.getItem('budgetmaster-theme') || 'classic';
+    syncSettingsThemeActive(current);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
 
 })();
