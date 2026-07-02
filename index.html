@@ -708,7 +708,7 @@
         </button>
       </div>
 
-      <!-- Type tabs (liability / credit-card mode) -->
+      <!-- Type tabs (liability / credit-card mode) — Transfer removed: not applicable to liabilities -->
       <div class="txn-pop-tabs" id="txn-tabs-liability" style="display:none;">
         <button class="txn-pop-tab active" data-type="expense">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
@@ -717,10 +717,6 @@
         <button class="txn-pop-tab" data-type="pay">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
           Pay
-        </button>
-        <button class="txn-pop-tab" data-type="transfer">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-          Transfer
         </button>
       </div>
 
@@ -1415,6 +1411,7 @@
         <li data-section="recurringSection">Recurring</li>
         <li data-section="rolloverSection">Rollover Settings</li>
         <li data-section="dataSection">Data Management</li>
+        <li data-section="themeSection" id="settings-theme-tab" class="bm-mobile-only-tab">Appearance</li>
       </ul>
     </nav>
 
@@ -1539,6 +1536,67 @@
           <small>Permanently delete your account and all data. This cannot be reversed.</small>
         </div>
       </div>
+
+      <!-- Appearance / Theme Section — shown in Settings on mobile -->
+      <div class="card settings-section" id="themeSection" style="display:none;">
+        <div class="section-header">
+          <h2>Appearance</h2>
+          <p style="color:var(--text-light);font-size:13px;margin:4px 0 0;">Choose a colour theme for BudgetMaster.</p>
+        </div>
+        <div class="bm-settings-theme-grid" id="bm-settings-theme-grid">
+          <!-- Classic Blue -->
+          <button class="bm-stg-card" data-theme="classic">
+            <div class="palette-strip"><span style="background:#2563eb"></span><span style="background:#1d4ed8"></span><span style="background:#dbeafe"></span><span style="background:#f5f7fa"></span></div>
+            <div class="theme-card-label">Classic Blue</div>
+          </button>
+          <!-- Soft Sunrise -->
+          <button class="bm-stg-card" data-theme="dark">
+            <div class="palette-strip"><span style="background:#FFF9D2"></span><span style="background:#FFEBCC"></span><span style="background:#BFDDF0"></span><span style="background:#8CC0EB"></span></div>
+            <div class="theme-card-label">Soft Sunrise</div>
+          </button>
+          <!-- Crimson Dust -->
+          <button class="bm-stg-card" data-theme="sage-garden">
+            <div class="palette-strip"><span style="background:#810B38"></span><span style="background:#F1E2D1"></span><span style="background:#DCC3AA"></span><span style="background:#541A1A"></span></div>
+            <div class="theme-card-label">Crimson Dust</div>
+          </button>
+          <!-- Aqua Mist -->
+          <button class="bm-stg-card" data-theme="warm-latte">
+            <div class="palette-strip"><span style="background:#E3FDFD"></span><span style="background:#CBF1F5"></span><span style="background:#A6E3E9"></span><span style="background:#71C9CE"></span></div>
+            <div class="theme-card-label">Aqua Mist</div>
+          </button>
+          <!-- Forest Parchment -->
+          <button class="bm-stg-card" data-theme="soft-blush">
+            <div class="palette-strip"><span style="background:#FBF5DD"></span><span style="background:#E7E1B1"></span><span style="background:#306D29"></span><span style="background:#0D530E"></span></div>
+            <div class="theme-card-label">Forest Parchment</div>
+          </button>
+          <!-- Citrus Breeze -->
+          <button class="bm-stg-card" data-theme="ocean-steel">
+            <div class="palette-strip"><span style="background:#FFF6DE"></span><span style="background:#8BDFDD"></span><span style="background:#F48F68"></span><span style="background:#FFE394"></span></div>
+            <div class="theme-card-label">Citrus Breeze</div>
+          </button>
+          <!-- Lavender Fog -->
+          <button class="bm-stg-card" data-theme="sunset-vibes">
+            <div class="palette-strip"><span style="background:rgb(255,199,199)"></span><span style="background:rgb(255,226,226)"></span><span style="background:rgb(246,246,246)"></span><span style="background:rgb(135,133,162)"></span></div>
+            <div class="theme-card-label">Lavender Fog</div>
+          </button>
+          <!-- Midnight Red -->
+          <button class="bm-stg-card" data-theme="pastel-dream">
+            <div class="palette-strip"><span style="background:#000000"></span><span style="background:#3E3636"></span><span style="background:#D72323"></span><span style="background:#F5EDED"></span></div>
+            <div class="theme-card-label">Midnight Red</div>
+          </button>
+          <!-- Deep Emerald -->
+          <button class="bm-stg-card" data-theme="steel-blue">
+            <div class="palette-strip"><span style="background:#091413"></span><span style="background:#285A48"></span><span style="background:#408A71"></span><span style="background:#B0E4CC"></span></div>
+            <div class="theme-card-label">Deep Emerald</div>
+          </button>
+          <!-- Royal Ember -->
+          <button class="bm-stg-card" data-theme="royal-ember">
+            <div class="palette-strip"><span style="background:#32012F"></span><span style="background:#524C42"></span><span style="background:#E2DFD0"></span><span style="background:#F97300"></span></div>
+            <div class="theme-card-label">Royal Ember</div>
+          </button>
+        </div>
+      </div>
+
     </div>
   </div>
 </section>
