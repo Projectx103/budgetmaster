@@ -9705,3 +9705,515 @@ h3 {
     }
   }
 }
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   BUG FIXES — 7 Mobile Portrait Bugs
+   Appended block. Nothing above this line was modified.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── BUG 1: Theme selector — never overlaps rollover or content ──────────── */
+@media (max-width: 768px) {
+
+  /* Theme selector anchors to top-right of the top bar */
+  .theme-selector {
+    position: fixed !important;
+    top: 8px !important;
+    right: 12px !important;
+    left: auto !important;
+    z-index: 9500 !important;
+  }
+
+  /* Icon-only pill — 40×40 — no text, no min-width */
+  .theme-toggle {
+    min-width: 0 !important;
+    width: 40px !important;
+    height: 40px !important;
+    padding: 0 !important;
+    border-radius: 10px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: 1.5px solid var(--ynab-border) !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08) !important;
+  }
+
+  /* Hide text + arrow, keep only the emoji icon */
+  .theme-toggle #currentThemeName,
+  .theme-toggle .dropdown-arrow { display: none !important; }
+  .theme-icon { font-size: 18px !important; animation: none !important; }
+
+  /* Theme dropdown opens as centered modal (already from prior CSS) */
+  .theme-dropdown {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translate(-50%, -50%) scale(0.95) !important;
+    width: calc(100vw - 32px) !important;
+    max-width: 340px !important;
+    max-height: 78vh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    border-radius: 20px !important;
+    z-index: 9600 !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s !important;
+    margin-top: 0 !important;
+  }
+
+  .theme-dropdown.open {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: translate(-50%, -50%) scale(1) !important;
+  }
+
+  /* Rollover button: pull out of the hidden header and show inline on mobile */
+  /* The header itself is display:none, but rollover is re-surfaced via
+     .bm-rollover-mobile wrapper we inject with JS */
+  .bm-rollover-mobile {
+    display: flex !important;
+    justify-content: flex-end !important;
+    margin-bottom: 14px !important;
+  }
+
+  .bm-rollover-mobile .rollover-btn {
+    padding: 9px 16px !important;
+    font-size: 13px !important;
+    min-height: 40px !important;
+    border-radius: 10px !important;
+  }
+}
+
+/* ── BUG 2: Bottom nav — 5 items, no FAB slot ───────────────────────────── */
+@media (max-width: 768px) {
+
+  /* 5 equal columns — no special FAB slot */
+  .bm-bottom-nav {
+    justify-content: space-around !important;
+  }
+
+  /* Remove the old FAB slot spacer if still in DOM */
+  .bm-bn-fab-slot { display: none !important; }
+
+  /* FAB now sits bottom-right (not centre) — less obtrusive with 5 nav items */
+  .bm-m3-fab {
+    left: auto !important;
+    right: 16px !important;
+    transform: none !important;
+    bottom: calc(64px + 10px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .bm-m3-fab:active {
+    transform: scale(0.93) !important;
+  }
+
+  /* FAB menu repositioned to above the FAB (bottom-right) */
+  .bm-fab-menu {
+    left: auto !important;
+    right: 16px !important;
+    transform: none !important;
+    bottom: calc(64px + 10px + 68px + env(safe-area-inset-bottom, 0px)) !important;
+    align-items: flex-end !important;
+  }
+
+  /* Undo the old translateX(-50%) active transforms */
+  .bm-m3-fab.bm-fab-open {
+    transform: none !important;
+  }
+
+  /* Each nav item label smaller to fit 5 */
+  .bm-bn-label {
+    font-size: 10px !important;
+  }
+
+  .bm-bn-item.active .bm-bn-label {
+    font-size: 11px !important;
+  }
+
+  /* Indicator pill slightly narrower for 5-item nav */
+  .bm-bn-indicator {
+    width: 52px !important;
+  }
+}
+
+/* ── BUG 3: Accounts panels — no overflow, no clipped widths ────────────── */
+@media (max-width: 768px) {
+
+  /* Grid children must have min-width: 0 or they ignore grid constraints */
+  .accounts-two-col {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .accounts-panel {
+    min-width: 0 !important;
+    width: 100% !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Account items inside panels */
+  .account-item {
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .acc-name {
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    min-width: 0 !important;
+  }
+
+  /* Net worth bar — horizontal on mobile instead of cramped columns */
+  .net-worth-bar {
+    flex-direction: column !important;
+    gap: 0 !important;
+    background: var(--card-bg) !important;
+  }
+
+  .nw-cell {
+    border-radius: 0 !important;
+    border-bottom: 1px solid var(--ynab-border) !important;
+    padding: 12px 16px !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+  }
+
+  .nw-cell:first-child { border-radius: 10px 10px 0 0 !important; }
+  .nw-cell:last-child  { border-radius: 0 0 10px 10px !important; border-bottom: none !important; }
+
+  .nw-value { font-size: 16px !important; }
+  .nw-label { font-size: 11px !important; }
+
+  /* Transaction popover inside account panel — full width */
+  .txn-popover {
+    position: fixed !important;
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-height: 70vh !important;
+    border-radius: 20px 20px 0 0 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    z-index: 9100 !important;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.14) !important;
+  }
+
+  /* Popover sits ABOVE bottom nav */
+  .txn-pop-row {
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .txn-pop-field { flex: 1 1 100% !important; min-width: 0 !important; }
+
+  .txn-pop-input, .txn-pop-select {
+    width: 100% !important;
+    font-size: 16px !important;
+    min-height: 46px !important;
+    box-sizing: border-box !important;
+  }
+
+  .txn-pop-tabs {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .txn-pop-tab {
+    flex-shrink: 0 !important;
+    min-height: 46px !important;
+    padding: 10px 16px !important;
+  }
+
+  .txn-pop-actions {
+    padding: 12px 16px !important;
+    gap: 10px !important;
+  }
+
+  .txn-pop-cancel, .txn-pop-save {
+    flex: 1 !important;
+    min-height: 48px !important;
+    font-size: 15px !important;
+  }
+}
+
+/* ── BUG 4: Modals — Save button visible above bottom nav ────────────────── */
+@media (max-width: 768px) {
+
+  /* All modals: bottom sheet anchored above the bottom nav */
+  .modal {
+    align-items: flex-end !important;
+    padding: 0 !important;
+    /* z-index above bottom nav (9400) and FAB (9450) */
+    z-index: 9700 !important;
+  }
+
+  .modal-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 20px 20px 0 0 !important;
+    /* Max height leaves room above bottom nav */
+    max-height: calc(92vh - 64px - env(safe-area-inset-bottom, 0px)) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 20px 18px !important;
+    /* Ensure bottom padding clears bottom nav */
+    padding-bottom: calc(24px + 64px + env(safe-area-inset-bottom, 0px)) !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Modal actions row — sticky at bottom of modal-content */
+  .modal-actions {
+    position: sticky !important;
+    bottom: 0 !important;
+    background: var(--card-bg) !important;
+    padding: 12px 0 !important;
+    margin-top: 16px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    z-index: 1 !important;
+  }
+
+  .modal-actions button {
+    width: 100% !important;
+    min-height: 48px !important;
+    font-size: 15px !important;
+  }
+
+  /* Close button stays accessible */
+  .modal .close {
+    position: sticky !important;
+    top: 0 !important;
+    float: right !important;
+    z-index: 2 !important;
+    font-size: 28px !important;
+    line-height: 1 !important;
+    padding: 4px !important;
+  }
+}
+
+/* ── BUG 7: Charts — scrollable, not clipped ─────────────────────────────── */
+@media (max-width: 768px) {
+
+  /* Wrap canvas in a scrollable container so 560px chart scrolls */
+  .chart-container {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    height: auto !important;
+    padding-bottom: 8px !important;
+  }
+
+  /* Canvas keeps its 560px width but scrolls inside container */
+  .chart-container canvas {
+    display: block !important;
+    /* Do not override width — JS sets it to 560px intentionally for sharpness.
+       We let it scroll instead of clip. */
+    max-width: none !important;
+    height: 260px !important;
+  }
+
+  /* chart-header stays full width above the scroll area */
+  .chart-header {
+    min-width: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Interactive legend scrolls horizontally */
+  .interactive-legend {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex-wrap: nowrap !important;
+    padding-bottom: 4px !important;
+  }
+
+  /* Data tables — horizontal scroll wrapper */
+  .data-table,
+  #spendingDataTable {
+    display: block !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    white-space: nowrap !important;
+    width: 100% !important;
+    font-size: 13px !important;
+  }
+
+  .data-table thead,
+  .data-table tbody,
+  .data-table tr,
+  #spendingDataTable thead,
+  #spendingDataTable tbody,
+  #spendingDataTable tr {
+    /* Allow normal table layout inside scroll container */
+    display: table-row-group !important;
+    width: auto !important;
+  }
+
+  .data-table thead,
+  #spendingDataTable thead {
+    display: table-header-group !important;
+  }
+
+  .data-table th,
+  .data-table td,
+  #spendingDataTable th,
+  #spendingDataTable td {
+    white-space: nowrap !important;
+    padding: 10px 14px !important;
+  }
+
+  /* Income/Expense report table also */
+  .ie-table-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    width: 100% !important;
+  }
+
+  .ie-full-table {
+    min-width: 480px !important;
+    font-size: 13px !important;
+  }
+
+  /* Report tabs scrollable */
+  .report-tabs {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex-wrap: nowrap !important;
+    display: flex !important;
+    width: 100% !important;
+    padding-bottom: 4px !important;
+    border-radius: 12px !important;
+  }
+
+  .report-tab {
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+    min-height: 44px !important;
+  }
+}
+
+/* ── BUG 6: Account action bottom sheet ──────────────────────────────────── */
+.bm-acct-action-sheet {
+  display: none; /* JS controls visibility */
+  position: fixed;
+  inset: 0;
+  z-index: 9800;
+}
+
+.bm-acct-action-sheet.open {
+  display: block;
+}
+
+.bm-aas-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.bm-aas-panel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--card-bg);
+  border-radius: 20px 20px 0 0;
+  padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -4px 32px rgba(0,0,0,0.16);
+  transform: translateY(100%);
+  transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+}
+
+.bm-acct-action-sheet.open .bm-aas-panel {
+  transform: translateY(0);
+}
+
+.bm-aas-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--ynab-border);
+  border-radius: 100px;
+  margin: 0 auto 16px;
+}
+
+.bm-aas-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-light);
+  text-align: center;
+  margin-bottom: 14px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bm-aas-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 54px;
+  padding: 14px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bm-aas-btn:hover,
+.bm-aas-btn:active {
+  background: var(--ynab-light-gray);
+}
+
+.bm-aas-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--ynab-light-gray);
+  border: 1px solid var(--ynab-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text);
+}
+
+.bm-aas-danger { color: var(--danger) !important; }
+.bm-aas-danger .bm-aas-icon {
+  background: rgba(220,38,38,0.07) !important;
+  border-color: rgba(220,38,38,0.2) !important;
+  color: var(--danger) !important;
+}
+
+.bm-aas-cancel {
+  color: var(--text-light) !important;
+  margin-top: 4px !important;
+  justify-content: center !important;
+  font-weight: 500 !important;
+}
+
+/* Desktop: action sheet never shows */
+@media (min-width: 769px) {
+  .bm-acct-action-sheet { display: none !important; }
+}
