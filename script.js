@@ -2006,8 +2006,7 @@ function createAccountCard(acc, index, typeInfo) {
       </div>
       <div class="account-actions">
         <button class="btn-recent" onclick="toggleAccountHistory(${index})" id="btn-recent-${index}" title="View recent transactions">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          Recent
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         </button>
       </div>
     </div>
@@ -9522,6 +9521,9 @@ if ("serviceWorker" in navigator) {
 
       // Don't intercept the existing + button (add-txn-btn)
       if (e.target.closest('.btn-add-txn')) return;
+
+      // Don't intercept the Recent (history) button — it has its own onclick
+      if (e.target.closest('.btn-recent')) return;
 
       // Get account index from the item's id: account-item-{index}
       const match = item.id && item.id.match(/account-item-(\d+)/);
