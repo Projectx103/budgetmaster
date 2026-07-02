@@ -9262,3 +9262,329 @@ if ("serviceWorker" in navigator) {
   }
 
 })();
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// BUG FIXES — Mobile Portrait: Bugs 1, 2, 5, 6
+// Appended block. Zero changes to existing code above.
+// ════════════════════════════════════════════════════════════════════════════
+
+(function setupMobileBugFixes() {
+
+  function isMobile() { return window.innerWidth <= 768; }
+
+  // ── BUG 1: Surface rollover button on mobile ─────────────────────────
+  // The dashboard <header> is hidden on mobile (section header display:none).
+  // We move the rollover button to a visible wrapper below the top bar.
+  function initRolloverMobile() {
+    const rolloverBtn = document.getElementById('rolloverBtn');
+    if (!rolloverBtn || !isMobile()) return;
+
+    // Already moved?
+    if (document.getElementById('bm-rollover-mobile-wrap')) return;
+
+    // Create wrapper
+    const wrap = document.createElement('div');
+    wrap.className = 'bm-rollover-mobile';
+    wrap.id = 'bm-rollover-mobile-wrap';
+
+    // Clone the button (don't move it — original onclick stays on clone via innerHTML)
+    const clone = rolloverBtn.cloneNode(true);
+    clone.id = 'rolloverBtnMobile';
+    // Wire to same function
+    clone.addEventListener('click', () => {
+      if (typeof initiateRollover === 'function') initiateRollover();
+    });
+
+    wrap.appendChild(clone);
+
+    // Insert before the appSection div inside dashboard
+    const appSection = document.getElementById('appSection');
+    if (appSection) {
+      appSection.parentNode.insertBefore(wrap, appSection);
+    }
+  }
+
+  // ── BUG 2: Keep bottom nav in sync with Budget (new item) ────────────
+  // The setupM3Navigation IIFE already handles click→sidebarLink dispatch.
+  // We only need to ensure Budget is in the SECTION_TITLES map.
+  // That's handled in the M3 JS above via MutationObserver.
+  // Budget section was already in the sidebar, so no extra wiring needed.
+
+  // ── BUG 5: Context-aware FAB speed dial ──────────────────────────────
+  // On Accounts section: show "+ Asset" and "+ Liability" only.
+  // On other sections: show Income / Category / Transaction.
+
+  const DEFAULT_FAB_HTML = `
+    <button class="bm-fab-action" id="fab-income" aria-label="Add income">
+      <span class="bm-fa-label">Income</span>
+      <span class="bm-fa-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+          <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+        </svg>
+      </span>
+    </button>
+    <button class="bm-fab-action" id="fab-category" aria-label="Add category">
+      <span class="bm-fa-label">Category</span>
+      <span class="bm-fa-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+      </span>
+    </button>
+    <button class="bm-fab-action bm-fa-primary" id="fab-transaction" aria-label="Add transaction">
+      <span class="bm-fa-label">Transaction</span>
+      <span class="bm-fa-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </span>
+    </button>`;
+
+  const ACCOUNTS_FAB_HTML = `
+    <button class="bm-fab-action bm-fa-primary" id="fab-add-asset" aria-label="Add asset account">
+      <span class="bm-fa-label">+ Asset</span>
+      <span class="bm-fa-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+          <rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+        </svg>
+      </span>
+    </button>
+    <button class="bm-fab-action" id="fab-add-liability" aria-label="Add liability account">
+      <span class="bm-fa-label">+ Liability</span>
+      <span class="bm-fa-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+          <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/>
+        </svg>
+      </span>
+    </button>`;
+
+  function wireFabActions(sectionId) {
+    const menu = document.getElementById('bm-fab-menu');
+    if (!menu) return;
+
+    if (sectionId === 'accounts') {
+      menu.innerHTML = ACCOUNTS_FAB_HTML;
+
+      // Wire + Asset: open account modal with first asset type pre-selected
+      const assetBtn = document.getElementById('fab-add-asset');
+      if (assetBtn) {
+        assetBtn.addEventListener('click', () => {
+          if (typeof window.closeFabMenu === 'function') window.closeFabMenu();
+          // Reset modal then pre-select 'checking' (first asset type)
+          if (typeof resetAccountModal === 'function') resetAccountModal();
+          if (typeof syncAccountTypeGrid === 'function') syncAccountTypeGrid('checking');
+          const typeSelect = document.getElementById('account-type');
+          if (typeSelect) typeSelect.value = 'checking';
+          const titleEl   = document.getElementById('account-modal-title');
+          const eyebrowEl = document.getElementById('account-modal-eyebrow');
+          if (titleEl)   titleEl.innerText     = 'Add Asset Account';
+          if (eyebrowEl) eyebrowEl.textContent = 'New asset';
+          if (typeof openModal === 'function') openModal('account-modal');
+        });
+      }
+
+      // Wire + Liability: open account modal with credit-card pre-selected
+      const liabBtn = document.getElementById('fab-add-liability');
+      if (liabBtn) {
+        liabBtn.addEventListener('click', () => {
+          if (typeof window.closeFabMenu === 'function') window.closeFabMenu();
+          if (typeof resetAccountModal === 'function') resetAccountModal();
+          if (typeof syncAccountTypeGrid === 'function') syncAccountTypeGrid('credit-card');
+          const typeSelect = document.getElementById('account-type');
+          if (typeSelect) typeSelect.value = 'credit-card';
+          const cc = document.getElementById('credit-card-fields');
+          if (cc) cc.style.display = 'block';
+          const titleEl   = document.getElementById('account-modal-title');
+          const eyebrowEl = document.getElementById('account-modal-eyebrow');
+          if (titleEl)   titleEl.innerText     = 'Add Liability Account';
+          if (eyebrowEl) eyebrowEl.textContent = 'New liability';
+          if (typeof openModal === 'function') openModal('account-modal');
+        });
+      }
+
+    } else {
+      // Default: Income / Category / Transaction
+      menu.innerHTML = DEFAULT_FAB_HTML;
+
+      const incomeBtn = document.getElementById('fab-income');
+      if (incomeBtn) incomeBtn.addEventListener('click', () => {
+        if (typeof openModal === 'function') openModal('incomeModal');
+        if (typeof window.closeFabMenu === 'function') window.closeFabMenu();
+      });
+
+      const catBtn = document.getElementById('fab-category');
+      if (catBtn) catBtn.addEventListener('click', () => {
+        if (typeof openModal === 'function') openModal('categoryModal');
+        if (typeof window.closeFabMenu === 'function') window.closeFabMenu();
+      });
+
+      const txnBtn = document.getElementById('fab-transaction');
+      if (txnBtn) txnBtn.addEventListener('click', () => {
+        if (typeof openModal === 'function') openModal('transactionModal');
+        if (typeof window.closeFabMenu === 'function') window.closeFabMenu();
+      });
+    }
+  }
+
+  // ── BUG 6: Account row tap → action bottom sheet ─────────────────────
+  let _aasAccountIndex = null;
+
+  function openAccountActionSheet(index) {
+    if (!isMobile()) return; // desktop uses existing popover
+    _aasAccountIndex = index;
+
+    const sheet    = document.getElementById('bm-acct-action-sheet');
+    const title    = document.getElementById('bm-aas-title');
+    if (!sheet) return;
+
+    // Set title to account name
+    if (window.accounts && window.accounts[index]) {
+      const acc = window.accounts[index];
+      if (title) title.textContent = acc.name || 'Account';
+    }
+
+    sheet.classList.add('open');
+    sheet.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeAccountActionSheet() {
+    const sheet = document.getElementById('bm-acct-action-sheet');
+    if (!sheet) return;
+    sheet.classList.remove('open');
+    sheet.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    _aasAccountIndex = null;
+  }
+
+  function initAccountActionSheet() {
+    const sheet    = document.getElementById('bm-acct-action-sheet');
+    const backdrop = document.getElementById('bm-aas-backdrop');
+    const addTxn   = document.getElementById('bm-aas-add-txn');
+    const editBtn  = document.getElementById('bm-aas-edit');
+    const deleteBtn = document.getElementById('bm-aas-delete');
+    const cancelBtn = document.getElementById('bm-aas-cancel');
+
+    if (!sheet) return;
+
+    // Close on backdrop tap
+    if (backdrop) backdrop.addEventListener('click', closeAccountActionSheet);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeAccountActionSheet);
+
+    // Add transaction — delegates to existing openTransactionPanel
+    if (addTxn) {
+      addTxn.addEventListener('click', () => {
+        const idx = _aasAccountIndex;
+        closeAccountActionSheet();
+        if (idx !== null && typeof openTransactionPanel === 'function') {
+          setTimeout(() => openTransactionPanel(idx), 80);
+        }
+      });
+    }
+
+    // Edit — delegates to existing editAccount
+    if (editBtn) {
+      editBtn.addEventListener('click', () => {
+        const idx = _aasAccountIndex;
+        closeAccountActionSheet();
+        if (idx !== null && typeof editAccount === 'function') {
+          setTimeout(() => editAccount(idx), 80);
+        }
+      });
+    }
+
+    // Delete — delegates to existing deleteAccount
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', () => {
+        const idx = _aasAccountIndex;
+        closeAccountActionSheet();
+        if (idx !== null && typeof deleteAccount === 'function') {
+          setTimeout(() => deleteAccount(idx), 80);
+        }
+      });
+    }
+
+    // Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeAccountActionSheet();
+    });
+  }
+
+  // Hook account-item taps on mobile to open action sheet
+  // We use event delegation on the main-content since account items
+  // are rendered dynamically by renderAccounts()
+  function initAccountRowTapDelegation() {
+    const mainContent = document.querySelector('.main-content');
+    if (!mainContent) return;
+
+    mainContent.addEventListener('click', (e) => {
+      if (!isMobile()) return;
+
+      // Find tapped account-item
+      const item = e.target.closest('.account-item');
+      if (!item) return;
+
+      // Don't intercept the existing + button (add-txn-btn)
+      if (e.target.closest('.btn-add-txn')) return;
+
+      // Get account index from the item's id: account-item-{index}
+      const match = item.id && item.id.match(/account-item-(\d+)/);
+      if (!match) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      openAccountActionSheet(parseInt(match[1], 10));
+    });
+  }
+
+  // ── Hook into section changes to swap FAB dial ────────────────────────
+  // Patch onSectionChange from setupM3Navigation by observing the same
+  // MutationObserver pattern (we can't access the closure directly)
+  function observeForFabSwap() {
+    const sections = document.querySelectorAll('.section');
+    const observer = new MutationObserver(() => {
+      let active = 'dashboard';
+      sections.forEach(sec => {
+        if (sec.style.display !== 'none' && sec.id) active = sec.id;
+      });
+      wireFabActions(active);
+    });
+    sections.forEach(sec => {
+      observer.observe(sec, { attributes: true, attributeFilter: ['style'] });
+    });
+    // Set initial state
+    wireFabActions('dashboard');
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────
+  function init() {
+    initRolloverMobile();
+    initAccountActionSheet();
+    initAccountRowTapDelegation();
+    observeForFabSwap();
+
+    // Re-run rollover init when appSection becomes visible
+    // (it starts as display:none)
+    const appSection = document.getElementById('appSection');
+    if (appSection) {
+      const obs = new MutationObserver(() => {
+        if (appSection.style.display !== 'none' && isMobile()) {
+          initRolloverMobile();
+        }
+      });
+      obs.observe(appSection, { attributes: true, attributeFilter: ['style'] });
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+  // Expose for external use
+  window.openAccountActionSheet  = openAccountActionSheet;
+  window.closeAccountActionSheet = closeAccountActionSheet;
+
+})();
