@@ -10475,3 +10475,38 @@ h3 {
     margin: 10px auto 0 !important;
   }
 }
+
+
+
+/* ── Recent button: icon-only, matches original btn-sm style ─────────────── */
+.btn-recent {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 30px !important;
+  height: 30px !important;
+  padding: 0 !important;
+  background: var(--ynab-light-gray) !important;
+  border: 1px solid var(--ynab-border) !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  color: var(--text-light) !important;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease !important;
+  flex-shrink: 0 !important;
+}
+
+.btn-recent:hover {
+  background: var(--secondary) !important;
+  color: var(--primary) !important;
+  border-color: var(--primary) !important;
+}
+
+.btn-recent.open {
+  background: var(--primary) !important;
+  color: #fff !important;
+  border-color: var(--primary) !important;
+}
+
+.btn-recent.open svg {
+  stroke: #fff !important;
+}
