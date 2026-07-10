@@ -11082,3 +11082,207 @@ h3 {
     display: table !important;
   }
 }
+
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   MULTI-BUG FIX — Accounts desktop, Theme/Rollover, Goals, Settings header
+   Appended. Nothing above modified.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Bug 1: Desktop account buttons — visible on desktop, hidden on mobile ─ */
+.bm-desktop-only-btn {
+  display: inline-flex !important;
+}
+
+@media (max-width: 768px) {
+  .bm-desktop-only-btn {
+    display: none !important;
+  }
+}
+
+/* ── Bug 2: Theme selector / Rollover — no overlap on desktop ────────────── */
+/* Dashboard header: give right side enough room for the fixed theme selector */
+#dashboard header {
+  padding-right: 220px !important; /* clears 180px button + 20px gap + 20px margin */
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  flex-wrap: wrap !important;
+  gap: 10px !important;
+}
+
+@media (max-width: 768px) {
+  /* On mobile theme selector is hidden — no padding needed */
+  #dashboard header {
+    padding-right: 14px !important;
+  }
+}
+
+/* ── Bug 3: Goals — card layout, add-funds no overflow ──────────────────── */
+.goals-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
+  gap: 16px !important;
+  padding: 0 !important;
+  width: 100% !important;
+}
+
+.goal-card {
+  background: var(--card-bg) !important;
+  border: 1px solid var(--ynab-border) !important;
+  border-radius: var(--r-lg, 16px) !important;
+  padding: 18px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  position: relative !important;
+  box-shadow: var(--e-1) !important;
+  overflow: visible !important; /* never clip children */
+}
+
+/* Add funds section: wrap on small cards */
+.add-funds-section {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  align-items: center !important;
+  margin-top: 12px !important;
+  padding-top: 12px !important;
+  border-top: 1px solid var(--ynab-border) !important;
+}
+
+.funds-input {
+  flex: 1 1 100px !important;
+  min-width: 80px !important;
+  font-size: 14px !important;
+  padding: 8px 12px !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--ynab-border) !important;
+  background: var(--card-bg) !important;
+  color: var(--text) !important;
+  box-sizing: border-box !important;
+}
+
+.add-funds-btn {
+  flex-shrink: 0 !important;
+  padding: 8px 16px !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  white-space: nowrap !important;
+  min-height: 36px !important;
+}
+
+/* Mobile: full width input and button */
+@media (max-width: 768px) {
+  .goals-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .add-funds-section {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .funds-input {
+    width: 100% !important;
+    font-size: 16px !important; /* prevent Android zoom */
+    min-height: 46px !important;
+  }
+
+  .add-funds-btn {
+    width: 100% !important;
+    min-height: 46px !important;
+    font-size: 15px !important;
+    justify-content: center !important;
+  }
+
+  /* Goals section header on mobile */
+  #goals .header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 0 0 16px 0 !important;
+    margin: 0 !important;
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+  }
+
+  #goals .header h1 {
+    font-size: 22px !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.03em !important;
+    margin: 0 !important;
+    flex: 1 !important;
+  }
+
+  .add-goal-btn {
+    flex-shrink: 0 !important;
+    min-height: 40px !important;
+    padding: 9px 14px !important;
+    font-size: 13px !important;
+  }
+
+  /* Empty state on mobile */
+  .empty-state {
+    padding: 48px 20px !important;
+    text-align: center !important;
+  }
+}
+
+/* ── Bug 4 & 5: Settings header — correct position on both desktop & mobile ─ */
+
+/* Desktop: settings header is INSIDE main-content, NOT fixed/absolute.
+   Remove the old margin-left that was added for a fixed header.
+   main-content already handles the sidebar offset. */
+#settings header.settings-header {
+  margin-left: 0 !important;
+  padding: 0 0 24px 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-bottom: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  font-size: 26px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.03em !important;
+  color: var(--text) !important;
+}
+
+#settings header.settings-header span {
+  font-size: 26px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.03em !important;
+  color: var(--text) !important;
+}
+
+/* Settings container: remove the old margin-left — main-content handles it */
+.settings-container {
+  margin-left: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  min-height: 0 !important;
+}
+
+@media (max-width: 768px) {
+  #settings header.settings-header {
+    padding: 0 0 16px 0 !important;
+    margin: 0 !important;
+    font-size: 22px !important;
+  }
+
+  #settings header.settings-header span {
+    font-size: 22px !important;
+  }
+
+  .settings-container {
+    flex-direction: column !important;
+    gap: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}
