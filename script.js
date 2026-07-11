@@ -517,6 +517,9 @@ async function renderBudget(data) {
   const tbb = data.tbb || 0;
   const assigned = categories.reduce((sum, c) => sum + c.assigned, 0);
   const spent = categories.reduce((sum, c) => sum + c.spent, 0);
+
+  // Expose current month data globally for Goals integration
+  window._currentMonthData = data;
   
   // ✅ Calculate account outflows ONLY for non-category transactions (Deposit/Withdrawal/Transfer)
   // Expense transactions that hit a budget category are already counted in `spent` via categories[].spent
@@ -10350,3 +10353,440 @@ function getBudgetPeriod(monthKey) {
 }
 
 console.log('✅ getBudgetPeriod (manual-rollover-aware) loaded.');
+
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// GOALS INTEGRATION — Budget Category + Account + Dashboard Widget
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── Populate goal modal dropdowns when opened ─────────────────────────────
+
+function populateGoalModalDropdowns() {
+  const catSelect  = document.getElementById('goal-linked-category');
+  const acctSelect = document.getElementById('goal-linked-account');
+  if (!catSelect || !acctSelect) return;
+
+  // Categories from current month
+  const categories = (window._currentMonthData && window._currentMonthData.categories) || [];
+  catSelect.innerHTML = '<option value="">None (manual tracking)</option>';
+  categories.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.name;
+    opt.textContent = c.name;
+    catSelect.appendChild(opt);
+  });
+
+  // Accounts — asset accounts only (goals are savings targets, not liabilities)
+  const assetAccounts = (window.accounts || []).filter(a => {
+    const info = ACCOUNT_TYPES[a.type];
+    return info && info.category === 'asset';
+  });
+  acctSelect.innerHTML = '<option value="">None (manual tracking)</option>';
+  assetAccounts.forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a.id || a.name;
+    opt.textContent = `${a.name} (${formatCurrency(a.balance)})`;
+    acctSelect.appendChild(opt);
+  });
+}
+
+// Patch openAddGoalModal to populate dropdowns
+const _origOpenAddGoalModal = window.openAddGoalModal;
+window.openAddGoalModal = function() {
+  if (typeof _origOpenAddGoalModal === 'function') _origOpenAddGoalModal();
+  populateGoalModalDropdowns();
+  // Reset dropdowns
+  const cs = document.getElementById('goal-linked-category');
+  const as = document.getElementById('goal-linked-account');
+  if (cs) cs.value = '';
+  if (as) as.value = '';
+};
+
+// Patch editGoal to populate and set dropdowns
+const _origEditGoal = window.editGoal;
+window.editGoal = async function(goalId) {
+  if (typeof _origEditGoal === 'function') await _origEditGoal(goalId);
+  populateGoalModalDropdowns();
+  const goal = goals.find(g => g.id === goalId);
+  if (!goal) return;
+  const cs = document.getElementById('goal-linked-category');
+  const as = document.getElementById('goal-linked-account');
+  if (cs) cs.value = goal.linkedCategoryName || '';
+  if (as) as.value = goal.linkedAccountId    || '';
+};
+
+// ── Patch goal form submit to save new fields ─────────────────────────────
+
+(function patchGoalFormSubmit() {
+  const form = document.getElementById('goal-form');
+  if (!form) return;
+
+  // Clone to remove old listener, then re-add patched version
+  const newForm = form.cloneNode(true);
+  form.parentNode.replaceChild(newForm, form);
+
+  newForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const name               = document.getElementById('goal-name').value.trim();
+    const type               = document.getElementById('goal-type').value;
+    const targetAmount       = parseFloat(document.getElementById('target-amount').value);
+    const targetDate         = document.getElementById('target-date').value || null;
+    const monthlyContribution= parseFloat(document.getElementById('monthly-contribution').value) || null;
+    const description        = document.getElementById('goal-description').value.trim() || null;
+    const linkedCategoryName = document.getElementById('goal-linked-category')?.value || null;
+    const linkedAccountId    = document.getElementById('goal-linked-account')?.value  || null;
+
+    if (!name || !type || isNaN(targetAmount) || targetAmount <= 0) {
+      showToast('Please fill in all required fields', 'error');
+      return;
+    }
+
+    const goalData = {
+      name, type, targetAmount, targetDate,
+      monthlyContribution, description,
+      linkedCategoryName: linkedCategoryName || null,
+      linkedAccountId:    linkedAccountId    || null,
+      status: 'active',
+      updatedAt: new Date().toISOString()
+    };
+
+    // Only set currentAmount on NEW goals (not edits, to preserve manual fund history)
+    if (!window._editingGoalId) {
+      goalData.currentAmount = 0;
+    }
+
+    try {
+      const goalsRef = db.collection('budget').doc(currentUser.uid).collection('goals');
+      if (window._editingGoalId) {
+        await goalsRef.doc(window._editingGoalId).update(goalData);
+        showToast('Goal updated successfully', 'success');
+      } else {
+        goalData.createdAt = new Date().toISOString();
+        await goalsRef.add(goalData);
+        showToast('Goal created successfully', 'success');
+      }
+      closeGoalModal();
+      await loadGoals();
+    } catch (err) {
+      console.error('Error saving goal:', err);
+      showToast('Error saving goal', 'error');
+    }
+  });
+})();
+
+// Sync editingGoalId so the new form submit handler can read it
+const _origEditGoal2 = window.editGoal;
+window.editGoal = async function(goalId) {
+  window._editingGoalId = goalId;
+  if (typeof _origEditGoal2 === 'function') await _origEditGoal2(goalId);
+};
+const _origOpenAddGoalModal2 = window.openAddGoalModal;
+window.openAddGoalModal = function() {
+  window._editingGoalId = null;
+  if (typeof _origOpenAddGoalModal2 === 'function') _origOpenAddGoalModal2();
+};
+
+// ── Compute goal progress from real budget data ───────────────────────────
+
+/**
+ * computeGoalProgress(goal)
+ *
+ * Returns { currentAmount, source } where source is one of:
+ *   'account'  — balance of linked account
+ *   'category' — sum of assigned amounts across all months for linked category
+ *   'manual'   — goal.currentAmount (manual addFunds)
+ */
+function computeGoalProgress(goal) {
+  // Priority 3: account balance
+  if (goal.linkedAccountId) {
+    const acct = (window.accounts || []).find(a =>
+      (a.id || a.name) === goal.linkedAccountId
+    );
+    if (acct) {
+      return {
+        currentAmount: Math.max(0, acct.balance || 0),
+        source: 'account',
+        accountName: acct.name
+      };
+    }
+  }
+
+  // Priority 1: sum assigned across all budget months for this category
+  if (goal.linkedCategoryName) {
+    let totalAssigned = 0;
+    const budgetMonths = (typeof budgetData !== 'undefined' && budgetData && budgetData.months)
+      ? budgetData.months
+      : {};
+
+    // Also check the reports-context budgetData and the main app months
+    const allMonthsToCheck = Object.values(budgetMonths);
+
+    // If reports budgetData not available, try to get from current month
+    if (allMonthsToCheck.length === 0 && window._currentMonthData) {
+      allMonthsToCheck.push(window._currentMonthData);
+    }
+
+    allMonthsToCheck.forEach(monthData => {
+      const cats = monthData.categories || [];
+      const cat  = cats.find(c => c.name === goal.linkedCategoryName);
+      if (cat) {
+        // Use categoryBalance: starting + assigned - spent
+        const bal = (Number(cat.startingBalance) || 0) + (Number(cat.assigned) || 0) - (Number(cat.spent) || 0);
+        totalAssigned += Math.max(0, bal); // only count positive balance
+      }
+    });
+
+    // Fallback: read from Firestore directly in async context — 
+    // for sync card rendering, use what we have
+    return {
+      currentAmount: totalAssigned,
+      source: 'category',
+      categoryName: goal.linkedCategoryName
+    };
+  }
+
+  // Manual tracking
+  return {
+    currentAmount: goal.currentAmount || 0,
+    source: 'manual'
+  };
+}
+
+// ── Rewrite createGoalCard with full integration ──────────────────────────
+
+window.createGoalCard = function(goal) {
+  const { currentAmount, source, categoryName, accountName } = computeGoalProgress(goal);
+  const progress     = Math.min(goal.targetAmount > 0 ? (currentAmount / goal.targetAmount) * 100 : 0, 100);
+  const remaining    = Math.max(goal.targetAmount - currentAmount, 0);
+  const isCompleted  = currentAmount >= goal.targetAmount;
+  const daysRemaining = goal.targetDate
+    ? Math.ceil((new Date(goal.targetDate) - new Date()) / 86400000)
+    : null;
+
+  // Monthly contribution warning (Priority 2)
+  let monthlyWarning = '';
+  if (goal.monthlyContribution && source === 'category' && goal.linkedCategoryName) {
+    const currentCat = (window._currentMonthData?.categories || [])
+      .find(c => c.name === goal.linkedCategoryName);
+    const thisMonthAssigned = currentCat ? (Number(currentCat.assigned) || 0) : 0;
+    const needed = goal.monthlyContribution;
+    if (!isCompleted && thisMonthAssigned < needed) {
+      const shortfall = needed - thisMonthAssigned;
+      monthlyWarning = `
+        <div class="goal-funding-alert">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Needs ${formatCurrency(shortfall)} more assigned this month
+        </div>`;
+    }
+  }
+
+  // Source badge
+  const sourceBadge = source === 'account'
+    ? `<span class="goal-source-badge goal-source-account">📊 ${accountName}</span>`
+    : source === 'category'
+    ? `<span class="goal-source-badge goal-source-category">📁 ${categoryName}</span>`
+    : `<span class="goal-source-badge goal-source-manual">✏️ Manual</span>`;
+
+  let statusClass = 'status-active';
+  let statusText  = 'Active';
+  if (isCompleted)              { statusClass = 'status-completed'; statusText = 'Completed 🎉'; }
+  else if (goal.status === 'paused') { statusClass = 'status-paused';    statusText = 'Paused'; }
+
+  // Projected completion
+  let projectionLine = '';
+  if (!isCompleted && goal.monthlyContribution && goal.monthlyContribution > 0) {
+    const monthsLeft = Math.ceil(remaining / goal.monthlyContribution);
+    const projDate   = new Date();
+    projDate.setMonth(projDate.getMonth() + monthsLeft);
+    const projLabel  = projDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    projectionLine   = `<div class="goal-projection">At current rate: complete by <strong>${projLabel}</strong></div>`;
+  }
+
+  return `
+    <div class="goal-card" id="goal-card-${goal.id}">
+      <div class="goal-card-top">
+        <div class="goal-header">
+          <div class="goal-title-row">
+            <div class="goal-title">${goal.name}</div>
+            <div class="goal-type-badge">${goal.type}</div>
+          </div>
+          <div class="goal-header-right">
+            ${sourceBadge}
+            <div class="goal-actions">
+              <button class="goal-action-btn" onclick="editGoal('${goal.id}')" title="Edit">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <button class="goal-action-btn goal-action-danger" onclick="deleteGoal('${goal.id}')" title="Delete">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        ${monthlyWarning}
+
+        <div class="goal-progress-section">
+          <div class="goal-progress-track">
+            <div class="goal-progress-fill ${isCompleted ? 'completed' : ''}" style="width:${progress.toFixed(1)}%"></div>
+          </div>
+          <div class="goal-progress-meta">
+            <span class="goal-progress-pct">${progress.toFixed(1)}%</span>
+            <span class="goal-status-pill ${statusClass}">${statusText}</span>
+          </div>
+        </div>
+
+        <div class="goal-amounts-row">
+          <div class="goal-amount-block">
+            <div class="goal-amount-label">Saved</div>
+            <div class="goal-amount-value positive">${formatCurrency(currentAmount)}</div>
+          </div>
+          <div class="goal-amount-divider"></div>
+          <div class="goal-amount-block">
+            <div class="goal-amount-label">Target</div>
+            <div class="goal-amount-value">${formatCurrency(goal.targetAmount)}</div>
+          </div>
+          <div class="goal-amount-divider"></div>
+          <div class="goal-amount-block">
+            <div class="goal-amount-label">Remaining</div>
+            <div class="goal-amount-value ${remaining > 0 ? 'negative' : 'positive'}">${formatCurrency(remaining)}</div>
+          </div>
+        </div>
+
+        ${goal.description ? `<div class="goal-description">${goal.description}</div>` : ''}
+
+        <div class="goal-meta-row">
+          ${goal.targetDate ? `<span class="goal-meta-item">🗓 ${formatDate(goal.targetDate)}${daysRemaining !== null ? ` · ${daysRemaining > 0 ? daysRemaining + 'd left' : 'Past due'}` : ''}</span>` : ''}
+          ${goal.monthlyContribution ? `<span class="goal-meta-item">📅 ${formatCurrency(goal.monthlyContribution)}/mo</span>` : ''}
+        </div>
+
+        ${projectionLine}
+      </div>
+
+      ${!isCompleted && source === 'manual' ? `
+        <div class="add-funds-section">
+          <input type="number" class="funds-input" id="funds-${goal.id}" placeholder="Add amount" min="0" step="0.01">
+          <button class="add-funds-btn" onclick="addFunds('${goal.id}')">Add Funds</button>
+        </div>
+      ` : ''}
+
+      ${!isCompleted && source === 'category' ? `
+        <div class="goal-budget-action">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          Assign money to <strong>${goal.linkedCategoryName}</strong> in Budget to fund this goal
+        </div>
+      ` : ''}
+
+      ${!isCompleted && source === 'account' ? `
+        <div class="goal-budget-action">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          Balance of <strong>${accountName}</strong> tracks this goal automatically
+        </div>
+      ` : ''}
+    </div>
+  `;
+};
+
+// ── Patch loadGoals to compute correct progress per goal ──────────────────
+
+const _origLoadGoals = window.loadGoals;
+window.loadGoals = async function() {
+  if (typeof _origLoadGoals === 'function') await _origLoadGoals();
+  // After goals are loaded, re-render so computeGoalProgress uses fresh data
+  if (typeof renderGoals === 'function') renderGoals();
+  // Update dashboard widget
+  updateGoalsDashboardWidget();
+};
+
+// ── Priority 4: Dashboard Goals Funding Widget ────────────────────────────
+
+function updateGoalsDashboardWidget() {
+  const widget = document.getElementById('bm-goals-widget');
+  const body   = document.getElementById('bm-goals-widget-body');
+  if (!widget || !body || !goals || goals.length === 0) {
+    if (widget) widget.style.display = 'none';
+    return;
+  }
+
+  const activeGoals = goals.filter(g => g.status !== 'paused');
+  if (activeGoals.length === 0) {
+    widget.style.display = 'none';
+    return;
+  }
+
+  widget.style.display = 'block';
+
+  const items = activeGoals.map(goal => {
+    const { currentAmount, source } = computeGoalProgress(goal);
+    const progress = Math.min(goal.targetAmount > 0 ? (currentAmount / goal.targetAmount) * 100 : 0, 100);
+    const isCompleted = currentAmount >= goal.targetAmount;
+
+    // Check if monthly contribution is underfunded
+    let alertHtml = '';
+    if (!isCompleted && goal.monthlyContribution && source === 'category' && goal.linkedCategoryName) {
+      const currentCat = (window._currentMonthData?.categories || [])
+        .find(c => c.name === goal.linkedCategoryName);
+      const assigned = currentCat ? (Number(currentCat.assigned) || 0) : 0;
+      if (assigned < goal.monthlyContribution) {
+        const shortfall = goal.monthlyContribution - assigned;
+        alertHtml = `<span class="bm-gw-alert">Needs ${formatCurrency(shortfall)}</span>`;
+      }
+    }
+
+    return `
+      <div class="bm-gw-item">
+        <div class="bm-gw-item-top">
+          <span class="bm-gw-name">${goal.name}</span>
+          ${alertHtml}
+          <span class="bm-gw-pct ${isCompleted ? 'complete' : ''}">${progress.toFixed(0)}%</span>
+        </div>
+        <div class="bm-gw-track">
+          <div class="bm-gw-fill ${isCompleted ? 'complete' : ''}" style="width:${progress.toFixed(1)}%"></div>
+        </div>
+        <div class="bm-gw-amounts">
+          <span>${formatCurrency(currentAmount)}</span>
+          <span>${formatCurrency(goal.targetAmount)}</span>
+        </div>
+      </div>`;
+  }).join('');
+
+  // Count underfunded goals
+  const underfunded = activeGoals.filter(g => {
+    if (!g.monthlyContribution || !g.linkedCategoryName) return false;
+    const { currentAmount } = computeGoalProgress(g);
+    if (currentAmount >= g.targetAmount) return false;
+    const cat = (window._currentMonthData?.categories || []).find(c => c.name === g.linkedCategoryName);
+    return (cat ? Number(cat.assigned) || 0 : 0) < g.monthlyContribution;
+  }).length;
+
+  body.innerHTML = items;
+
+  // Update widget title badge
+  const titleEl = widget.querySelector('.bm-gw-title');
+  if (titleEl && underfunded > 0) {
+    const existing = titleEl.querySelector('.bm-gw-badge');
+    if (!existing) {
+      const badge = document.createElement('span');
+      badge.className = 'bm-gw-badge';
+      badge.textContent = `${underfunded} need funding`;
+      titleEl.appendChild(badge);
+    }
+  }
+}
+
+// Re-run widget when budget data changes
+const _origRenderBudget = window.renderBudget || renderBudget;
+if (typeof renderBudget === 'function') {
+  const __origRB = renderBudget;
+  window.renderBudget = async function(data) {
+    await __origRB(data);
+    // After budget renders, refresh goal progress (category balances may have changed)
+    if (goals && goals.length > 0) {
+      if (typeof renderGoals === 'function') renderGoals();
+      updateGoalsDashboardWidget();
+    }
+  };
+}
+
+console.log('✅ Goals integration loaded.');
