@@ -943,13 +943,13 @@
     <div class="form-group">
       <label>Date Range</label>
       <select class="form-input" id="dateRange">
-        <option value="current-month">Current Month</option>
-        <option value="last-month">Last Month</option>
-        <option value="last-3-months">Last 3 Months</option>
-        <option value="last-6-months">Last 6 Months</option>
-        <option value="current-year">Current Year</option>
-        <option value="last-year">Last Year</option>
-        <option value="custom">Custom Range</option>
+        <option value="current-month">Current Budget Period</option>
+        <option value="last-month">Previous Budget Period</option>
+        <option value="last-3-months">Last 3 Budget Periods</option>
+        <option value="last-6-months">Last 6 Budget Periods</option>
+        <option value="current-year">This Year (All Periods)</option>
+        <option value="last-year">Last Year (All Periods)</option>
+        <option value="custom">Custom Date Range</option>
       </select>
     </div>
     <div class="form-group" id="customDateRange" style="display: none;">
@@ -1287,19 +1287,19 @@
       <div class="comparison-selector">
         <label>Compare Period 1</label>
         <select id="comparePeriod1" class="form-input">
-          <option value="current-month">Current Month</option>
-          <option value="last-month">Last Month</option>
-          <option value="last-3-months">Last 3 Months</option>
-          <option value="last-6-months">Last 6 Months</option>
+          <option value="current-month">Current Budget Period</option>
+          <option value="last-month">Previous Budget Period</option>
+          <option value="last-3-months">Last 3 Budget Periods</option>
+          <option value="last-6-months">Last 6 Budget Periods</option>
         </select>
       </div>
       <div class="comparison-selector">
         <label>Compare Period 2</label>
         <select id="comparePeriod2" class="form-input">
-          <option value="last-month">Last Month</option>
-          <option value="last-3-months">Last 3 Months</option>
-          <option value="last-6-months">Last 6 Months</option>
-          <option value="last-year">Last Year</option>
+          <option value="last-month">Previous Budget Period</option>
+          <option value="last-3-months">Last 3 Budget Periods</option>
+          <option value="last-6-months">Last 6 Budget Periods</option>
+          <option value="last-year">Last Year (All Periods)</option>
         </select>
       </div>
       <button class="btn btn-primary" onclick="loadComparisonReport()" style="align-self: flex-end;">
