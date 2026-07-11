@@ -7705,17 +7705,16 @@ function renderGoals() {
     const goalsGrid = document.getElementById("goals-grid");
     const emptyState = document.getElementById("empty-state");
 
+    if (!goalsGrid || !emptyState) return;
+
     if (goals.length === 0) {
-        goalsGrid.style.display = "none";
-        emptyState.style.display = "block";
+        goalsGrid.style.setProperty('display', 'none', 'important');
+        emptyState.style.setProperty('display', 'block', 'important');
         return;
     }
 
-    goalsGrid.style.display = "grid";
-    emptyState.style.display = "none";
-    
-    //console.log("🎯 Rendering goals with currency:", userCurrency); // Add this debug line
-    
+    goalsGrid.style.setProperty('display', 'grid', 'important');
+    emptyState.style.setProperty('display', 'none', 'important');
     goalsGrid.innerHTML = goals.map(goal => createGoalCard(goal)).join("");
 }
         // Create goal card HTML
