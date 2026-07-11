@@ -11286,3 +11286,67 @@ h3 {
     margin: 0 !important;
   }
 }
+
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   GOALS EMPTY STATE + SETTINGS BACKGROUND FIX
+   Appended. Nothing above modified.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Goals: remove !important from display so JS can hide the grid ────────── */
+/* Override our earlier .goals-grid { display: grid !important } */
+.goals-grid {
+  display: grid;  /* NO !important — JS needs to override this with display:none */
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  padding: 0;
+  width: 100%;
+}
+
+/* Empty state: only show when goals-grid is hidden */
+#empty-state {
+  /* JS controls this via style.display — no CSS override */
+  margin-top: 40px;
+}
+
+/* ── Settings: remove gradient background bleed ─────────────────────────── */
+.settings-container {
+  background: transparent !important;
+  min-height: 0 !important;        /* don't force full viewport height */
+  margin-left: 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  gap: 24px !important;
+}
+
+/* Settings sidebar keeps its card background */
+.settings-sidebar {
+  background: var(--card-bg) !important;
+  flex-shrink: 0 !important;
+}
+
+/* Settings content area: transparent, fills remaining space */
+.settings-content {
+  flex: 1 !important;
+  min-width: 0 !important;
+  background: transparent !important;
+}
+
+/* Settings cards keep their own card background */
+#settings .card,
+.settings-section {
+  background: var(--card-bg) !important;
+}
+
+/* Mobile overrides */
+@media (max-width: 768px) {
+  .goals-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-container {
+    flex-direction: column !important;
+    gap: 0 !important;
+  }
+}
