@@ -512,14 +512,12 @@ function clearTransactionFilters() {
 
 async function renderBudget(data) {
   if (!data) return;
+  window._currentMonthData = data; // expose for Goals integration
   const categories = data.categories || [];
   const transactions = data.transactions || [];
   const tbb = data.tbb || 0;
   const assigned = categories.reduce((sum, c) => sum + c.assigned, 0);
   const spent = categories.reduce((sum, c) => sum + c.spent, 0);
-
-  // Expose current month data globally for Goals integration
-  window._currentMonthData = data;
   
   // ✅ Calculate account outflows ONLY for non-category transactions (Deposit/Withdrawal/Transfer)
   // Expense transactions that hit a budget category are already counted in `spent` via categories[].spent
@@ -1878,7 +1876,7 @@ const ACCOUNT_TYPES = {
 
 // Render accounts with separation
 function renderAccounts(list) {
-  window._bmAccounts = list || []; // keep in sync for Goals integration
+  window._bmAccounts = Array.isArray(list) ? list : []; // sync for Goals
   const assetsList = document.getElementById("assets-list");
   const liabilitiesList = document.getElementById("liabilities-list");
   const assetsCount = document.getElementById("assets-count");
@@ -2073,7 +2071,7 @@ async function loadAccounts() {
   const data = docSnap.exists ? docSnap.data() : null;
 
   accounts = data?.accounts || [];
-  window._bmAccounts = accounts; // expose for Goals integration
+  window._bmAccounts = accounts;
   renderAccounts(accounts);
 }
 
@@ -5687,30 +5685,12 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
 
-    // Load rolloverHistory so getBudgetPeriod() can compute period boundaries
-    budgetData.rolloverHistory = {};
-    try {
-      const historySnap = await budgetRef.collection("rolloverHistory").get();
-      historySnap.forEach(doc => { budgetData.rolloverHistory[doc.id] = doc.data(); });
-    } catch(e) { /* rolloverHistory may not exist yet */ }
-
-    // Load rolloverSettings (automaticDay tells us which day each period starts)
-    budgetData.rolloverSettings = null;
-    try {
-      const userDoc = await db.collection("users").doc(user.uid).get();
-      if (userDoc.exists && userDoc.data().rolloverSettings) {
-        budgetData.rolloverSettings = userDoc.data().rolloverSettings;
-      }
-    } catch(e) { /* users doc may not exist */ }
-
     // Load initial reports
     loadAllReports();
   } catch (error) {
     console.error('❌ Error loading data:', error);
   }
 }
-
-// ── Documentation: loadData now also loads rolloverHistory and rolloverSettings ──
 
     function loadAllReports() {
       loadSpendingReport();
@@ -9689,922 +9669,450 @@ if ("serviceWorker" in navigator) {
 
 // ════════════════════════════════════════════════════════════════════════════
 // BUDGET-PERIOD REPORTING ARCHITECTURE
-// Replaces all calendar-month filtering in the Reports module.
-//
-// Every report, chart, total, and export now filters transactions using:
-//   budgetPeriodStart <= transaction.date < budgetPeriodEnd
-//
-// Never: getMonth(), calendar month equality, first/last day of month.
 // ════════════════════════════════════════════════════════════════════════════
 
-/**
- * getBudgetPeriod(monthKey)
- *
- * Returns { startDate, endDate, label } for a given budget month key ("YYYY-MM").
- *
- * Priority for startDate:
- *   1. Previous month's rolloverHistory.rolledOverAt  (most precise — exact rollover timestamp)
- *   2. rolloverSettings.automaticDay on this month    (configured start day)
- *   3. Day 1 of the calendar month                   (fallback)
- *
- * Priority for endDate:
- *   1. This month's rolloverHistory.rolledOverAt      (period was closed — use exact date)
- *   2. rolloverSettings.automaticDay on next month    (upcoming end day)
- *   3. Last day of the calendar month                 (fallback)
- */
+let currentDateRange = 'current-month';
+
 function getBudgetPeriod(monthKey) {
   if (!monthKey) return null;
-
   const [yearStr, monthStr] = monthKey.split('-');
-  const year  = parseInt(yearStr,  10);
-  const month = parseInt(monthStr, 10); // 1-based
+  const year  = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+  const history  = (typeof budgetData !== 'undefined' && budgetData && budgetData.rolloverHistory) || {};
+  const months   = (typeof budgetData !== 'undefined' && budgetData && budgetData.months) || {};
+  const settings = (typeof budgetData !== 'undefined' && budgetData && budgetData.rolloverSettings) || null;
+  const rolloverDay = settings && settings.automaticDay ? parseInt(settings.automaticDay, 10) : null;
 
-  const history  = (budgetData && budgetData.rolloverHistory) || {};
-  const settings = (budgetData && budgetData.rolloverSettings) || null;
-  const rolloverDay = settings && settings.automaticDay
-    ? parseInt(settings.automaticDay, 10)
-    : null;
+  function getRolloverTransactionDate(mk) {
+    const md = months[mk];
+    if (!md || !md.transactions) return null;
+    const tx = md.transactions.find(t => t.category === 'BALANCE FROM LAST MONTH' || t.name === 'ROLLOVER AMOUNT');
+    if (!tx || !tx.date) return null;
+    const d = new Date(tx.date + 'T00:00:00');
+    return isNaN(d.getTime()) ? null : d;
+  }
 
-  // ── Compute startDate ──────────────────────────────────────────────────
   let startDate;
-
-  // Option 1: previous month's rollover end = this month's start
-  const prevDate    = new Date(year, month - 2, 1); // month-2 because month is 1-based
+  const prevDate     = new Date(year, month - 2, 1);
   const prevMonthKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
   const prevHistory  = history[prevMonthKey];
-
   if (prevHistory && prevHistory.rolledOverAt) {
-    // rolledOverAt is an ISO timestamp. The new period started the day after rollover.
-    const rolledAt = new Date(prevHistory.rolledOverAt);
-    // Use just the date part — rollover happened on this date, so new period starts same day
-    startDate = new Date(rolledAt.getFullYear(), rolledAt.getMonth(), rolledAt.getDate());
-  } else if (rolloverDay && rolloverDay >= 1 && rolloverDay <= 31) {
-    // Option 2: configured start day for this month
-    // Clamp to last day of month if rolloverDay exceeds month length
-    const lastDay = new Date(year, month, 0).getDate();
-    const clampedDay = Math.min(rolloverDay, lastDay);
-    startDate = new Date(year, month - 1, clampedDay);
-  } else {
-    // Option 3: calendar month day 1
-    startDate = new Date(year, month - 1, 1);
+    const r = new Date(prevHistory.rolledOverAt);
+    startDate = new Date(r.getFullYear(), r.getMonth(), r.getDate());
   }
+  if (!startDate) {
+    const rtd = getRolloverTransactionDate(monthKey);
+    if (rtd) startDate = rtd;
+  }
+  if (!startDate && rolloverDay >= 1 && rolloverDay <= 31) {
+    const last = new Date(year, month, 0).getDate();
+    startDate = new Date(year, month - 1, Math.min(rolloverDay, last));
+  }
+  if (!startDate) startDate = new Date(year, month - 1, 1);
 
-  // ── Compute endDate ────────────────────────────────────────────────────
   let endDate;
-
-  // Option 1: this month's own rollover record (period was closed)
   const thisHistory = history[monthKey];
   if (thisHistory && thisHistory.rolledOverAt) {
-    const rolledAt = new Date(thisHistory.rolledOverAt);
-    // Period ended on the rollover date — endDate is exclusive (< endDate)
-    // so set it to the rollover date itself (transactions ON that day are the last included)
-    endDate = new Date(rolledAt.getFullYear(), rolledAt.getMonth(), rolledAt.getDate(), 23, 59, 59, 999);
-  } else if (rolloverDay && rolloverDay >= 1 && rolloverDay <= 31) {
-    // Option 2: next month's rollover day - 1 day = end of this period
-    const nextDate = new Date(year, month, 1); // first day of next calendar month
-    const nextYear  = nextDate.getFullYear();
-    const nextMonth = nextDate.getMonth() + 1; // 1-based
-    const lastDayNext = new Date(nextYear, nextMonth, 0).getDate();
-    const clampedDay  = Math.min(rolloverDay, lastDayNext);
-    // Period ends the day BEFORE next period starts
-    const periodEndDate = new Date(nextYear, nextMonth - 1, clampedDay);
-    periodEndDate.setDate(periodEndDate.getDate() - 1);
-    endDate = new Date(periodEndDate.getFullYear(), periodEndDate.getMonth(), periodEndDate.getDate(), 23, 59, 59, 999);
-  } else {
-    // Option 3: last day of calendar month
-    endDate = new Date(year, month, 0, 23, 59, 59, 999);
+    const r = new Date(thisHistory.rolledOverAt);
+    endDate = new Date(r.getFullYear(), r.getMonth(), r.getDate(), 23, 59, 59, 999);
   }
+  if (!endDate) {
+    const nextDate     = new Date(year, month, 1);
+    const nextMonthKey = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
+    const nrd = getRolloverTransactionDate(nextMonthKey);
+    if (nrd) {
+      const db2 = new Date(nrd);
+      db2.setDate(db2.getDate() - 1);
+      endDate = new Date(db2.getFullYear(), db2.getMonth(), db2.getDate(), 23, 59, 59, 999);
+    }
+  }
+  if (!endDate && rolloverDay >= 1 && rolloverDay <= 31) {
+    const nd = new Date(year, month, 1);
+    const ny = nd.getFullYear(), nm = nd.getMonth() + 1;
+    const last2 = new Date(ny, nm, 0).getDate();
+    const pe = new Date(ny, nm - 1, Math.min(rolloverDay, last2));
+    pe.setDate(pe.getDate() - 1);
+    endDate = new Date(pe.getFullYear(), pe.getMonth(), pe.getDate(), 23, 59, 59, 999);
+  }
+  if (!endDate) endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
-  // ── Label (human readable) ─────────────────────────────────────────────
   const startLabel = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const endLabel   = endDate.toLocaleDateString('en-US',   { month: 'short', day: 'numeric', year: '2-digit' });
-  const label = `${startLabel} – ${endLabel}`;
-
-  return { startDate, endDate, label, monthKey };
+  return { startDate, endDate, label: `${startLabel} – ${endLabel}`, monthKey };
 }
 
-/**
- * getBudgetPeriodsForRange(rangeType)
- *
- * Returns an array of budget periods [ { monthKey, startDate, endDate, label }, … ]
- * for the requested range, in chronological order.
- *
- * Replaces the calendar-month walking loops in getMonthlyIncomeExpense()
- * and getMonthlySpending().
- */
 function getBudgetPeriodsForRange(rangeType) {
   if (!budgetData || !budgetData.months) return [];
-
   const allMonthKeys = Object.keys(budgetData.months).sort();
   if (allMonthKeys.length === 0) return [];
-
-  const currentMonthKey = budgetData.currentMonth
-    || allMonthKeys[allMonthKeys.length - 1];
-
+  const currentMonthKey = budgetData.currentMonth || allMonthKeys[allMonthKeys.length - 1];
   let selectedKeys = [];
-
   switch (rangeType) {
-    case 'current-month':
-      selectedKeys = [currentMonthKey];
-      break;
-
+    case 'current-month': selectedKeys = [currentMonthKey]; break;
     case 'last-month': {
       const idx = allMonthKeys.indexOf(currentMonthKey);
-      if (idx > 0) selectedKeys = [allMonthKeys[idx - 1]];
-      else         selectedKeys = [currentMonthKey]; // only one month exists
-      break;
+      selectedKeys = idx > 0 ? [allMonthKeys[idx - 1]] : [currentMonthKey]; break;
     }
-
     case 'last-3-months': {
       const idx = allMonthKeys.indexOf(currentMonthKey);
-      selectedKeys = allMonthKeys.slice(Math.max(0, idx - 2), idx + 1);
-      break;
+      selectedKeys = allMonthKeys.slice(Math.max(0, idx - 2), idx + 1); break;
     }
-
     case 'last-6-months': {
       const idx = allMonthKeys.indexOf(currentMonthKey);
-      selectedKeys = allMonthKeys.slice(Math.max(0, idx - 5), idx + 1);
-      break;
+      selectedKeys = allMonthKeys.slice(Math.max(0, idx - 5), idx + 1); break;
     }
-
     case 'current-year': {
-      const currentYear = currentMonthKey.slice(0, 4);
-      selectedKeys = allMonthKeys.filter(k => k.startsWith(currentYear));
-      break;
+      const y = currentMonthKey.slice(0, 4);
+      selectedKeys = allMonthKeys.filter(k => k.startsWith(y)); break;
     }
-
     case 'last-year': {
-      const lastYear = String(parseInt(currentMonthKey.slice(0, 4), 10) - 1);
-      selectedKeys = allMonthKeys.filter(k => k.startsWith(lastYear));
-      break;
+      const y = String(parseInt(currentMonthKey.slice(0, 4), 10) - 1);
+      selectedKeys = allMonthKeys.filter(k => k.startsWith(y)); break;
     }
-
-    case 'custom': {
-      // Custom uses raw dates from the date pickers — not budget periods.
-      // Return all months and let the caller filter by the raw dates.
-      selectedKeys = allMonthKeys;
-      break;
-    }
-
-    default:
-      selectedKeys = [currentMonthKey];
+    case 'custom': selectedKeys = allMonthKeys; break;
+    default: selectedKeys = [currentMonthKey];
   }
-
   return selectedKeys.map(key => getBudgetPeriod(key)).filter(Boolean);
 }
 
-/**
- * getBudgetDateRange()
- *
- * Replaces getDateRange() for the Reports module.
- * Returns { startDate, endDate } spanning the entire selected range.
- *
- * For single-period selections: returns that period's exact boundaries.
- * For multi-period: returns earliest start → latest end across all periods.
- * For custom: returns the raw date inputs (user chose exact dates).
- */
 function getBudgetDateRange() {
   if (currentDateRange === 'custom') {
-    const fromVal = document.getElementById('fromDate')?.value;
-    const toVal   = document.getElementById('toDate')?.value;
-    if (fromVal && toVal) {
-      return {
-        startDate: new Date(fromVal + 'T00:00:00'),
-        endDate:   new Date(toVal   + 'T23:59:59')
-      };
-    }
+    const fv = document.getElementById('fromDate')?.value;
+    const tv = document.getElementById('toDate')?.value;
+    if (fv && tv) return { startDate: new Date(fv + 'T00:00:00'), endDate: new Date(tv + 'T23:59:59') };
   }
-
   const periods = getBudgetPeriodsForRange(currentDateRange);
   if (periods.length === 0) {
-    // Ultimate fallback — calendar current month
     const now = new Date();
-    return {
-      startDate: new Date(now.getFullYear(), now.getMonth(), 1),
-      endDate:   new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
-    };
+    return { startDate: new Date(now.getFullYear(), now.getMonth(), 1), endDate: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59) };
   }
-
-  const startDate = periods[0].startDate;
-  const endDate   = periods[periods.length - 1].endDate;
-  return { startDate, endDate };
+  return { startDate: periods[0].startDate, endDate: periods[periods.length - 1].endDate };
 }
 
-/**
- * getBudgetFilteredTransactions()
- *
- * Replaces getFilteredTransactions().
- * Collects all transactions across all budget months, then filters
- * by the budget period boundaries — never by calendar month.
- */
 function getBudgetFilteredTransactions() {
   if (!budgetData || !budgetData.months) return [];
-
   const { startDate, endDate } = getBudgetDateRange();
-  const seen = new Set();
-  const result = [];
-
-  Object.values(budgetData.months).forEach(monthData => {
-    if (!monthData.transactions) return;
-    monthData.transactions.forEach(t => {
-      if (t.id && seen.has(t.id)) return; // deduplicate
+  const seen = new Set(), result = [];
+  Object.values(budgetData.months).forEach(md => {
+    if (!md.transactions) return;
+    md.transactions.forEach(t => {
+      if (t.id && seen.has(t.id)) return;
       const d = new Date(t.date + 'T00:00:00');
-      if (d >= startDate && d <= endDate) {
-        if (t.id) seen.add(t.id);
-        result.push(t);
-      }
+      if (d >= startDate && d <= endDate) { if (t.id) seen.add(t.id); result.push(t); }
     });
   });
-
   return result;
 }
 
-/**
- * getBudgetMonthlyIncomeExpense()
- *
- * Replaces getMonthlyIncomeExpense().
- * Iterates budget PERIODS (not calendar months), computing income and expense
- * for each period using the period's own start/end dates.
- */
 function getBudgetMonthlyIncomeExpense() {
   const periods = getBudgetPeriodsForRange(currentDateRange);
   const result  = { labels: [], income: [], expenses: [], periodKeys: [] };
-
   if (!budgetData || !budgetData.months) return result;
-
-  periods.forEach(period => {
-    const { monthKey, startDate, endDate, label } = period;
-    result.labels.push(label);
-    result.periodKeys.push(monthKey);
-
-    // Collect all transactions that fall within this budget period
-    // NOTE: transactions may be stored in adjacent month documents if the
-    // period crosses a calendar month boundary (e.g. Jun 10 → Jul 9).
-    // So we scan ALL month documents and filter by date, not by monthKey.
-    let periodIncome   = 0;
-    let periodExpenses = 0;
-
-    Object.values(budgetData.months).forEach(monthData => {
-      if (!monthData.transactions) return;
-      monthData.transactions.forEach(t => {
+  periods.forEach(({ monthKey, startDate, endDate, label }) => {
+    result.labels.push(label); result.periodKeys.push(monthKey);
+    let inc = 0, exp = 0;
+    Object.values(budgetData.months).forEach(md => {
+      if (!md.transactions) return;
+      md.transactions.forEach(t => {
         const d = new Date(t.date + 'T00:00:00');
         if (d < startDate || d > endDate) return;
-        const isAccountTx = t.category === 'Deposit' || t.category === 'Withdrawal' || t.category === 'Transfer';
-        if (isAccountTx) return;
-        if (t.type === 'income')  periodIncome   += t.amount;
-        if (t.type === 'expense') periodExpenses += t.amount;
+        if (t.category === 'Deposit' || t.category === 'Withdrawal' || t.category === 'Transfer') return;
+        if (t.type === 'income') inc += t.amount;
+        if (t.type === 'expense') exp += t.amount;
       });
     });
-
-    result.income.push(periodIncome);
-    result.expenses.push(periodExpenses);
+    result.income.push(inc); result.expenses.push(exp);
   });
-
   return result;
 }
 
-/**
- * getBudgetMonthlySpending()
- *
- * Replaces getMonthlySpending().
- * Same approach as getBudgetMonthlyIncomeExpense() but returns only expense totals.
- */
 function getBudgetMonthlySpending() {
   const periods = getBudgetPeriodsForRange(currentDateRange);
   const result  = { labels: [], amounts: [], periodKeys: [] };
-
   if (!budgetData || !budgetData.months) return result;
-
-  periods.forEach(period => {
-    const { startDate, endDate, label, monthKey } = period;
-    result.labels.push(label);
-    result.periodKeys.push(monthKey);
-
-    let periodSpending = 0;
-    Object.values(budgetData.months).forEach(monthData => {
-      if (!monthData.transactions) return;
-      monthData.transactions.forEach(t => {
+  periods.forEach(({ startDate, endDate, label, monthKey }) => {
+    result.labels.push(label); result.periodKeys.push(monthKey);
+    let spending = 0;
+    Object.values(budgetData.months).forEach(md => {
+      if (!md.transactions) return;
+      md.transactions.forEach(t => {
         const d = new Date(t.date + 'T00:00:00');
         if (d < startDate || d > endDate) return;
-        const isAccountTx = t.category === 'Deposit' || t.category === 'Withdrawal' || t.category === 'Transfer';
-        if (isAccountTx || t.type !== 'expense') return;
-        periodSpending += t.amount;
+        if (t.category === 'Deposit' || t.category === 'Withdrawal' || t.category === 'Transfer') return;
+        if (t.type === 'expense') spending += t.amount;
       });
     });
-
-    result.amounts.push(periodSpending);
+    result.amounts.push(spending);
   });
-
   return result;
 }
 
-/**
- * getBudgetComparisonData(rangeType)
- *
- * Replaces getComparisonData() + getDateRangeForPeriod().
- * Uses budget periods instead of calendar months.
- */
 function getBudgetComparisonData(rangeType) {
-  if (!budgetData || !budgetData.months) {
-    return { income: 0, expenses: 0, net: 0, savingsRate: 0 };
-  }
-
-  // For comparison we temporarily override currentDateRange
+  if (!budgetData || !budgetData.months) return { income: 0, expenses: 0, net: 0, savingsRate: 0 };
   const saved = currentDateRange;
   currentDateRange = rangeType;
   const { startDate, endDate } = getBudgetDateRange();
   currentDateRange = saved;
-
-  let totalIncome   = 0;
-  let totalExpenses = 0;
-
-  Object.values(budgetData.months).forEach(monthData => {
-    if (!monthData.transactions) return;
-    monthData.transactions.forEach(t => {
+  let inc = 0, exp = 0;
+  Object.values(budgetData.months).forEach(md => {
+    if (!md.transactions) return;
+    md.transactions.forEach(t => {
       const d = new Date(t.date + 'T00:00:00');
       if (d < startDate || d > endDate) return;
-      const isAccountTx = t.category === 'Deposit' || t.category === 'Withdrawal' || t.category === 'Transfer';
-      if (isAccountTx) return;
-      if (t.type === 'income')  totalIncome   += t.amount;
-      if (t.type === 'expense') totalExpenses += t.amount;
+      if (t.category === 'Deposit' || t.category === 'Withdrawal' || t.category === 'Transfer') return;
+      if (t.type === 'income') inc += t.amount;
+      if (t.type === 'expense') exp += t.amount;
     });
   });
-
-  const net         = totalIncome - totalExpenses;
-  const savingsRate = totalIncome > 0 ? parseFloat(((net / totalIncome) * 100).toFixed(1)) : 0;
-  return { income: totalIncome, expenses: totalExpenses, net, savingsRate };
+  const net = inc - exp;
+  return { income: inc, expenses: exp, net, savingsRate: inc > 0 ? parseFloat(((net / inc) * 100).toFixed(1)) : 0 };
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// WIRE NEW HELPERS INTO EXISTING REPORT FUNCTIONS
-//
-// Strategy: override the three functions that all report loaders call.
-// The loaders themselves (loadSpendingReport, loadIncomeExpenseReport, etc.)
-// are not rewritten — we only replace the data-provider functions they call.
-// ════════════════════════════════════════════════════════════════════════════
-
-// Override getDateRange → getBudgetDateRange
-// (getFilteredTransactions, exportToCSV, loadSpendingReport call this)
+// Wire overrides
 (function() {
   if (typeof getDateRange === 'function') {
-    // Keep original for non-report uses, override only in reports context
-    const _orig = getDateRange;
+    const _o = getDateRange;
     window.getDateRange = function() {
-      // Only override when budgetData.rolloverHistory is available (i.e. in reports context)
-      if (budgetData && budgetData.rolloverHistory !== undefined) {
-        return getBudgetDateRange();
-      }
-      return _orig();
+      return (budgetData && budgetData.rolloverHistory !== undefined) ? getBudgetDateRange() : _o();
     };
   }
-})();
-
-// Override getFilteredTransactions → getBudgetFilteredTransactions
-(function() {
   if (typeof getFilteredTransactions === 'function') {
     window.getFilteredTransactions = function() {
-      if (budgetData && budgetData.rolloverHistory !== undefined) {
-        return getBudgetFilteredTransactions();
-      }
-      // fallback — original function body inline
-      if (!budgetData || !budgetData.months) return [];
-      const { startDate, endDate } = getDateRange();
-      const all = [];
-      Object.entries(budgetData.months).forEach(([, monthData]) => {
-        if (!monthData.transactions) return;
-        monthData.transactions.forEach(t => {
-          const d = new Date(t.date);
-          if (d >= startDate && d <= endDate && !all.find(x => x.id === t.id)) all.push(t);
-        });
-      });
-      return all;
+      return (budgetData && budgetData.rolloverHistory !== undefined) ? getBudgetFilteredTransactions() : [];
     };
   }
-})();
-
-// Override getMonthlyIncomeExpense → getBudgetMonthlyIncomeExpense
-(function() {
   if (typeof getMonthlyIncomeExpense === 'function') {
     window.getMonthlyIncomeExpense = function() {
-      if (budgetData && budgetData.rolloverHistory !== undefined) {
-        return getBudgetMonthlyIncomeExpense();
-      }
-      // Original calendar fallback
-      const { startDate, endDate } = getDateRange();
-      const data = { labels: [], income: [], expenses: [] };
-      let current = new Date(startDate);
-      while (current <= endDate) {
-        const mKey = `${current.getFullYear()}-${String(current.getMonth()+1).padStart(2,'0')}`;
-        data.labels.push(current.toLocaleDateString('en-US',{month:'short',year:'2-digit'}));
-        const md = budgetData.months[mKey];
-        let inc = 0, exp = 0;
-        if (md && md.transactions) md.transactions.forEach(t => {
-          if (t.type==='income') inc += t.amount;
-          if (t.type==='expense') exp += t.amount;
-        });
-        data.income.push(inc); data.expenses.push(exp);
-        current.setMonth(current.getMonth()+1);
-      }
-      return data;
+      return (budgetData && budgetData.rolloverHistory !== undefined) ? getBudgetMonthlyIncomeExpense() : { labels:[], income:[], expenses:[] };
     };
   }
-})();
-
-// Override getMonthlySpending → getBudgetMonthlySpending
-(function() {
   if (typeof getMonthlySpending === 'function') {
     window.getMonthlySpending = function() {
-      if (budgetData && budgetData.rolloverHistory !== undefined) {
-        return getBudgetMonthlySpending();
-      }
-      // Original calendar fallback
-      const { startDate, endDate } = getDateRange();
-      const data = { labels: [], amounts: [] };
-      const current = new Date(startDate);
-      while (current <= endDate) {
-        data.labels.push(current.toLocaleDateString('en-US',{month:'short',year:'2-digit'}));
-        let spending = 0;
-        Object.values(budgetData.months||{}).forEach(md => {
-          if (!md.transactions) return;
-          md.transactions.forEach(t => {
-            const d = new Date(t.date);
-            if (d.getFullYear()===current.getFullYear() && d.getMonth()===current.getMonth() && t.type==='expense') spending += t.amount;
-          });
-        });
-        data.amounts.push(spending);
-        current.setMonth(current.getMonth()+1);
-      }
-      return data;
+      return (budgetData && budgetData.rolloverHistory !== undefined) ? getBudgetMonthlySpending() : { labels:[], amounts:[] };
     };
   }
-})();
-
-// Override getComparisonData → getBudgetComparisonData (async → sync)
-(function() {
   if (typeof getComparisonData === 'function') {
-    // loadComparisonReport calls: const data1 = await getComparisonData(period1)
-    // We replace with a sync version wrapped in a resolved Promise so await still works
     window.getComparisonData = async function(period) {
-      if (budgetData && budgetData.rolloverHistory !== undefined) {
-        return getBudgetComparisonData(period);
-      }
-      // Original calendar fallback
-      if (!budgetData || !budgetData.months) return { income:0, expenses:0, net:0, savingsRate:0 };
-      const { startDate, endDate } = getDateRangeForPeriod(period);
-      let inc=0, exp=0;
-      Object.entries(budgetData.months).forEach(([mk, md]) => {
-        const mDate = new Date(mk+'-01');
-        if (mDate>=startDate && mDate<=endDate && md.transactions) {
-          md.transactions.forEach(t => {
-            if (t.type==='income') inc+=t.amount;
-            if (t.type==='expense') exp+=t.amount;
-          });
-        }
-      });
-      const net=inc-exp;
-      return { income:inc, expenses:exp, net, savingsRate: inc>0?parseFloat(((net/inc)*100).toFixed(1)):0 };
+      return (budgetData && budgetData.rolloverHistory !== undefined) ? getBudgetComparisonData(period) : { income:0, expenses:0, net:0, savingsRate:0 };
     };
   }
 })();
 
-// ════════════════════════════════════════════════════════════════════════════
-// WIRE INTO ROLLOVER: store periodStart on performRollover so future
-// getBudgetPeriod calls have an authoritative start date.
-// ════════════════════════════════════════════════════════════════════════════
-
-(function patchRolloverHistoryWrite() {
-  // We patch the rolloverHistory write by overriding the Firestore set call
-  // indirectly: after any rollover completes, the budgetData.rolloverHistory
-  // will be reloaded on next loadData() call. No JS patching needed here —
-  // the rolloverHistory is written in performRollover() and will be picked up
-  // on next navigation to Reports.
-  // ENHANCEMENT: Add periodStart/periodEnd fields to rolloverHistory writes.
-  // This is done by the getBudgetPeriod() function reading rolledOverAt timestamps
-  // which are already written. No code change needed.
-})();
-
-// ════════════════════════════════════════════════════════════════════════════
-// UPDATE INCOME/EXPENSE TABLE: fix the reverse-engineered monthKey lookup
-// The original code did:
-//   const monthKey = (() => { const d=new Date(startDate); d.setMonth(d.getMonth()+idx); return ... })()
-// This assumed calendar months. We replace it using the periodKeys array.
-// ════════════════════════════════════════════════════════════════════════════
-
-// The loadIncomeExpenseReport function builds the drawer using monthKey to
-// look up itemized transactions. It reverse-engineers the key from the label.
-// With budget periods, we need to supply the correct monthKey for each period.
-//
-// We override loadIncomeExpenseReport to pass periodKeys through to the drawer builder.
-// Rather than rewriting the full function, we intercept at getBudgetMonthlyIncomeExpense()
-// return value — it now includes periodKeys[] which the drawer can use.
-//
-// The existing monthKey lookup in loadIncomeExpenseReport:
-//   const monthKey = (() => { const d=new Date(startDate); d.setMonth(d.getMonth()+idx); return ... })()
-// needs to be replaced. We do this by patching the function here.
-
-(function patchLoadIncomeExpenseReport() {
-  if (typeof loadIncomeExpenseReport !== 'function') return;
-
-  const _orig = loadIncomeExpenseReport;
-
-  window.loadIncomeExpenseReport = function() {
-    // If not in budget-period mode, use original
-    if (!budgetData || budgetData.rolloverHistory === undefined) {
-      return _orig.call(this);
-    }
-
-    // Call original — but intercept the monthKey reverse-engineering
-    // by temporarily patching getDateRange to expose periodKeys
-    _orig.call(this);
-
-    // After the call, fix up the drawer monthKey lookups retroactively
-    // by re-rendering the drawers using budget period keys.
-    // This is a no-op patch point — the main fix is that getBudgetMonthlyIncomeExpense()
-    // now returns the correct income/expense totals per BUDGET period.
-    // The drawer itemized transactions use monthData[monthKey] which is the
-    // storage key — this is correct because transactions are stored in their
-    // budget month's document. The only issue was the income/expense TOTALS
-    // were wrong. Those are now fixed by the function override above.
+// Patch reports loadData to fetch rolloverHistory + rolloverSettings
+(function patchReportsLoadData() {
+  if (typeof loadData !== 'function') return;
+  const _orig = loadData;
+  window.loadData = async function() {
+    await _orig();
+    if (!budgetData) return;
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      const budgetRef = db.collection('budget').doc(user.uid);
+      budgetData.rolloverHistory = {};
+      const hSnap = await budgetRef.collection('rolloverHistory').get();
+      hSnap.forEach(doc => { budgetData.rolloverHistory[doc.id] = doc.data(); });
+      budgetData.rolloverSettings = null;
+      const uDoc = await db.collection('users').doc(user.uid).get();
+      if (uDoc.exists && uDoc.data().rolloverSettings) {
+        budgetData.rolloverSettings = uDoc.data().rolloverSettings;
+      }
+    } catch(e) { console.warn('Budget period data load error:', e); }
   };
 })();
 
 console.log('✅ Budget-period reporting architecture loaded.');
 
 
-
-// ════════════════════════════════════════════════════════════════════════════
-// getBudgetPeriod — REWRITE to support manual rollover with no automaticDay
-//
-// Added data source: "BALANCE FROM LAST MONTH" rollover transaction stored
-// inside each month document. Its date = the exact day the period started.
-// This works for both manual and automatic rollover.
-// ════════════════════════════════════════════════════════════════════════════
-
-function getBudgetPeriod(monthKey) {
-  if (!monthKey) return null;
-
-  const [yearStr, monthStr] = monthKey.split('-');
-  const year  = parseInt(yearStr,  10);
-  const month = parseInt(monthStr, 10); // 1-based
-
-  const history  = (budgetData && budgetData.rolloverHistory) || {};
-  const months   = (budgetData && budgetData.months)          || {};
-  const settings = (budgetData && budgetData.rolloverSettings) || null;
-  const rolloverDay = settings && settings.automaticDay
-    ? parseInt(settings.automaticDay, 10)
-    : null;
-
-  // ── Helper: find the "BALANCE FROM LAST MONTH" transaction date in a month ──
-  // This transaction is written on the day of rollover, into the NEW month.
-  // Its date = exact period start for that month.
-  function getRolloverTransactionDate(mk) {
-    const md = months[mk];
-    if (!md || !md.transactions) return null;
-    const tx = md.transactions.find(t =>
-      t.category === 'BALANCE FROM LAST MONTH' || t.name === 'ROLLOVER AMOUNT'
-    );
-    if (!tx || !tx.date) return null;
-    const d = new Date(tx.date + 'T00:00:00');
-    return isNaN(d.getTime()) ? null : d;
-  }
-
-  // ── startDate: when did THIS month's budget period begin? ─────────────
-
-  let startDate;
-
-  // Source 1: previous month's rolloverHistory.rolledOverAt
-  // The day previous month rolled over = the day this month started
-  const prevDate     = new Date(year, month - 2, 1);
-  const prevMonthKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
-  const prevHistory  = history[prevMonthKey];
-
-  if (prevHistory && prevHistory.rolledOverAt) {
-    const rolledAt = new Date(prevHistory.rolledOverAt);
-    startDate = new Date(rolledAt.getFullYear(), rolledAt.getMonth(), rolledAt.getDate());
-  }
-
-  // Source 2: "BALANCE FROM LAST MONTH" rollover transaction inside THIS month
-  // Written on the exact rollover date, regardless of manual or automatic mode
-  if (!startDate) {
-    const rolloverTxDate = getRolloverTransactionDate(monthKey);
-    if (rolloverTxDate) {
-      startDate = rolloverTxDate;
-    }
-  }
-
-  // Source 3: automaticDay setting
-  if (!startDate && rolloverDay >= 1 && rolloverDay <= 31) {
-    const lastDay    = new Date(year, month, 0).getDate();
-    const clampedDay = Math.min(rolloverDay, lastDay);
-    startDate = new Date(year, month - 1, clampedDay);
-  }
-
-  // Source 4: calendar month day 1 (last resort)
-  if (!startDate) {
-    startDate = new Date(year, month - 1, 1);
-  }
-
-  // ── endDate: when did THIS month's budget period end? ─────────────────
-
-  let endDate;
-
-  // Source 1: this month's own rolloverHistory.rolledOverAt (period was closed)
-  const thisHistory = history[monthKey];
-  if (thisHistory && thisHistory.rolledOverAt) {
-    const rolledAt = new Date(thisHistory.rolledOverAt);
-    endDate = new Date(rolledAt.getFullYear(), rolledAt.getMonth(), rolledAt.getDate(), 23, 59, 59, 999);
-  }
-
-  // Source 2: "BALANCE FROM LAST MONTH" transaction inside the NEXT month
-  // That transaction's date = the day next period started = one day after this period ended
-  if (!endDate) {
-    const nextDate     = new Date(year, month, 1);
-    const nextMonthKey = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
-    const nextRolloverDate = getRolloverTransactionDate(nextMonthKey);
-    if (nextRolloverDate) {
-      // Period ended the day before next period started
-      const dayBefore = new Date(nextRolloverDate);
-      dayBefore.setDate(dayBefore.getDate() - 1);
-      endDate = new Date(dayBefore.getFullYear(), dayBefore.getMonth(), dayBefore.getDate(), 23, 59, 59, 999);
-    }
-  }
-
-  // Source 3: automaticDay of NEXT month minus 1 day
-  if (!endDate && rolloverDay >= 1 && rolloverDay <= 31) {
-    const nextDate    = new Date(year, month, 1);
-    const nextYear    = nextDate.getFullYear();
-    const nextMonth   = nextDate.getMonth() + 1;
-    const lastDayNext = new Date(nextYear, nextMonth, 0).getDate();
-    const clampedDay  = Math.min(rolloverDay, lastDayNext);
-    const periodEnd   = new Date(nextYear, nextMonth - 1, clampedDay);
-    periodEnd.setDate(periodEnd.getDate() - 1);
-    endDate = new Date(periodEnd.getFullYear(), periodEnd.getMonth(), periodEnd.getDate(), 23, 59, 59, 999);
-  }
-
-  // Source 4: last day of calendar month (last resort — current open period)
-  if (!endDate) {
-    endDate = new Date(year, month, 0, 23, 59, 59, 999);
-  }
-
-  // ── Label ──────────────────────────────────────────────────────────────
-  const startLabel = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  const endLabel   = endDate.toLocaleDateString('en-US',   { month: 'short', day: 'numeric', year: '2-digit' });
-  const label = `${startLabel} – ${endLabel}`;
-
-  return { startDate, endDate, label, monthKey };
-}
-
-console.log('✅ getBudgetPeriod (manual-rollover-aware) loaded.');
-
-
-
 // ════════════════════════════════════════════════════════════════════════════
 // GOALS INTEGRATION — Budget Category + Account + Dashboard Widget
 // ════════════════════════════════════════════════════════════════════════════
-
-// ── Populate goal modal dropdowns when opened ─────────────────────────────
 
 function populateGoalModalDropdowns() {
   const catSelect  = document.getElementById('goal-linked-category');
   const acctSelect = document.getElementById('goal-linked-account');
   if (!catSelect || !acctSelect) return;
 
-  // Categories from current month
   const categories = (window._currentMonthData && window._currentMonthData.categories) || [];
   catSelect.innerHTML = '<option value="">None (manual tracking)</option>';
   categories.forEach(c => {
     const opt = document.createElement('option');
-    opt.value = c.name;
-    opt.textContent = c.name;
+    opt.value = c.name; opt.textContent = c.name;
     catSelect.appendChild(opt);
   });
 
-  // Accounts — asset accounts only (goals are savings targets, not liabilities)
-  const assetAccounts = (window._bmAccounts || []).filter(a => {
-    const info = ACCOUNT_TYPES[a.type];
+  // Asset accounts only — safely handle non-array
+  const acctList = Array.isArray(window._bmAccounts) ? window._bmAccounts : [];
+  const assetAccounts = acctList.filter(a => {
+    const info = typeof ACCOUNT_TYPES !== 'undefined' ? ACCOUNT_TYPES[a.type] : null;
     return info && info.category === 'asset';
   });
   acctSelect.innerHTML = '<option value="">None (manual tracking)</option>';
   assetAccounts.forEach(a => {
     const opt = document.createElement('option');
     opt.value = a.id || a.name;
-    opt.textContent = `${a.name} (${formatCurrency(a.balance)})`;
+    opt.textContent = `${a.name} (${typeof formatCurrency === 'function' ? formatCurrency(a.balance) : a.balance})`;
     acctSelect.appendChild(opt);
   });
 }
 
-// Patch openAddGoalModal to populate dropdowns
-const _origOpenAddGoalModal = window.openAddGoalModal;
-window.openAddGoalModal = function() {
-  if (typeof _origOpenAddGoalModal === 'function') _origOpenAddGoalModal();
-  populateGoalModalDropdowns();
-  // Reset dropdowns
-  const cs = document.getElementById('goal-linked-category');
-  const as = document.getElementById('goal-linked-account');
-  if (cs) cs.value = '';
-  if (as) as.value = '';
-};
+// Patch openAddGoalModal
+(function() {
+  const _orig = window.openAddGoalModal;
+  window.openAddGoalModal = function() {
+    window._editingGoalId = null;
+    if (typeof _orig === 'function') _orig();
+    populateGoalModalDropdowns();
+    const cs = document.getElementById('goal-linked-category');
+    const as = document.getElementById('goal-linked-account');
+    if (cs) cs.value = '';
+    if (as) as.value = '';
+  };
+})();
 
-// Patch editGoal to populate and set dropdowns
-const _origEditGoal = window.editGoal;
-window.editGoal = async function(goalId) {
-  if (typeof _origEditGoal === 'function') await _origEditGoal(goalId);
-  populateGoalModalDropdowns();
-  const goal = goals.find(g => g.id === goalId);
-  if (!goal) return;
-  const cs = document.getElementById('goal-linked-category');
-  const as = document.getElementById('goal-linked-account');
-  if (cs) cs.value = goal.linkedCategoryName || '';
-  if (as) as.value = goal.linkedAccountId    || '';
-};
+// Patch editGoal
+(function() {
+  const _orig = window.editGoal;
+  window.editGoal = async function(goalId) {
+    window._editingGoalId = goalId;
+    if (typeof _orig === 'function') await _orig(goalId);
+    populateGoalModalDropdowns();
+    // goals is a closure variable — access via the goals array in scope
+    const goalsList = window._bmGoals || [];
+    const goal = goalsList.find(g => g.id === goalId);
+    if (!goal) return;
+    const cs = document.getElementById('goal-linked-category');
+    const as = document.getElementById('goal-linked-account');
+    if (cs) cs.value = goal.linkedCategoryName || '';
+    if (as) as.value = goal.linkedAccountId    || '';
+  };
+})();
 
-// ── Patch goal form submit to save new fields ─────────────────────────────
+// Expose goals array for editGoal patch — done via renderGoals override below
 
+// Patch goal form submit
 (function patchGoalFormSubmit() {
-  const form = document.getElementById('goal-form');
-  if (!form) return;
-
-  // Clone to remove old listener, then re-add patched version
-  const newForm = form.cloneNode(true);
-  form.parentNode.replaceChild(newForm, form);
-
-  newForm.addEventListener('submit', async (e) => {
+  // Use event delegation on document to catch dynamically replaced forms
+  document.addEventListener('submit', async function(e) {
+    const form = e.target;
+    if (form.id !== 'goal-form') return;
     e.preventDefault();
+    e.stopImmediatePropagation();
 
-    const name               = document.getElementById('goal-name').value.trim();
-    const type               = document.getElementById('goal-type').value;
-    const targetAmount       = parseFloat(document.getElementById('target-amount').value);
-    const targetDate         = document.getElementById('target-date').value || null;
-    const monthlyContribution= parseFloat(document.getElementById('monthly-contribution').value) || null;
-    const description        = document.getElementById('goal-description').value.trim() || null;
+    const name               = document.getElementById('goal-name')?.value.trim();
+    const type               = document.getElementById('goal-type')?.value;
+    const targetAmount       = parseFloat(document.getElementById('target-amount')?.value);
+    const targetDate         = document.getElementById('target-date')?.value || null;
+    const monthlyContrib     = parseFloat(document.getElementById('monthly-contribution')?.value) || null;
+    const description        = document.getElementById('goal-description')?.value.trim() || null;
     const linkedCategoryName = document.getElementById('goal-linked-category')?.value || null;
     const linkedAccountId    = document.getElementById('goal-linked-account')?.value  || null;
 
     if (!name || !type || isNaN(targetAmount) || targetAmount <= 0) {
-      showToast('Please fill in all required fields', 'error');
+      if (typeof showToast === 'function') showToast('Please fill in all required fields', 'error');
       return;
     }
 
     const goalData = {
       name, type, targetAmount, targetDate,
-      monthlyContribution, description,
+      monthlyContribution: monthlyContrib,
+      description,
       linkedCategoryName: linkedCategoryName || null,
       linkedAccountId:    linkedAccountId    || null,
       status: 'active',
       updatedAt: new Date().toISOString()
     };
 
-    // Only set currentAmount on NEW goals (not edits, to preserve manual fund history)
-    if (!window._editingGoalId) {
-      goalData.currentAmount = 0;
-    }
+    const user = typeof auth !== 'undefined' ? auth.currentUser : null;
+    if (!user) return;
+    const goalsRef = db.collection('budget').doc(user.uid).collection('goals');
 
     try {
-      const goalsRef = db.collection('budget').doc(currentUser.uid).collection('goals');
       if (window._editingGoalId) {
         await goalsRef.doc(window._editingGoalId).update(goalData);
-        showToast('Goal updated successfully', 'success');
+        if (typeof showToast === 'function') showToast('Goal updated successfully', 'success');
       } else {
+        goalData.currentAmount = 0;
         goalData.createdAt = new Date().toISOString();
         await goalsRef.add(goalData);
-        showToast('Goal created successfully', 'success');
+        if (typeof showToast === 'function') showToast('Goal created successfully', 'success');
       }
-      closeGoalModal();
-      await loadGoals();
-    } catch (err) {
+      if (typeof closeGoalModal === 'function') closeGoalModal();
+      if (typeof loadGoals === 'function') await loadGoals();
+    } catch(err) {
       console.error('Error saving goal:', err);
-      showToast('Error saving goal', 'error');
+      if (typeof showToast === 'function') showToast('Error saving goal', 'error');
     }
-  });
+  }, true); // capture phase so it runs before original handlers
 })();
 
-// Sync editingGoalId so the new form submit handler can read it
-const _origEditGoal2 = window.editGoal;
-window.editGoal = async function(goalId) {
-  window._editingGoalId = goalId;
-  if (typeof _origEditGoal2 === 'function') await _origEditGoal2(goalId);
-};
-const _origOpenAddGoalModal2 = window.openAddGoalModal;
-window.openAddGoalModal = function() {
-  window._editingGoalId = null;
-  if (typeof _origOpenAddGoalModal2 === 'function') _origOpenAddGoalModal2();
-};
-
-// ── Compute goal progress from real budget data ───────────────────────────
-
-/**
- * computeGoalProgress(goal)
- *
- * Returns { currentAmount, source } where source is one of:
- *   'account'  — balance of linked account
- *   'category' — sum of assigned amounts across all months for linked category
- *   'manual'   — goal.currentAmount (manual addFunds)
- */
+// Compute goal progress from real budget data
 function computeGoalProgress(goal) {
   // Priority 3: account balance
   if (goal.linkedAccountId) {
-    const acct = (window._bmAccounts || []).find(a =>
-      (a.id || a.name) === goal.linkedAccountId
-    );
-    if (acct) {
-      return {
-        currentAmount: Math.max(0, acct.balance || 0),
-        source: 'account',
-        accountName: acct.name
-      };
-    }
+    const acctList = Array.isArray(window._bmAccounts) ? window._bmAccounts : [];
+    const acct = acctList.find(a => (a.id || a.name) === goal.linkedAccountId);
+    if (acct) return { currentAmount: Math.max(0, acct.balance || 0), source: 'account', accountName: acct.name };
   }
 
-  // Priority 1: sum assigned across all budget months for this category
+  // Priority 1: sum category balance across all months
   if (goal.linkedCategoryName) {
-    let totalAssigned = 0;
-    const budgetMonths = (typeof budgetData !== 'undefined' && budgetData && budgetData.months)
-      ? budgetData.months
-      : {};
+    const rptMonths   = (typeof budgetData !== 'undefined' && budgetData && budgetData.months) ? Object.values(budgetData.months) : [];
+    const curMonthArr = window._currentMonthData ? [window._currentMonthData] : [];
+    const allMonths   = rptMonths.length > 0 ? rptMonths : curMonthArr;
 
-    // Also check the reports-context budgetData and the main app months
-    const allMonthsToCheck = Object.values(budgetMonths);
-
-    // If reports budgetData not available, try to get from current month
-    if (allMonthsToCheck.length === 0 && window._currentMonthData) {
-      allMonthsToCheck.push(window._currentMonthData);
-    }
-
-    allMonthsToCheck.forEach(monthData => {
-      const cats = monthData.categories || [];
-      const cat  = cats.find(c => c.name === goal.linkedCategoryName);
+    // Use only the CURRENT month's balance (not cumulative across all months)
+    // because categoryBalance = startingBalance + assigned - spent (which already includes rollover)
+    const latestMonth = allMonths[allMonths.length - 1];
+    if (latestMonth) {
+      const cat = (latestMonth.categories || []).find(c => c.name === goal.linkedCategoryName);
       if (cat) {
-        // Use categoryBalance: starting + assigned - spent
         const bal = (Number(cat.startingBalance) || 0) + (Number(cat.assigned) || 0) - (Number(cat.spent) || 0);
-        totalAssigned += Math.max(0, bal); // only count positive balance
+        return { currentAmount: Math.max(0, bal), source: 'category', categoryName: goal.linkedCategoryName };
       }
-    });
-
-    // Fallback: read from Firestore directly in async context — 
-    // for sync card rendering, use what we have
-    return {
-      currentAmount: totalAssigned,
-      source: 'category',
-      categoryName: goal.linkedCategoryName
-    };
+    }
+    return { currentAmount: 0, source: 'category', categoryName: goal.linkedCategoryName };
   }
 
-  // Manual tracking
-  return {
-    currentAmount: goal.currentAmount || 0,
-    source: 'manual'
-  };
+  return { currentAmount: goal.currentAmount || 0, source: 'manual' };
 }
 
-// ── Rewrite createGoalCard with full integration ──────────────────────────
-
+// Override createGoalCard
 window.createGoalCard = function(goal) {
   const { currentAmount, source, categoryName, accountName } = computeGoalProgress(goal);
-  const progress     = Math.min(goal.targetAmount > 0 ? (currentAmount / goal.targetAmount) * 100 : 0, 100);
-  const remaining    = Math.max(goal.targetAmount - currentAmount, 0);
-  const isCompleted  = currentAmount >= goal.targetAmount;
-  const daysRemaining = goal.targetDate
-    ? Math.ceil((new Date(goal.targetDate) - new Date()) / 86400000)
-    : null;
+  const progress    = Math.min(goal.targetAmount > 0 ? (currentAmount / goal.targetAmount) * 100 : 0, 100);
+  const remaining   = Math.max(goal.targetAmount - currentAmount, 0);
+  const isCompleted = currentAmount >= goal.targetAmount;
+  const daysRemaining = goal.targetDate ? Math.ceil((new Date(goal.targetDate) - new Date()) / 86400000) : null;
 
-  // Monthly contribution warning (Priority 2)
   let monthlyWarning = '';
-  if (goal.monthlyContribution && source === 'category' && goal.linkedCategoryName) {
-    const currentCat = (window._currentMonthData?.categories || [])
-      .find(c => c.name === goal.linkedCategoryName);
-    const thisMonthAssigned = currentCat ? (Number(currentCat.assigned) || 0) : 0;
-    const needed = goal.monthlyContribution;
-    if (!isCompleted && thisMonthAssigned < needed) {
-      const shortfall = needed - thisMonthAssigned;
-      monthlyWarning = `
-        <div class="goal-funding-alert">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          Needs ${formatCurrency(shortfall)} more assigned this month
-        </div>`;
+  if (goal.monthlyContribution && source === 'category' && goal.linkedCategoryName && !isCompleted) {
+    const currentCat = (window._currentMonthData?.categories || []).find(c => c.name === goal.linkedCategoryName);
+    const assigned   = currentCat ? (Number(currentCat.assigned) || 0) : 0;
+    if (assigned < goal.monthlyContribution) {
+      const shortfall = goal.monthlyContribution - assigned;
+      monthlyWarning = `<div class="goal-funding-alert"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Needs ${typeof formatCurrency === 'function' ? formatCurrency(shortfall) : shortfall} more assigned this month</div>`;
     }
   }
 
-  // Source badge
   const sourceBadge = source === 'account'
     ? `<span class="goal-source-badge goal-source-account">📊 ${accountName}</span>`
     : source === 'category'
     ? `<span class="goal-source-badge goal-source-category">📁 ${categoryName}</span>`
     : `<span class="goal-source-badge goal-source-manual">✏️ Manual</span>`;
 
-  let statusClass = 'status-active';
-  let statusText  = 'Active';
-  if (isCompleted)              { statusClass = 'status-completed'; statusText = 'Completed 🎉'; }
-  else if (goal.status === 'paused') { statusClass = 'status-paused';    statusText = 'Paused'; }
+  let statusClass = 'status-active', statusText = 'Active';
+  if (isCompleted)               { statusClass = 'status-completed'; statusText = 'Completed 🎉'; }
+  else if (goal.status === 'paused') { statusClass = 'status-paused'; statusText = 'Paused'; }
 
-  // Projected completion
   let projectionLine = '';
-  if (!isCompleted && goal.monthlyContribution && goal.monthlyContribution > 0) {
+  if (!isCompleted && goal.monthlyContribution && goal.monthlyContribution > 0 && remaining > 0) {
     const monthsLeft = Math.ceil(remaining / goal.monthlyContribution);
-    const projDate   = new Date();
-    projDate.setMonth(projDate.getMonth() + monthsLeft);
-    const projLabel  = projDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-    projectionLine   = `<div class="goal-projection">At current rate: complete by <strong>${projLabel}</strong></div>`;
+    const proj = new Date(); proj.setMonth(proj.getMonth() + monthsLeft);
+    projectionLine = `<div class="goal-projection">At current rate: complete by <strong>${proj.toLocaleDateString('en-US',{month:'short',year:'numeric'})}</strong></div>`;
   }
+
+  const fmt = typeof formatCurrency === 'function' ? formatCurrency : (v => v);
 
   return `
     <div class="goal-card" id="goal-card-${goal.id}">
@@ -10626,9 +10134,7 @@ window.createGoalCard = function(goal) {
             </div>
           </div>
         </div>
-
         ${monthlyWarning}
-
         <div class="goal-progress-section">
           <div class="goal-progress-track">
             <div class="goal-progress-fill ${isCompleted ? 'completed' : ''}" style="width:${progress.toFixed(1)}%"></div>
@@ -10638,157 +10144,95 @@ window.createGoalCard = function(goal) {
             <span class="goal-status-pill ${statusClass}">${statusText}</span>
           </div>
         </div>
-
         <div class="goal-amounts-row">
-          <div class="goal-amount-block">
-            <div class="goal-amount-label">Saved</div>
-            <div class="goal-amount-value positive">${formatCurrency(currentAmount)}</div>
-          </div>
+          <div class="goal-amount-block"><div class="goal-amount-label">Saved</div><div class="goal-amount-value positive">${fmt(currentAmount)}</div></div>
           <div class="goal-amount-divider"></div>
-          <div class="goal-amount-block">
-            <div class="goal-amount-label">Target</div>
-            <div class="goal-amount-value">${formatCurrency(goal.targetAmount)}</div>
-          </div>
+          <div class="goal-amount-block"><div class="goal-amount-label">Target</div><div class="goal-amount-value">${fmt(goal.targetAmount)}</div></div>
           <div class="goal-amount-divider"></div>
-          <div class="goal-amount-block">
-            <div class="goal-amount-label">Remaining</div>
-            <div class="goal-amount-value ${remaining > 0 ? 'negative' : 'positive'}">${formatCurrency(remaining)}</div>
-          </div>
+          <div class="goal-amount-block"><div class="goal-amount-label">Remaining</div><div class="goal-amount-value ${remaining > 0 ? 'negative' : 'positive'}">${fmt(remaining)}</div></div>
         </div>
-
         ${goal.description ? `<div class="goal-description">${goal.description}</div>` : ''}
-
         <div class="goal-meta-row">
-          ${goal.targetDate ? `<span class="goal-meta-item">🗓 ${formatDate(goal.targetDate)}${daysRemaining !== null ? ` · ${daysRemaining > 0 ? daysRemaining + 'd left' : 'Past due'}` : ''}</span>` : ''}
-          ${goal.monthlyContribution ? `<span class="goal-meta-item">📅 ${formatCurrency(goal.monthlyContribution)}/mo</span>` : ''}
+          ${goal.targetDate ? `<span class="goal-meta-item">🗓 ${goal.targetDate}${daysRemaining !== null ? ` · ${daysRemaining > 0 ? daysRemaining + 'd left' : 'Past due'}` : ''}</span>` : ''}
+          ${goal.monthlyContribution ? `<span class="goal-meta-item">📅 ${fmt(goal.monthlyContribution)}/mo</span>` : ''}
         </div>
-
         ${projectionLine}
       </div>
-
       ${!isCompleted && source === 'manual' ? `
         <div class="add-funds-section">
           <input type="number" class="funds-input" id="funds-${goal.id}" placeholder="Add amount" min="0" step="0.01">
           <button class="add-funds-btn" onclick="addFunds('${goal.id}')">Add Funds</button>
-        </div>
-      ` : ''}
-
+        </div>` : ''}
       ${!isCompleted && source === 'category' ? `
         <div class="goal-budget-action">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
           Assign money to <strong>${goal.linkedCategoryName}</strong> in Budget to fund this goal
-        </div>
-      ` : ''}
-
+        </div>` : ''}
       ${!isCompleted && source === 'account' ? `
         <div class="goal-budget-action">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
           Balance of <strong>${accountName}</strong> tracks this goal automatically
-        </div>
-      ` : ''}
-    </div>
-  `;
+        </div>` : ''}
+    </div>`;
 };
 
-// ── Patch loadGoals to compute correct progress per goal ──────────────────
-
-const _origLoadGoals = window.loadGoals;
-window.loadGoals = async function() {
-  if (typeof _origLoadGoals === 'function') await _origLoadGoals();
-  // After goals are loaded, re-render so computeGoalProgress uses fresh data
-  if (typeof renderGoals === 'function') renderGoals();
-  // Update dashboard widget
+// Override renderGoals to expose goals array globally
+const _origRenderGoals = window.renderGoals || renderGoals;
+window.renderGoals = function() {
+  // Sync global goals reference for editGoal patch
+  if (typeof goals !== 'undefined') window._bmGoals = goals;
+  if (typeof _origRenderGoals === 'function') _origRenderGoals();
   updateGoalsDashboardWidget();
 };
 
-// ── Priority 4: Dashboard Goals Funding Widget ────────────────────────────
-
+// Dashboard goals widget
 function updateGoalsDashboardWidget() {
   const widget = document.getElementById('bm-goals-widget');
   const body   = document.getElementById('bm-goals-widget-body');
-  if (!widget || !body || !goals || goals.length === 0) {
+  const goalsList = window._bmGoals || (typeof goals !== 'undefined' ? goals : []);
+  if (!widget || !body || !goalsList || goalsList.length === 0) {
     if (widget) widget.style.display = 'none';
     return;
   }
-
-  const activeGoals = goals.filter(g => g.status !== 'paused');
-  if (activeGoals.length === 0) {
-    widget.style.display = 'none';
-    return;
-  }
-
+  const activeGoals = goalsList.filter(g => g.status !== 'paused');
+  if (activeGoals.length === 0) { widget.style.display = 'none'; return; }
   widget.style.display = 'block';
+
+  const fmt = typeof formatCurrency === 'function' ? formatCurrency : (v => v);
+  let underfunded = 0;
 
   const items = activeGoals.map(goal => {
     const { currentAmount, source } = computeGoalProgress(goal);
     const progress = Math.min(goal.targetAmount > 0 ? (currentAmount / goal.targetAmount) * 100 : 0, 100);
     const isCompleted = currentAmount >= goal.targetAmount;
-
-    // Check if monthly contribution is underfunded
     let alertHtml = '';
     if (!isCompleted && goal.monthlyContribution && source === 'category' && goal.linkedCategoryName) {
-      const currentCat = (window._currentMonthData?.categories || [])
-        .find(c => c.name === goal.linkedCategoryName);
-      const assigned = currentCat ? (Number(currentCat.assigned) || 0) : 0;
+      const cat = (window._currentMonthData?.categories || []).find(c => c.name === goal.linkedCategoryName);
+      const assigned = cat ? (Number(cat.assigned) || 0) : 0;
       if (assigned < goal.monthlyContribution) {
-        const shortfall = goal.monthlyContribution - assigned;
-        alertHtml = `<span class="bm-gw-alert">Needs ${formatCurrency(shortfall)}</span>`;
+        underfunded++;
+        alertHtml = `<span class="bm-gw-alert">Needs ${fmt(goal.monthlyContribution - assigned)}</span>`;
       }
     }
-
-    return `
-      <div class="bm-gw-item">
-        <div class="bm-gw-item-top">
-          <span class="bm-gw-name">${goal.name}</span>
-          ${alertHtml}
-          <span class="bm-gw-pct ${isCompleted ? 'complete' : ''}">${progress.toFixed(0)}%</span>
-        </div>
-        <div class="bm-gw-track">
-          <div class="bm-gw-fill ${isCompleted ? 'complete' : ''}" style="width:${progress.toFixed(1)}%"></div>
-        </div>
-        <div class="bm-gw-amounts">
-          <span>${formatCurrency(currentAmount)}</span>
-          <span>${formatCurrency(goal.targetAmount)}</span>
-        </div>
-      </div>`;
+    return `<div class="bm-gw-item">
+      <div class="bm-gw-item-top"><span class="bm-gw-name">${goal.name}</span>${alertHtml}<span class="bm-gw-pct ${isCompleted ? 'complete' : ''}">${progress.toFixed(0)}%</span></div>
+      <div class="bm-gw-track"><div class="bm-gw-fill ${isCompleted ? 'complete' : ''}" style="width:${progress.toFixed(1)}%"></div></div>
+      <div class="bm-gw-amounts"><span>${fmt(currentAmount)}</span><span>${fmt(goal.targetAmount)}</span></div>
+    </div>`;
   }).join('');
 
-  // Count underfunded goals
-  const underfunded = activeGoals.filter(g => {
-    if (!g.monthlyContribution || !g.linkedCategoryName) return false;
-    const { currentAmount } = computeGoalProgress(g);
-    if (currentAmount >= g.targetAmount) return false;
-    const cat = (window._currentMonthData?.categories || []).find(c => c.name === g.linkedCategoryName);
-    return (cat ? Number(cat.assigned) || 0 : 0) < g.monthlyContribution;
-  }).length;
-
   body.innerHTML = items;
-
-  // Update widget title badge
   const titleEl = widget.querySelector('.bm-gw-title');
-  if (titleEl && underfunded > 0) {
+  if (titleEl) {
     const existing = titleEl.querySelector('.bm-gw-badge');
-    if (!existing) {
+    if (existing) existing.remove();
+    if (underfunded > 0) {
       const badge = document.createElement('span');
       badge.className = 'bm-gw-badge';
       badge.textContent = `${underfunded} need funding`;
       titleEl.appendChild(badge);
     }
   }
-}
-
-// Re-run widget when budget data changes
-const _origRenderBudget = window.renderBudget || renderBudget;
-if (typeof renderBudget === 'function') {
-  const __origRB = renderBudget;
-  window.renderBudget = async function(data) {
-    await __origRB(data);
-    // After budget renders, refresh goal progress (category balances may have changed)
-    if (goals && goals.length > 0) {
-      if (typeof renderGoals === 'function') renderGoals();
-      updateGoalsDashboardWidget();
-    }
-  };
 }
 
 console.log('✅ Goals integration loaded.');
