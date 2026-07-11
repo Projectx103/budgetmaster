@@ -2826,7 +2826,8 @@ async function openTransactionPanel(index) {
 
   // Close when clicking outside the popover
   const outsideHandler = (e) => {
-    if (!wrapper.contains(e.target) && !btn.contains(e.target)) {
+    const btnContains = btn ? btn.contains(e.target) : false;
+    if (!wrapper.contains(e.target) && !btnContains) {
       closeTransactionPanel();
       document.removeEventListener('mousedown', outsideHandler);
     }
