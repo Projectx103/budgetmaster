@@ -11350,3 +11350,69 @@ h3 {
     gap: 0 !important;
   }
 }
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   FINAL DEFINITIVE FIX — Goals visibility + Settings/Main background
+   Last block = highest cascade priority for same-specificity rules.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── GOALS: Force JS inline !important style to win ─────────────────────── */
+/* Using :is() with id raises specificity above .goals-grid class selectors */
+#goals-grid,
+:is(#goals) .goals-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
+/* When JS sets display:none!important via setProperty — this selector
+   matches the inline style attribute and enforces it */
+#goals-grid[style*="none"] {
+  display: none !important;
+}
+
+#empty-state[style*="none"] {
+  display: none !important;
+}
+
+#empty-state[style*="block"] {
+  display: block !important;
+}
+
+/* ── MAIN CONTENT: Solid surface, no gradient bleed ─────────────────────── */
+.main-content {
+  background: var(--surface, #f5f6f8) !important;
+}
+
+/* Dark themes: use card-bg as surface */
+[data-theme="pastel-dream"] .main-content,
+[data-theme="steel-blue"] .main-content,
+[data-theme="royal-ember"] .main-content {
+  background: var(--card-bg) !important;
+}
+
+/* ── SETTINGS: transparent container, cards keep their background ────────── */
+.settings-container {
+  background: transparent !important;
+  min-height: 0 !important;
+  margin-left: 0 !important;
+}
+
+#settings .card,
+#settings .settings-section {
+  background: var(--card-bg) !important;
+}
+
+.settings-sidebar {
+  background: var(--card-bg) !important;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  #goals-grid,
+  :is(#goals) .goals-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
