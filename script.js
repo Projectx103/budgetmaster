@@ -10224,3 +10224,129 @@ function getBudgetComparisonData(rangeType) {
 })();
 
 console.log('✅ Budget-period reporting architecture loaded.');
+
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// getBudgetPeriod — REWRITE to support manual rollover with no automaticDay
+//
+// Added data source: "BALANCE FROM LAST MONTH" rollover transaction stored
+// inside each month document. Its date = the exact day the period started.
+// This works for both manual and automatic rollover.
+// ════════════════════════════════════════════════════════════════════════════
+
+function getBudgetPeriod(monthKey) {
+  if (!monthKey) return null;
+
+  const [yearStr, monthStr] = monthKey.split('-');
+  const year  = parseInt(yearStr,  10);
+  const month = parseInt(monthStr, 10); // 1-based
+
+  const history  = (budgetData && budgetData.rolloverHistory) || {};
+  const months   = (budgetData && budgetData.months)          || {};
+  const settings = (budgetData && budgetData.rolloverSettings) || null;
+  const rolloverDay = settings && settings.automaticDay
+    ? parseInt(settings.automaticDay, 10)
+    : null;
+
+  // ── Helper: find the "BALANCE FROM LAST MONTH" transaction date in a month ──
+  // This transaction is written on the day of rollover, into the NEW month.
+  // Its date = exact period start for that month.
+  function getRolloverTransactionDate(mk) {
+    const md = months[mk];
+    if (!md || !md.transactions) return null;
+    const tx = md.transactions.find(t =>
+      t.category === 'BALANCE FROM LAST MONTH' || t.name === 'ROLLOVER AMOUNT'
+    );
+    if (!tx || !tx.date) return null;
+    const d = new Date(tx.date + 'T00:00:00');
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // ── startDate: when did THIS month's budget period begin? ─────────────
+
+  let startDate;
+
+  // Source 1: previous month's rolloverHistory.rolledOverAt
+  // The day previous month rolled over = the day this month started
+  const prevDate     = new Date(year, month - 2, 1);
+  const prevMonthKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+  const prevHistory  = history[prevMonthKey];
+
+  if (prevHistory && prevHistory.rolledOverAt) {
+    const rolledAt = new Date(prevHistory.rolledOverAt);
+    startDate = new Date(rolledAt.getFullYear(), rolledAt.getMonth(), rolledAt.getDate());
+  }
+
+  // Source 2: "BALANCE FROM LAST MONTH" rollover transaction inside THIS month
+  // Written on the exact rollover date, regardless of manual or automatic mode
+  if (!startDate) {
+    const rolloverTxDate = getRolloverTransactionDate(monthKey);
+    if (rolloverTxDate) {
+      startDate = rolloverTxDate;
+    }
+  }
+
+  // Source 3: automaticDay setting
+  if (!startDate && rolloverDay >= 1 && rolloverDay <= 31) {
+    const lastDay    = new Date(year, month, 0).getDate();
+    const clampedDay = Math.min(rolloverDay, lastDay);
+    startDate = new Date(year, month - 1, clampedDay);
+  }
+
+  // Source 4: calendar month day 1 (last resort)
+  if (!startDate) {
+    startDate = new Date(year, month - 1, 1);
+  }
+
+  // ── endDate: when did THIS month's budget period end? ─────────────────
+
+  let endDate;
+
+  // Source 1: this month's own rolloverHistory.rolledOverAt (period was closed)
+  const thisHistory = history[monthKey];
+  if (thisHistory && thisHistory.rolledOverAt) {
+    const rolledAt = new Date(thisHistory.rolledOverAt);
+    endDate = new Date(rolledAt.getFullYear(), rolledAt.getMonth(), rolledAt.getDate(), 23, 59, 59, 999);
+  }
+
+  // Source 2: "BALANCE FROM LAST MONTH" transaction inside the NEXT month
+  // That transaction's date = the day next period started = one day after this period ended
+  if (!endDate) {
+    const nextDate     = new Date(year, month, 1);
+    const nextMonthKey = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
+    const nextRolloverDate = getRolloverTransactionDate(nextMonthKey);
+    if (nextRolloverDate) {
+      // Period ended the day before next period started
+      const dayBefore = new Date(nextRolloverDate);
+      dayBefore.setDate(dayBefore.getDate() - 1);
+      endDate = new Date(dayBefore.getFullYear(), dayBefore.getMonth(), dayBefore.getDate(), 23, 59, 59, 999);
+    }
+  }
+
+  // Source 3: automaticDay of NEXT month minus 1 day
+  if (!endDate && rolloverDay >= 1 && rolloverDay <= 31) {
+    const nextDate    = new Date(year, month, 1);
+    const nextYear    = nextDate.getFullYear();
+    const nextMonth   = nextDate.getMonth() + 1;
+    const lastDayNext = new Date(nextYear, nextMonth, 0).getDate();
+    const clampedDay  = Math.min(rolloverDay, lastDayNext);
+    const periodEnd   = new Date(nextYear, nextMonth - 1, clampedDay);
+    periodEnd.setDate(periodEnd.getDate() - 1);
+    endDate = new Date(periodEnd.getFullYear(), periodEnd.getMonth(), periodEnd.getDate(), 23, 59, 59, 999);
+  }
+
+  // Source 4: last day of calendar month (last resort — current open period)
+  if (!endDate) {
+    endDate = new Date(year, month, 0, 23, 59, 59, 999);
+  }
+
+  // ── Label ──────────────────────────────────────────────────────────────
+  const startLabel = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const endLabel   = endDate.toLocaleDateString('en-US',   { month: 'short', day: 'numeric', year: '2-digit' });
+  const label = `${startLabel} – ${endLabel}`;
+
+  return { startDate, endDate, label, monthKey };
+}
+
+console.log('✅ getBudgetPeriod (manual-rollover-aware) loaded.');
