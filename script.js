@@ -1878,6 +1878,7 @@ const ACCOUNT_TYPES = {
 
 // Render accounts with separation
 function renderAccounts(list) {
+  window._bmAccounts = list || []; // keep in sync for Goals integration
   const assetsList = document.getElementById("assets-list");
   const liabilitiesList = document.getElementById("liabilities-list");
   const assetsCount = document.getElementById("assets-count");
@@ -2072,6 +2073,7 @@ async function loadAccounts() {
   const data = docSnap.exists ? docSnap.data() : null;
 
   accounts = data?.accounts || [];
+  window._bmAccounts = accounts; // expose for Goals integration
   renderAccounts(accounts);
 }
 
@@ -9463,8 +9465,8 @@ if ("serviceWorker" in navigator) {
     if (!sheet) return;
 
     // Set title to account name
-    if (window.accounts && window.accounts[index]) {
-      const acc = window.accounts[index];
+    if (window._bmAccounts && window._bmAccounts[index]) {
+      const acc = window._bmAccounts[index];
       if (title) title.textContent = acc.name || 'Account';
     }
 
@@ -10378,7 +10380,7 @@ function populateGoalModalDropdowns() {
   });
 
   // Accounts — asset accounts only (goals are savings targets, not liabilities)
-  const assetAccounts = (window.accounts || []).filter(a => {
+  const assetAccounts = (window._bmAccounts || []).filter(a => {
     const info = ACCOUNT_TYPES[a.type];
     return info && info.category === 'asset';
   });
@@ -10501,7 +10503,7 @@ window.openAddGoalModal = function() {
 function computeGoalProgress(goal) {
   // Priority 3: account balance
   if (goal.linkedAccountId) {
-    const acct = (window.accounts || []).find(a =>
+    const acct = (window._bmAccounts || []).find(a =>
       (a.id || a.name) === goal.linkedAccountId
     );
     if (acct) {
