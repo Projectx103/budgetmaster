@@ -9671,7 +9671,7 @@ if ("serviceWorker" in navigator) {
 // BUDGET-PERIOD REPORTING ARCHITECTURE
 // ════════════════════════════════════════════════════════════════════════════
 
-let currentDateRange = 'current-month';
+// currentDateRange is already declared in the reports closure at line 5565 — no redeclaration needed
 
 function getBudgetPeriod(monthKey) {
   if (!monthKey) return null;
