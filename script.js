@@ -512,7 +512,7 @@ function clearTransactionFilters() {
 
 async function renderBudget(data) {
   if (!data) return;
-  window._currentMonthData = data; // expose for Goals integration
+  window._currentMonthData = data;
   const categories = data.categories || [];
   const transactions = data.transactions || [];
   const tbb = data.tbb || 0;
@@ -1876,7 +1876,7 @@ const ACCOUNT_TYPES = {
 
 // Render accounts with separation
 function renderAccounts(list) {
-  window._bmAccounts = Array.isArray(list) ? list : []; // sync for Goals
+  window._bmAccounts = Array.isArray(list) ? list : [];
   const assetsList = document.getElementById("assets-list");
   const liabilitiesList = document.getElementById("liabilities-list");
   const assetsCount = document.getElementById("assets-count");
@@ -7707,18 +7707,17 @@ async function loadGoals() {
 function renderGoals() {
     const goalsGrid = document.getElementById("goals-grid");
     const emptyState = document.getElementById("empty-state");
-
     if (!goalsGrid || !emptyState) return;
-
+    window._bmGoals = goals;
     if (goals.length === 0) {
-        goalsGrid.style.setProperty('display', 'none', 'important');
-        emptyState.style.setProperty('display', 'block', 'important');
+        goalsGrid.style.setProperty("display","none","important");
+        emptyState.style.setProperty("display","block","important");
         return;
     }
-
-    goalsGrid.style.setProperty('display', 'grid', 'important');
-    emptyState.style.setProperty('display', 'none', 'important');
+    goalsGrid.style.setProperty("display","grid","important");
+    emptyState.style.setProperty("display","none","important");
     goalsGrid.innerHTML = goals.map(goal => createGoalCard(goal)).join("");
+    updateGoalsDashboardWidget();
 }
         // Create goal card HTML
 function createGoalCard(goal) {
@@ -9445,8 +9444,8 @@ if ("serviceWorker" in navigator) {
     if (!sheet) return;
 
     // Set title to account name
-    if (window._bmAccounts && window._bmAccounts[index]) {
-      const acc = window._bmAccounts[index];
+    if (window.accounts && window.accounts[index]) {
+      const acc = window.accounts[index];
       if (title) title.textContent = acc.name || 'Account';
     }
 
@@ -9668,10 +9667,9 @@ if ("serviceWorker" in navigator) {
 
 
 // ════════════════════════════════════════════════════════════════════════════
-// BUDGET-PERIOD REPORTING ARCHITECTURE
+// BUDGET-PERIOD REPORTING + GOALS INTEGRATION
+// Appended block. currentDateRange already declared in reports closure above.
 // ════════════════════════════════════════════════════════════════════════════
-
-// currentDateRange is already declared in the reports closure at line 5565 — no redeclaration needed
 
 function getBudgetPeriod(monthKey) {
   if (!monthKey) return null;
@@ -9683,7 +9681,7 @@ function getBudgetPeriod(monthKey) {
   const settings = (typeof budgetData !== 'undefined' && budgetData && budgetData.rolloverSettings) || null;
   const rolloverDay = settings && settings.automaticDay ? parseInt(settings.automaticDay, 10) : null;
 
-  function getRolloverTransactionDate(mk) {
+  function getRolloverTxDate(mk) {
     const md = months[mk];
     if (!md || !md.transactions) return null;
     const tx = md.transactions.find(t => t.category === 'BALANCE FROM LAST MONTH' || t.name === 'ROLLOVER AMOUNT');
@@ -9692,134 +9690,116 @@ function getBudgetPeriod(monthKey) {
     return isNaN(d.getTime()) ? null : d;
   }
 
+  // startDate
   let startDate;
   const prevDate     = new Date(year, month - 2, 1);
-  const prevMonthKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
-  const prevHistory  = history[prevMonthKey];
-  if (prevHistory && prevHistory.rolledOverAt) {
-    const r = new Date(prevHistory.rolledOverAt);
+  const prevMK       = `${prevDate.getFullYear()}-${String(prevDate.getMonth()+1).padStart(2,'0')}`;
+  const prevH        = history[prevMK];
+  if (prevH && prevH.rolledOverAt) {
+    const r = new Date(prevH.rolledOverAt);
     startDate = new Date(r.getFullYear(), r.getMonth(), r.getDate());
   }
-  if (!startDate) {
-    const rtd = getRolloverTransactionDate(monthKey);
-    if (rtd) startDate = rtd;
-  }
+  if (!startDate) { const d = getRolloverTxDate(monthKey); if (d) startDate = d; }
   if (!startDate && rolloverDay >= 1 && rolloverDay <= 31) {
-    const last = new Date(year, month, 0).getDate();
-    startDate = new Date(year, month - 1, Math.min(rolloverDay, last));
+    startDate = new Date(year, month-1, Math.min(rolloverDay, new Date(year,month,0).getDate()));
   }
-  if (!startDate) startDate = new Date(year, month - 1, 1);
+  if (!startDate) startDate = new Date(year, month-1, 1);
 
+  // endDate
   let endDate;
-  const thisHistory = history[monthKey];
-  if (thisHistory && thisHistory.rolledOverAt) {
-    const r = new Date(thisHistory.rolledOverAt);
+  const thisH = history[monthKey];
+  if (thisH && thisH.rolledOverAt) {
+    const r = new Date(thisH.rolledOverAt);
     endDate = new Date(r.getFullYear(), r.getMonth(), r.getDate(), 23, 59, 59, 999);
   }
   if (!endDate) {
-    const nextDate     = new Date(year, month, 1);
-    const nextMonthKey = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
-    const nrd = getRolloverTransactionDate(nextMonthKey);
-    if (nrd) {
-      const db2 = new Date(nrd);
-      db2.setDate(db2.getDate() - 1);
-      endDate = new Date(db2.getFullYear(), db2.getMonth(), db2.getDate(), 23, 59, 59, 999);
-    }
+    const nxt  = new Date(year, month, 1);
+    const nMK  = `${nxt.getFullYear()}-${String(nxt.getMonth()+1).padStart(2,'0')}`;
+    const nd   = getRolloverTxDate(nMK);
+    if (nd) { const db2 = new Date(nd); db2.setDate(db2.getDate()-1); endDate = new Date(db2.getFullYear(),db2.getMonth(),db2.getDate(),23,59,59,999); }
   }
   if (!endDate && rolloverDay >= 1 && rolloverDay <= 31) {
-    const nd = new Date(year, month, 1);
-    const ny = nd.getFullYear(), nm = nd.getMonth() + 1;
-    const last2 = new Date(ny, nm, 0).getDate();
-    const pe = new Date(ny, nm - 1, Math.min(rolloverDay, last2));
-    pe.setDate(pe.getDate() - 1);
-    endDate = new Date(pe.getFullYear(), pe.getMonth(), pe.getDate(), 23, 59, 59, 999);
+    const nxt = new Date(year, month, 1);
+    const pe  = new Date(nxt.getFullYear(), nxt.getMonth(), Math.min(rolloverDay, new Date(nxt.getFullYear(),nxt.getMonth()+1,0).getDate()));
+    pe.setDate(pe.getDate()-1);
+    endDate = new Date(pe.getFullYear(), pe.getMonth(), pe.getDate(), 23,59,59,999);
   }
   if (!endDate) endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
-  const startLabel = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  const endLabel   = endDate.toLocaleDateString('en-US',   { month: 'short', day: 'numeric', year: '2-digit' });
-  return { startDate, endDate, label: `${startLabel} – ${endLabel}`, monthKey };
+  const sl = startDate.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const el = endDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'});
+  return { startDate, endDate, label:`${sl} – ${el}`, monthKey };
 }
 
 function getBudgetPeriodsForRange(rangeType) {
   if (!budgetData || !budgetData.months) return [];
-  const allMonthKeys = Object.keys(budgetData.months).sort();
-  if (allMonthKeys.length === 0) return [];
-  const currentMonthKey = budgetData.currentMonth || allMonthKeys[allMonthKeys.length - 1];
-  let selectedKeys = [];
-  switch (rangeType) {
-    case 'current-month': selectedKeys = [currentMonthKey]; break;
-    case 'last-month': {
-      const idx = allMonthKeys.indexOf(currentMonthKey);
-      selectedKeys = idx > 0 ? [allMonthKeys[idx - 1]] : [currentMonthKey]; break;
-    }
-    case 'last-3-months': {
-      const idx = allMonthKeys.indexOf(currentMonthKey);
-      selectedKeys = allMonthKeys.slice(Math.max(0, idx - 2), idx + 1); break;
-    }
-    case 'last-6-months': {
-      const idx = allMonthKeys.indexOf(currentMonthKey);
-      selectedKeys = allMonthKeys.slice(Math.max(0, idx - 5), idx + 1); break;
-    }
-    case 'current-year': {
-      const y = currentMonthKey.slice(0, 4);
-      selectedKeys = allMonthKeys.filter(k => k.startsWith(y)); break;
-    }
-    case 'last-year': {
-      const y = String(parseInt(currentMonthKey.slice(0, 4), 10) - 1);
-      selectedKeys = allMonthKeys.filter(k => k.startsWith(y)); break;
-    }
-    case 'custom': selectedKeys = allMonthKeys; break;
-    default: selectedKeys = [currentMonthKey];
+  const keys = Object.keys(budgetData.months).sort();
+  if (!keys.length) return [];
+  const cur = budgetData.currentMonth || keys[keys.length-1];
+  const idx = keys.indexOf(cur);
+  let sel;
+  switch(rangeType) {
+    case 'current-month':  sel = [cur]; break;
+    case 'last-month':     sel = idx > 0 ? [keys[idx-1]] : [cur]; break;
+    case 'last-3-months':  sel = keys.slice(Math.max(0,idx-2), idx+1); break;
+    case 'last-6-months':  sel = keys.slice(Math.max(0,idx-5), idx+1); break;
+    case 'current-year':   sel = keys.filter(k => k.startsWith(cur.slice(0,4))); break;
+    case 'last-year':      sel = keys.filter(k => k.startsWith(String(+cur.slice(0,4)-1))); break;
+    case 'custom':         sel = keys; break;
+    default:               sel = [cur];
   }
-  return selectedKeys.map(key => getBudgetPeriod(key)).filter(Boolean);
+  return sel.map(getBudgetPeriod).filter(Boolean);
 }
 
 function getBudgetDateRange() {
-  if (currentDateRange === 'custom') {
+  // currentDateRange is the variable declared in the reports closure above
+  if (typeof currentDateRange !== 'undefined' && currentDateRange === 'custom') {
     const fv = document.getElementById('fromDate')?.value;
     const tv = document.getElementById('toDate')?.value;
-    if (fv && tv) return { startDate: new Date(fv + 'T00:00:00'), endDate: new Date(tv + 'T23:59:59') };
+    if (fv && tv) return { startDate: new Date(fv+'T00:00:00'), endDate: new Date(tv+'T23:59:59') };
   }
-  const periods = getBudgetPeriodsForRange(currentDateRange);
-  if (periods.length === 0) {
-    const now = new Date();
-    return { startDate: new Date(now.getFullYear(), now.getMonth(), 1), endDate: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59) };
+  const cdr = typeof currentDateRange !== 'undefined' ? currentDateRange : 'current-month';
+  const periods = getBudgetPeriodsForRange(cdr);
+  if (!periods.length) {
+    const n = new Date();
+    return { startDate: new Date(n.getFullYear(),n.getMonth(),1), endDate: new Date(n.getFullYear(),n.getMonth()+1,0,23,59,59) };
   }
-  return { startDate: periods[0].startDate, endDate: periods[periods.length - 1].endDate };
+  return { startDate: periods[0].startDate, endDate: periods[periods.length-1].endDate };
 }
 
-function getBudgetFilteredTransactions() {
-  if (!budgetData || !budgetData.months) return [];
-  const { startDate, endDate } = getBudgetDateRange();
-  const seen = new Set(), result = [];
+function _scanAllMonths(startDate, endDate, cb) {
+  if (!budgetData || !budgetData.months) return;
   Object.values(budgetData.months).forEach(md => {
     if (!md.transactions) return;
     md.transactions.forEach(t => {
-      if (t.id && seen.has(t.id)) return;
-      const d = new Date(t.date + 'T00:00:00');
-      if (d >= startDate && d <= endDate) { if (t.id) seen.add(t.id); result.push(t); }
+      const d = new Date(t.date+'T00:00:00');
+      if (d >= startDate && d <= endDate) cb(t);
     });
+  });
+}
+
+function getBudgetFilteredTransactions() {
+  const { startDate, endDate } = getBudgetDateRange();
+  const seen = new Set(), result = [];
+  _scanAllMonths(startDate, endDate, t => {
+    if (t.id && seen.has(t.id)) return;
+    if (t.id) seen.add(t.id);
+    result.push(t);
   });
   return result;
 }
 
 function getBudgetMonthlyIncomeExpense() {
-  const periods = getBudgetPeriodsForRange(currentDateRange);
-  const result  = { labels: [], income: [], expenses: [], periodKeys: [] };
-  if (!budgetData || !budgetData.months) return result;
-  periods.forEach(({ monthKey, startDate, endDate, label }) => {
+  const cdr = typeof currentDateRange !== 'undefined' ? currentDateRange : 'current-month';
+  const periods = getBudgetPeriodsForRange(cdr);
+  const result = { labels:[], income:[], expenses:[], periodKeys:[] };
+  periods.forEach(({ startDate, endDate, label, monthKey }) => {
     result.labels.push(label); result.periodKeys.push(monthKey);
-    let inc = 0, exp = 0;
-    Object.values(budgetData.months).forEach(md => {
-      if (!md.transactions) return;
-      md.transactions.forEach(t => {
-        const d = new Date(t.date + 'T00:00:00');
-        if (d < startDate || d > endDate) return;
-        if (t.category === 'Deposit' || t.category === 'Withdrawal' || t.category === 'Transfer') return;
-        if (t.type === 'income') inc += t.amount;
-        if (t.type === 'expense') exp += t.amount;
-      });
+    let inc=0, exp=0;
+    _scanAllMonths(startDate, endDate, t => {
+      if (t.category==='Deposit'||t.category==='Withdrawal'||t.category==='Transfer') return;
+      if (t.type==='income') inc+=t.amount;
+      if (t.type==='expense') exp+=t.amount;
     });
     result.income.push(inc); result.expenses.push(exp);
   });
@@ -9827,20 +9807,15 @@ function getBudgetMonthlyIncomeExpense() {
 }
 
 function getBudgetMonthlySpending() {
-  const periods = getBudgetPeriodsForRange(currentDateRange);
-  const result  = { labels: [], amounts: [], periodKeys: [] };
-  if (!budgetData || !budgetData.months) return result;
+  const cdr = typeof currentDateRange !== 'undefined' ? currentDateRange : 'current-month';
+  const periods = getBudgetPeriodsForRange(cdr);
+  const result = { labels:[], amounts:[], periodKeys:[] };
   periods.forEach(({ startDate, endDate, label, monthKey }) => {
     result.labels.push(label); result.periodKeys.push(monthKey);
-    let spending = 0;
-    Object.values(budgetData.months).forEach(md => {
-      if (!md.transactions) return;
-      md.transactions.forEach(t => {
-        const d = new Date(t.date + 'T00:00:00');
-        if (d < startDate || d > endDate) return;
-        if (t.category === 'Deposit' || t.category === 'Withdrawal' || t.category === 'Transfer') return;
-        if (t.type === 'expense') spending += t.amount;
-      });
+    let spending=0;
+    _scanAllMonths(startDate, endDate, t => {
+      if (t.category==='Deposit'||t.category==='Withdrawal'||t.category==='Transfer') return;
+      if (t.type==='expense') spending+=t.amount;
     });
     result.amounts.push(spending);
   });
@@ -9848,391 +9823,234 @@ function getBudgetMonthlySpending() {
 }
 
 function getBudgetComparisonData(rangeType) {
-  if (!budgetData || !budgetData.months) return { income: 0, expenses: 0, net: 0, savingsRate: 0 };
-  const saved = currentDateRange;
-  currentDateRange = rangeType;
-  const { startDate, endDate } = getBudgetDateRange();
-  currentDateRange = saved;
-  let inc = 0, exp = 0;
-  Object.values(budgetData.months).forEach(md => {
-    if (!md.transactions) return;
-    md.transactions.forEach(t => {
-      const d = new Date(t.date + 'T00:00:00');
-      if (d < startDate || d > endDate) return;
-      if (t.category === 'Deposit' || t.category === 'Withdrawal' || t.category === 'Transfer') return;
-      if (t.type === 'income') inc += t.amount;
-      if (t.type === 'expense') exp += t.amount;
-    });
+  if (!budgetData || !budgetData.months) return { income:0, expenses:0, net:0, savingsRate:0 };
+  const periods = getBudgetPeriodsForRange(rangeType);
+  if (!periods.length) return { income:0, expenses:0, net:0, savingsRate:0 };
+  const startDate = periods[0].startDate;
+  const endDate   = periods[periods.length-1].endDate;
+  let inc=0, exp=0;
+  _scanAllMonths(startDate, endDate, t => {
+    if (t.category==='Deposit'||t.category==='Withdrawal'||t.category==='Transfer') return;
+    if (t.type==='income') inc+=t.amount;
+    if (t.type==='expense') exp+=t.amount;
   });
-  const net = inc - exp;
-  return { income: inc, expenses: exp, net, savingsRate: inc > 0 ? parseFloat(((net / inc) * 100).toFixed(1)) : 0 };
+  const net=inc-exp;
+  return { income:inc, expenses:exp, net, savingsRate: inc>0 ? parseFloat(((net/inc)*100).toFixed(1)) : 0 };
 }
 
-// Wire overrides
-(function() {
+// Wire overrides — only active after budgetData.rolloverHistory is loaded
+(function wireReportOverrides() {
+  const hasBP = () => typeof budgetData !== 'undefined' && budgetData && budgetData.rolloverHistory !== undefined;
   if (typeof getDateRange === 'function') {
     const _o = getDateRange;
-    window.getDateRange = function() {
-      return (budgetData && budgetData.rolloverHistory !== undefined) ? getBudgetDateRange() : _o();
-    };
+    window.getDateRange = () => hasBP() ? getBudgetDateRange() : _o();
   }
   if (typeof getFilteredTransactions === 'function') {
-    window.getFilteredTransactions = function() {
-      return (budgetData && budgetData.rolloverHistory !== undefined) ? getBudgetFilteredTransactions() : [];
-    };
+    window.getFilteredTransactions = () => hasBP() ? getBudgetFilteredTransactions() : [];
   }
   if (typeof getMonthlyIncomeExpense === 'function') {
-    window.getMonthlyIncomeExpense = function() {
-      return (budgetData && budgetData.rolloverHistory !== undefined) ? getBudgetMonthlyIncomeExpense() : { labels:[], income:[], expenses:[] };
-    };
+    window.getMonthlyIncomeExpense = () => hasBP() ? getBudgetMonthlyIncomeExpense() : {labels:[],income:[],expenses:[]};
   }
   if (typeof getMonthlySpending === 'function') {
-    window.getMonthlySpending = function() {
-      return (budgetData && budgetData.rolloverHistory !== undefined) ? getBudgetMonthlySpending() : { labels:[], amounts:[] };
-    };
+    window.getMonthlySpending = () => hasBP() ? getBudgetMonthlySpending() : {labels:[],amounts:[]};
   }
   if (typeof getComparisonData === 'function') {
-    window.getComparisonData = async function(period) {
-      return (budgetData && budgetData.rolloverHistory !== undefined) ? getBudgetComparisonData(period) : { income:0, expenses:0, net:0, savingsRate:0 };
-    };
+    window.getComparisonData = async (p) => hasBP() ? getBudgetComparisonData(p) : {income:0,expenses:0,net:0,savingsRate:0};
   }
 })();
 
 // Patch reports loadData to fetch rolloverHistory + rolloverSettings
-(function patchReportsLoadData() {
+(function() {
   if (typeof loadData !== 'function') return;
-  const _orig = loadData;
+  const _o = loadData;
   window.loadData = async function() {
-    await _orig();
+    await _o();
     if (!budgetData) return;
     try {
-      const user = auth.currentUser;
+      const user = typeof auth !== 'undefined' ? auth.currentUser : null;
       if (!user) return;
-      const budgetRef = db.collection('budget').doc(user.uid);
+      const br = db.collection('budget').doc(user.uid);
       budgetData.rolloverHistory = {};
-      const hSnap = await budgetRef.collection('rolloverHistory').get();
-      hSnap.forEach(doc => { budgetData.rolloverHistory[doc.id] = doc.data(); });
+      (await br.collection('rolloverHistory').get()).forEach(d => { budgetData.rolloverHistory[d.id] = d.data(); });
       budgetData.rolloverSettings = null;
-      const uDoc = await db.collection('users').doc(user.uid).get();
-      if (uDoc.exists && uDoc.data().rolloverSettings) {
-        budgetData.rolloverSettings = uDoc.data().rolloverSettings;
-      }
-    } catch(e) { console.warn('Budget period data load error:', e); }
+      const ud = await db.collection('users').doc(user.uid).get();
+      if (ud.exists && ud.data().rolloverSettings) budgetData.rolloverSettings = ud.data().rolloverSettings;
+    } catch(e) { console.warn('BP data load:', e); }
   };
 })();
 
-console.log('✅ Budget-period reporting architecture loaded.');
+console.log('✅ Budget-period reporting loaded.');
 
-
-// ════════════════════════════════════════════════════════════════════════════
-// GOALS INTEGRATION — Budget Category + Account + Dashboard Widget
-// ════════════════════════════════════════════════════════════════════════════
+// ── Goals Integration ────────────────────────────────────────────────────
 
 function populateGoalModalDropdowns() {
-  const catSelect  = document.getElementById('goal-linked-category');
-  const acctSelect = document.getElementById('goal-linked-account');
-  if (!catSelect || !acctSelect) return;
-
-  const categories = (window._currentMonthData && window._currentMonthData.categories) || [];
-  catSelect.innerHTML = '<option value="">None (manual tracking)</option>';
-  categories.forEach(c => {
-    const opt = document.createElement('option');
-    opt.value = c.name; opt.textContent = c.name;
-    catSelect.appendChild(opt);
-  });
-
-  // Asset accounts only — safely handle non-array
-  const acctList = Array.isArray(window._bmAccounts) ? window._bmAccounts : [];
-  const assetAccounts = acctList.filter(a => {
-    const info = typeof ACCOUNT_TYPES !== 'undefined' ? ACCOUNT_TYPES[a.type] : null;
-    return info && info.category === 'asset';
-  });
-  acctSelect.innerHTML = '<option value="">None (manual tracking)</option>';
-  assetAccounts.forEach(a => {
-    const opt = document.createElement('option');
-    opt.value = a.id || a.name;
-    opt.textContent = `${a.name} (${typeof formatCurrency === 'function' ? formatCurrency(a.balance) : a.balance})`;
-    acctSelect.appendChild(opt);
-  });
+  const cs = document.getElementById('goal-linked-category');
+  const as = document.getElementById('goal-linked-account');
+  if (!cs || !as) return;
+  const cats = (window._currentMonthData && window._currentMonthData.categories) || [];
+  cs.innerHTML = '<option value="">None (manual tracking)</option>';
+  cats.forEach(c => { const o=document.createElement('option'); o.value=c.name; o.textContent=c.name; cs.appendChild(o); });
+  const accts = Array.isArray(window._bmAccounts) ? window._bmAccounts : [];
+  as.innerHTML = '<option value="">None (manual tracking)</option>';
+  accts.filter(a => { const i=typeof ACCOUNT_TYPES!=='undefined'?ACCOUNT_TYPES[a.type]:null; return i&&i.category==='asset'; })
+    .forEach(a => { const o=document.createElement('option'); o.value=a.id||a.name; o.textContent=`${a.name} (${typeof formatCurrency==='function'?formatCurrency(a.balance):a.balance})`; as.appendChild(o); });
 }
 
-// Patch openAddGoalModal
 (function() {
-  const _orig = window.openAddGoalModal;
+  const _o = window.openAddGoalModal;
   window.openAddGoalModal = function() {
     window._editingGoalId = null;
-    if (typeof _orig === 'function') _orig();
+    if (typeof _o === 'function') _o();
     populateGoalModalDropdowns();
-    const cs = document.getElementById('goal-linked-category');
-    const as = document.getElementById('goal-linked-account');
-    if (cs) cs.value = '';
-    if (as) as.value = '';
+    const cs=document.getElementById('goal-linked-category'); if(cs) cs.value='';
+    const as=document.getElementById('goal-linked-account'); if(as) as.value='';
   };
 })();
 
-// Patch editGoal
 (function() {
-  const _orig = window.editGoal;
+  const _o = window.editGoal;
   window.editGoal = async function(goalId) {
     window._editingGoalId = goalId;
-    if (typeof _orig === 'function') await _orig(goalId);
+    if (typeof _o === 'function') await _o(goalId);
     populateGoalModalDropdowns();
-    // goals is a closure variable — access via the goals array in scope
-    const goalsList = window._bmGoals || [];
-    const goal = goalsList.find(g => g.id === goalId);
-    if (!goal) return;
-    const cs = document.getElementById('goal-linked-category');
-    const as = document.getElementById('goal-linked-account');
-    if (cs) cs.value = goal.linkedCategoryName || '';
-    if (as) as.value = goal.linkedAccountId    || '';
+    const g = (window._bmGoals||[]).find(x=>x.id===goalId); if(!g) return;
+    const cs=document.getElementById('goal-linked-category'); if(cs) cs.value=g.linkedCategoryName||'';
+    const as=document.getElementById('goal-linked-account'); if(as) as.value=g.linkedAccountId||'';
   };
 })();
 
-// Expose goals array for editGoal patch — done via renderGoals override below
+// Goal form submit — capture phase beats original handler
+document.addEventListener('submit', async function(e) {
+  if (!e.target || e.target.id !== 'goal-form') return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  const v = id => document.getElementById(id)?.value;
+  const name=v('goal-name')?.trim(), type=v('goal-type'), targetAmount=parseFloat(v('target-amount'));
+  if (!name||!type||isNaN(targetAmount)||targetAmount<=0) { if(typeof showToast==='function') showToast('Please fill in all required fields','error'); return; }
+  const goalData = {
+    name, type, targetAmount,
+    targetDate: v('target-date')||null,
+    monthlyContribution: parseFloat(v('monthly-contribution'))||null,
+    description: v('goal-description')?.trim()||null,
+    linkedCategoryName: v('goal-linked-category')||null,
+    linkedAccountId:    v('goal-linked-account')||null,
+    status:'active', updatedAt:new Date().toISOString()
+  };
+  const user = typeof auth!=='undefined'?auth.currentUser:null; if(!user) return;
+  const ref = db.collection('budget').doc(user.uid).collection('goals');
+  try {
+    if (window._editingGoalId) { await ref.doc(window._editingGoalId).update(goalData); if(typeof showToast==='function') showToast('Goal updated','success'); }
+    else { goalData.currentAmount=0; goalData.createdAt=new Date().toISOString(); await ref.add(goalData); if(typeof showToast==='function') showToast('Goal created','success'); }
+    if(typeof closeGoalModal==='function') closeGoalModal();
+    if(typeof loadGoals==='function') await loadGoals();
+  } catch(err) { console.error(err); if(typeof showToast==='function') showToast('Error saving goal','error'); }
+}, true);
 
-// Patch goal form submit
-(function patchGoalFormSubmit() {
-  // Use event delegation on document to catch dynamically replaced forms
-  document.addEventListener('submit', async function(e) {
-    const form = e.target;
-    if (form.id !== 'goal-form') return;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-
-    const name               = document.getElementById('goal-name')?.value.trim();
-    const type               = document.getElementById('goal-type')?.value;
-    const targetAmount       = parseFloat(document.getElementById('target-amount')?.value);
-    const targetDate         = document.getElementById('target-date')?.value || null;
-    const monthlyContrib     = parseFloat(document.getElementById('monthly-contribution')?.value) || null;
-    const description        = document.getElementById('goal-description')?.value.trim() || null;
-    const linkedCategoryName = document.getElementById('goal-linked-category')?.value || null;
-    const linkedAccountId    = document.getElementById('goal-linked-account')?.value  || null;
-
-    if (!name || !type || isNaN(targetAmount) || targetAmount <= 0) {
-      if (typeof showToast === 'function') showToast('Please fill in all required fields', 'error');
-      return;
-    }
-
-    const goalData = {
-      name, type, targetAmount, targetDate,
-      monthlyContribution: monthlyContrib,
-      description,
-      linkedCategoryName: linkedCategoryName || null,
-      linkedAccountId:    linkedAccountId    || null,
-      status: 'active',
-      updatedAt: new Date().toISOString()
-    };
-
-    const user = typeof auth !== 'undefined' ? auth.currentUser : null;
-    if (!user) return;
-    const goalsRef = db.collection('budget').doc(user.uid).collection('goals');
-
-    try {
-      if (window._editingGoalId) {
-        await goalsRef.doc(window._editingGoalId).update(goalData);
-        if (typeof showToast === 'function') showToast('Goal updated successfully', 'success');
-      } else {
-        goalData.currentAmount = 0;
-        goalData.createdAt = new Date().toISOString();
-        await goalsRef.add(goalData);
-        if (typeof showToast === 'function') showToast('Goal created successfully', 'success');
-      }
-      if (typeof closeGoalModal === 'function') closeGoalModal();
-      if (typeof loadGoals === 'function') await loadGoals();
-    } catch(err) {
-      console.error('Error saving goal:', err);
-      if (typeof showToast === 'function') showToast('Error saving goal', 'error');
-    }
-  }, true); // capture phase so it runs before original handlers
-})();
-
-// Compute goal progress from real budget data
 function computeGoalProgress(goal) {
-  // Priority 3: account balance
   if (goal.linkedAccountId) {
-    const acctList = Array.isArray(window._bmAccounts) ? window._bmAccounts : [];
-    const acct = acctList.find(a => (a.id || a.name) === goal.linkedAccountId);
-    if (acct) return { currentAmount: Math.max(0, acct.balance || 0), source: 'account', accountName: acct.name };
+    const a=(Array.isArray(window._bmAccounts)?window._bmAccounts:[]).find(x=>(x.id||x.name)===goal.linkedAccountId);
+    if (a) return { currentAmount:Math.max(0,a.balance||0), source:'account', accountName:a.name };
   }
-
-  // Priority 1: sum category balance across all months
   if (goal.linkedCategoryName) {
-    const rptMonths   = (typeof budgetData !== 'undefined' && budgetData && budgetData.months) ? Object.values(budgetData.months) : [];
-    const curMonthArr = window._currentMonthData ? [window._currentMonthData] : [];
-    const allMonths   = rptMonths.length > 0 ? rptMonths : curMonthArr;
-
-    // Use only the CURRENT month's balance (not cumulative across all months)
-    // because categoryBalance = startingBalance + assigned - spent (which already includes rollover)
-    const latestMonth = allMonths[allMonths.length - 1];
-    if (latestMonth) {
-      const cat = (latestMonth.categories || []).find(c => c.name === goal.linkedCategoryName);
+    const md = window._currentMonthData;
+    if (md) {
+      const cat=(md.categories||[]).find(c=>c.name===goal.linkedCategoryName);
       if (cat) {
-        const bal = (Number(cat.startingBalance) || 0) + (Number(cat.assigned) || 0) - (Number(cat.spent) || 0);
-        return { currentAmount: Math.max(0, bal), source: 'category', categoryName: goal.linkedCategoryName };
+        const bal=(Number(cat.startingBalance)||0)+(Number(cat.assigned)||0)-(Number(cat.spent)||0);
+        return { currentAmount:Math.max(0,bal), source:'category', categoryName:goal.linkedCategoryName };
       }
     }
-    return { currentAmount: 0, source: 'category', categoryName: goal.linkedCategoryName };
+    return { currentAmount:0, source:'category', categoryName:goal.linkedCategoryName };
   }
-
-  return { currentAmount: goal.currentAmount || 0, source: 'manual' };
+  return { currentAmount:goal.currentAmount||0, source:'manual' };
 }
 
-// Override createGoalCard
 window.createGoalCard = function(goal) {
   const { currentAmount, source, categoryName, accountName } = computeGoalProgress(goal);
-  const progress    = Math.min(goal.targetAmount > 0 ? (currentAmount / goal.targetAmount) * 100 : 0, 100);
-  const remaining   = Math.max(goal.targetAmount - currentAmount, 0);
-  const isCompleted = currentAmount >= goal.targetAmount;
-  const daysRemaining = goal.targetDate ? Math.ceil((new Date(goal.targetDate) - new Date()) / 86400000) : null;
+  const pct  = Math.min(goal.targetAmount>0?(currentAmount/goal.targetAmount)*100:0,100);
+  const rem  = Math.max(goal.targetAmount-currentAmount,0);
+  const done = currentAmount>=goal.targetAmount;
+  const days = goal.targetDate ? Math.ceil((new Date(goal.targetDate)-new Date())/86400000) : null;
+  const fmt  = typeof formatCurrency==='function'?formatCurrency:v=>v;
 
-  let monthlyWarning = '';
-  if (goal.monthlyContribution && source === 'category' && goal.linkedCategoryName && !isCompleted) {
-    const currentCat = (window._currentMonthData?.categories || []).find(c => c.name === goal.linkedCategoryName);
-    const assigned   = currentCat ? (Number(currentCat.assigned) || 0) : 0;
-    if (assigned < goal.monthlyContribution) {
-      const shortfall = goal.monthlyContribution - assigned;
-      monthlyWarning = `<div class="goal-funding-alert"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Needs ${typeof formatCurrency === 'function' ? formatCurrency(shortfall) : shortfall} more assigned this month</div>`;
-    }
+  let warn='';
+  if (!done && goal.monthlyContribution && source==='category') {
+    const cat=(window._currentMonthData?.categories||[]).find(c=>c.name===goal.linkedCategoryName);
+    const asgn=cat?Number(cat.assigned)||0:0;
+    if (asgn<goal.monthlyContribution) warn=`<div class="goal-funding-alert"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Needs ${fmt(goal.monthlyContribution-asgn)} more assigned this month</div>`;
   }
 
-  const sourceBadge = source === 'account'
+  const badge = source==='account'
     ? `<span class="goal-source-badge goal-source-account">📊 ${accountName}</span>`
-    : source === 'category'
+    : source==='category'
     ? `<span class="goal-source-badge goal-source-category">📁 ${categoryName}</span>`
     : `<span class="goal-source-badge goal-source-manual">✏️ Manual</span>`;
 
-  let statusClass = 'status-active', statusText = 'Active';
-  if (isCompleted)               { statusClass = 'status-completed'; statusText = 'Completed 🎉'; }
-  else if (goal.status === 'paused') { statusClass = 'status-paused'; statusText = 'Paused'; }
+  let sc='status-active',st='Active';
+  if(done){sc='status-completed';st='Completed 🎉';}else if(goal.status==='paused'){sc='status-paused';st='Paused';}
 
-  let projectionLine = '';
-  if (!isCompleted && goal.monthlyContribution && goal.monthlyContribution > 0 && remaining > 0) {
-    const monthsLeft = Math.ceil(remaining / goal.monthlyContribution);
-    const proj = new Date(); proj.setMonth(proj.getMonth() + monthsLeft);
-    projectionLine = `<div class="goal-projection">At current rate: complete by <strong>${proj.toLocaleDateString('en-US',{month:'short',year:'numeric'})}</strong></div>`;
-  }
+  let proj='';
+  if(!done&&goal.monthlyContribution>0&&rem>0){const d=new Date();d.setMonth(d.getMonth()+Math.ceil(rem/goal.monthlyContribution));proj=`<div class="goal-projection">At current rate: complete by <strong>${d.toLocaleDateString('en-US',{month:'short',year:'numeric'})}</strong></div>`;}
 
-  const fmt = typeof formatCurrency === 'function' ? formatCurrency : (v => v);
-
-  return `
-    <div class="goal-card" id="goal-card-${goal.id}">
-      <div class="goal-card-top">
-        <div class="goal-header">
-          <div class="goal-title-row">
-            <div class="goal-title">${goal.name}</div>
-            <div class="goal-type-badge">${goal.type}</div>
-          </div>
-          <div class="goal-header-right">
-            ${sourceBadge}
-            <div class="goal-actions">
-              <button class="goal-action-btn" onclick="editGoal('${goal.id}')" title="Edit">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              </button>
-              <button class="goal-action-btn goal-action-danger" onclick="deleteGoal('${goal.id}')" title="Delete">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-              </button>
-            </div>
+  return `<div class="goal-card" id="goal-card-${goal.id}">
+    <div class="goal-card-top">
+      <div class="goal-header">
+        <div class="goal-title-row"><div class="goal-title">${goal.name}</div><div class="goal-type-badge">${goal.type}</div></div>
+        <div class="goal-header-right">${badge}
+          <div class="goal-actions">
+            <button class="goal-action-btn" onclick="editGoal('${goal.id}')" title="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <button class="goal-action-btn goal-action-danger" onclick="deleteGoal('${goal.id}')" title="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
           </div>
         </div>
-        ${monthlyWarning}
-        <div class="goal-progress-section">
-          <div class="goal-progress-track">
-            <div class="goal-progress-fill ${isCompleted ? 'completed' : ''}" style="width:${progress.toFixed(1)}%"></div>
-          </div>
-          <div class="goal-progress-meta">
-            <span class="goal-progress-pct">${progress.toFixed(1)}%</span>
-            <span class="goal-status-pill ${statusClass}">${statusText}</span>
-          </div>
-        </div>
-        <div class="goal-amounts-row">
-          <div class="goal-amount-block"><div class="goal-amount-label">Saved</div><div class="goal-amount-value positive">${fmt(currentAmount)}</div></div>
-          <div class="goal-amount-divider"></div>
-          <div class="goal-amount-block"><div class="goal-amount-label">Target</div><div class="goal-amount-value">${fmt(goal.targetAmount)}</div></div>
-          <div class="goal-amount-divider"></div>
-          <div class="goal-amount-block"><div class="goal-amount-label">Remaining</div><div class="goal-amount-value ${remaining > 0 ? 'negative' : 'positive'}">${fmt(remaining)}</div></div>
-        </div>
-        ${goal.description ? `<div class="goal-description">${goal.description}</div>` : ''}
-        <div class="goal-meta-row">
-          ${goal.targetDate ? `<span class="goal-meta-item">🗓 ${goal.targetDate}${daysRemaining !== null ? ` · ${daysRemaining > 0 ? daysRemaining + 'd left' : 'Past due'}` : ''}</span>` : ''}
-          ${goal.monthlyContribution ? `<span class="goal-meta-item">📅 ${fmt(goal.monthlyContribution)}/mo</span>` : ''}
-        </div>
-        ${projectionLine}
       </div>
-      ${!isCompleted && source === 'manual' ? `
-        <div class="add-funds-section">
-          <input type="number" class="funds-input" id="funds-${goal.id}" placeholder="Add amount" min="0" step="0.01">
-          <button class="add-funds-btn" onclick="addFunds('${goal.id}')">Add Funds</button>
-        </div>` : ''}
-      ${!isCompleted && source === 'category' ? `
-        <div class="goal-budget-action">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-          Assign money to <strong>${goal.linkedCategoryName}</strong> in Budget to fund this goal
-        </div>` : ''}
-      ${!isCompleted && source === 'account' ? `
-        <div class="goal-budget-action">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-          Balance of <strong>${accountName}</strong> tracks this goal automatically
-        </div>` : ''}
-    </div>`;
+      ${warn}
+      <div class="goal-progress-section">
+        <div class="goal-progress-track"><div class="goal-progress-fill ${done?'completed':''}" style="width:${pct.toFixed(1)}%"></div></div>
+        <div class="goal-progress-meta"><span class="goal-progress-pct">${pct.toFixed(1)}%</span><span class="goal-status-pill ${sc}">${st}</span></div>
+      </div>
+      <div class="goal-amounts-row">
+        <div class="goal-amount-block"><div class="goal-amount-label">Saved</div><div class="goal-amount-value positive">${fmt(currentAmount)}</div></div>
+        <div class="goal-amount-divider"></div>
+        <div class="goal-amount-block"><div class="goal-amount-label">Target</div><div class="goal-amount-value">${fmt(goal.targetAmount)}</div></div>
+        <div class="goal-amount-divider"></div>
+        <div class="goal-amount-block"><div class="goal-amount-label">Remaining</div><div class="goal-amount-value ${rem>0?'negative':'positive'}">${fmt(rem)}</div></div>
+      </div>
+      ${goal.description?`<div class="goal-description">${goal.description}</div>`:''}
+      <div class="goal-meta-row">
+        ${goal.targetDate?`<span class="goal-meta-item">🗓 ${goal.targetDate}${days!==null?` · ${days>0?days+'d left':'Past due'}`:''}</span>`:''}
+        ${goal.monthlyContribution?`<span class="goal-meta-item">📅 ${fmt(goal.monthlyContribution)}/mo</span>`:''}
+      </div>
+      ${proj}
+    </div>
+    ${!done&&source==='manual'?`<div class="add-funds-section"><input type="number" class="funds-input" id="funds-${goal.id}" placeholder="Add amount" min="0" step="0.01"><button class="add-funds-btn" onclick="addFunds('${goal.id}')">Add Funds</button></div>`:''}
+    ${!done&&source==='category'?`<div class="goal-budget-action"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Assign money to <strong>${goal.linkedCategoryName}</strong> in Budget to fund this goal</div>`:''}
+    ${!done&&source==='account'?`<div class="goal-budget-action"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Balance of <strong>${accountName}</strong> tracks this goal automatically</div>`:''}
+  </div>`;
 };
 
-// Override renderGoals to expose goals array globally
-const _origRenderGoals = window.renderGoals || renderGoals;
-window.renderGoals = function() {
-  // Sync global goals reference for editGoal patch
-  if (typeof goals !== 'undefined') window._bmGoals = goals;
-  if (typeof _origRenderGoals === 'function') _origRenderGoals();
-  updateGoalsDashboardWidget();
-};
-
-// Dashboard goals widget
 function updateGoalsDashboardWidget() {
-  const widget = document.getElementById('bm-goals-widget');
-  const body   = document.getElementById('bm-goals-widget-body');
-  const goalsList = window._bmGoals || (typeof goals !== 'undefined' ? goals : []);
-  if (!widget || !body || !goalsList || goalsList.length === 0) {
-    if (widget) widget.style.display = 'none';
-    return;
-  }
-  const activeGoals = goalsList.filter(g => g.status !== 'paused');
-  if (activeGoals.length === 0) { widget.style.display = 'none'; return; }
-  widget.style.display = 'block';
-
-  const fmt = typeof formatCurrency === 'function' ? formatCurrency : (v => v);
-  let underfunded = 0;
-
-  const items = activeGoals.map(goal => {
-    const { currentAmount, source } = computeGoalProgress(goal);
-    const progress = Math.min(goal.targetAmount > 0 ? (currentAmount / goal.targetAmount) * 100 : 0, 100);
-    const isCompleted = currentAmount >= goal.targetAmount;
-    let alertHtml = '';
-    if (!isCompleted && goal.monthlyContribution && source === 'category' && goal.linkedCategoryName) {
-      const cat = (window._currentMonthData?.categories || []).find(c => c.name === goal.linkedCategoryName);
-      const assigned = cat ? (Number(cat.assigned) || 0) : 0;
-      if (assigned < goal.monthlyContribution) {
-        underfunded++;
-        alertHtml = `<span class="bm-gw-alert">Needs ${fmt(goal.monthlyContribution - assigned)}</span>`;
-      }
+  const widget=document.getElementById('bm-goals-widget');
+  const body=document.getElementById('bm-goals-widget-body');
+  const gl=window._bmGoals||[];
+  if(!widget||!body||!gl.length){if(widget)widget.style.display='none';return;}
+  const active=gl.filter(g=>g.status!=='paused');
+  if(!active.length){widget.style.display='none';return;}
+  widget.style.display='block';
+  const fmt=typeof formatCurrency==='function'?formatCurrency:v=>v;
+  let uf=0;
+  body.innerHTML=active.map(goal=>{
+    const {currentAmount,source}=computeGoalProgress(goal);
+    const pct=Math.min(goal.targetAmount>0?(currentAmount/goal.targetAmount)*100:0,100);
+    const done=currentAmount>=goal.targetAmount;
+    let alert='';
+    if(!done&&goal.monthlyContribution&&source==='category'&&goal.linkedCategoryName){
+      const cat=(window._currentMonthData?.categories||[]).find(c=>c.name===goal.linkedCategoryName);
+      const asgn=cat?Number(cat.assigned)||0:0;
+      if(asgn<goal.monthlyContribution){uf++;alert=`<span class="bm-gw-alert">Needs ${fmt(goal.monthlyContribution-asgn)}</span>`;}
     }
-    return `<div class="bm-gw-item">
-      <div class="bm-gw-item-top"><span class="bm-gw-name">${goal.name}</span>${alertHtml}<span class="bm-gw-pct ${isCompleted ? 'complete' : ''}">${progress.toFixed(0)}%</span></div>
-      <div class="bm-gw-track"><div class="bm-gw-fill ${isCompleted ? 'complete' : ''}" style="width:${progress.toFixed(1)}%"></div></div>
-      <div class="bm-gw-amounts"><span>${fmt(currentAmount)}</span><span>${fmt(goal.targetAmount)}</span></div>
-    </div>`;
+    return `<div class="bm-gw-item"><div class="bm-gw-item-top"><span class="bm-gw-name">${goal.name}</span>${alert}<span class="bm-gw-pct ${done?'complete':''}">${pct.toFixed(0)}%</span></div><div class="bm-gw-track"><div class="bm-gw-fill ${done?'complete':''}" style="width:${pct.toFixed(1)}%"></div></div><div class="bm-gw-amounts"><span>${fmt(currentAmount)}</span><span>${fmt(goal.targetAmount)}</span></div></div>`;
   }).join('');
-
-  body.innerHTML = items;
-  const titleEl = widget.querySelector('.bm-gw-title');
-  if (titleEl) {
-    const existing = titleEl.querySelector('.bm-gw-badge');
-    if (existing) existing.remove();
-    if (underfunded > 0) {
-      const badge = document.createElement('span');
-      badge.className = 'bm-gw-badge';
-      badge.textContent = `${underfunded} need funding`;
-      titleEl.appendChild(badge);
-    }
-  }
+  const t=widget.querySelector('.bm-gw-title');
+  if(t){const e=t.querySelector('.bm-gw-badge');if(e)e.remove();if(uf>0){const b=document.createElement('span');b.className='bm-gw-badge';b.textContent=`${uf} need funding`;t.appendChild(b);}}
 }
 
 console.log('✅ Goals integration loaded.');
