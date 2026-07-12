@@ -505,10 +505,10 @@
 <div class="card bm-goals-widget" id="bm-goals-widget" style="display:none;">
   <div class="bm-gw-header">
     <div class="bm-gw-title">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
       Goals This Month
     </div>
-    <a href="#goals" class="bm-gw-link" onclick="document.querySelector('.sidebar a[href=\'#goals\']').click(); return false;">View All</a>
+    <a href="#goals" class="bm-gw-link" onclick="document.querySelector('.sidebar a[href=\'#goals\']').click();return false;">View All</a>
   </div>
   <div id="bm-goals-widget-body"></div>
 </div>
@@ -1399,23 +1399,13 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">
-                        Link to Budget Category
-                        <span class="form-hint">Progress tracks money assigned to this category</span>
-                    </label>
-                    <select id="goal-linked-category" class="form-select">
-                        <option value="">None (manual tracking)</option>
-                    </select>
+                    <label class="form-label">Link to Budget Category<span class="form-hint">Progress tracks money assigned to this category</span></label>
+                    <select id="goal-linked-category" class="form-select"><option value="">None (manual tracking)</option></select>
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">
-                        Link to Account Balance
-                        <span class="form-hint">Progress tracks this account's balance automatically</span>
-                    </label>
-                    <select id="goal-linked-account" class="form-select">
-                        <option value="">None (manual tracking)</option>
-                    </select>
+                    <label class="form-label">Link to Account Balance<span class="form-hint">Progress tracks this account's balance automatically</span></label>
+                    <select id="goal-linked-account" class="form-select"><option value="">None (manual tracking)</option></select>
                 </div>
 
                 <div class="form-group">
