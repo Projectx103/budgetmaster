@@ -260,11 +260,39 @@ let filteredTransactions = []; // Store filtered results
 // startingBalance is set by rollover (Cover carries a negative deficit forward;
 // positive leftovers carry forward positive). Categories that never rolled over
 // have no startingBalance, so it defaults to 0 and this reduces to assigned-spent.
-function categoryBalance(c) {
-  const starting = Number(c.startingBalance) || 0;
-  const assigned = Number(c.assigned) || 0;
-  const spent    = Number(c.spent) || 0;
-  return starting + assigned - spent;
+// Returns { [categoryName]: totalCardOrAssetFundedAmount } — spending that was
+// charged to a liability (credit card) or paid straight from an asset account.
+// That money never touched the available balance / TBB pool for the category,
+// so it must not count toward "overspent" for budgeting/rollover purposes.
+//
+// Single source of truth: renderCategories (dashboard display), renderBudgetSection
+// (Budget tab table), and the rollover functions (initiateRollover/performRollover)
+// all call this — previously each computed "spent" differently, which is exactly
+// why a category funded from an Account (liability/asset) still showed as
+// overspent in rollover even though renderCategories displayed it correctly.
+function computeCardFundedPerCategory(transactions) {
+  const map = {};
+  (transactions || []).forEach(t => {
+    if ((t.fromLiability || t.fromAsset) && t.type === "expense" && t.amount > 0 && t.category) {
+      map[t.category] = (map[t.category] || 0) + t.amount;
+    }
+  });
+  return map;
+}
+
+// The amount actually drawn from the available balance / TBB pool for this
+// category — category.spent with liability/asset-funded spending subtracted
+// back out. This is what "overspent" should mean everywhere in the app.
+function getBudgetSpent(category, cardFundedMap) {
+  const cardFunded = (cardFundedMap && cardFundedMap[category.name]) || 0;
+  return Math.max(0, (category.spent || 0) - cardFunded);
+}
+
+function categoryBalance(c, cardFundedMap) {
+  const starting    = Number(c.startingBalance) || 0;
+  const assigned    = Number(c.assigned) || 0;
+  const budgetSpent = getBudgetSpent(c, cardFundedMap);
+  return starting + assigned - budgetSpent;
 }
 
 function renderCategories(categories) {
@@ -273,21 +301,16 @@ function renderCategories(categories) {
   div.innerHTML = "";
   select.innerHTML = "";
 
-  // Build per-category card-funded spent map
+  // Build per-category card-funded spent map (shared helper — see above)
   const _txns = window._currentMonthTransactions || [];
-  const _cardSpentPerCat = {};
-  _txns.forEach(t => {
-    if ((t.fromLiability || t.fromAsset) && t.type === "expense" && t.amount > 0 && t.category) {
-      _cardSpentPerCat[t.category] = (_cardSpentPerCat[t.category] || 0) + t.amount;
-    }
-  });
+  const _cardSpentPerCat = computeCardFundedPerCategory(_txns);
 
   // SVG card icon — replaces emoji for professional display
   const cardSVG = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="flex-shrink:0;opacity:0.6"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>`;
 
   categories.forEach((c, index) => {
     const cardFunded  = _cardSpentPerCat[c.name] || 0;
-    const budgetSpent = Math.max(0, (c.spent || 0) - cardFunded);
+    const budgetSpent = getBudgetSpent(c, _cardSpentPerCat);
     const starting    = Number(c.startingBalance) || 0;
     const balance     = starting + (Number(c.assigned) || 0) - budgetSpent;
 
@@ -656,9 +679,14 @@ async function renderBudget(data) {
 
 
 
+  // budgetSpent, not raw c.spent — a category charged to a liability (credit
+  // card) or paid from an asset account never drew from the available
+  // balance, so it shouldn't count toward this "Overspent" figure either.
+  const _dashCardFundedMap = computeCardFundedPerCategory(transactions);
   const overspent = categories
-    .filter(c => c.spent > c.assigned)
-    .reduce((sum, c) => sum + (c.spent - c.assigned), 0);
+    .map(c => ({ name: c.name, assigned: c.assigned || 0, budgetSpent: getBudgetSpent(c, _dashCardFundedMap) }))
+    .filter(c => c.budgetSpent > c.assigned)
+    .reduce((sum, c) => sum + (c.budgetSpent - c.assigned), 0);
   const tbbElement = document.getElementById("tbb");
   tbbElement.innerText = formatCurrency(tbb);
   
@@ -1395,15 +1423,19 @@ async function initiateRollover() {
   const monthData = monthSnap.data();
   const categories = monthData.categories || [];
 
-  // Identify overspent categories (spent > assigned)
+  // Same card-funded exclusion used everywhere else in the app (renderCategories,
+  // renderBudgetSection) — a category charged to a liability (credit card) or
+  // paid from an asset account never drew from the available balance, so it
+  // must not be treated as "overspent" for rollover purposes.
+  const cardFundedMap = computeCardFundedPerCategory(monthData.transactions);
+
+  // Identify overspent categories (budgetSpent > assigned) — budgetSpent, not
+  // raw spent, so Account-funded expenses don't falsely trigger a Cover/Absorb
+  // decision or reduce next month's To Be Budgeted.
   const overspentCategories = categories
-    .filter(c => (c.spent || 0) > (c.assigned || 0))
-    .map(c => ({
-      name: c.name,
-      assigned: c.assigned || 0,
-      spent: c.spent || 0,
-      deficit: (c.spent || 0) - (c.assigned || 0),
-    }));
+    .map(c => ({ name: c.name, assigned: c.assigned || 0, budgetSpent: getBudgetSpent(c, cardFundedMap) }))
+    .filter(c => c.budgetSpent > c.assigned)
+    .map(c => ({ ...c, deficit: c.budgetSpent - c.assigned }));
 
   // Stash the plan for proceedWithRollover()
   _rolloverPlan = {
@@ -1411,6 +1443,10 @@ async function initiateRollover() {
     overspentCategories,
     // default every overspent category to "cover"
     choices: Object.fromEntries(overspentCategories.map(c => [c.name, "cover"])),
+    // NEW: global mode — 'per-category' (default, existing Cover/Absorb picker)
+    // or 'clear-all' (new: reset every overspent category to ₱0, absorbing the
+    // total deficit from next month's Available Balance / TBB in one step).
+    globalMode: "per-category",
   };
 
   _renderRolloverModal();
@@ -1437,7 +1473,36 @@ function _renderRolloverModal() {
     return;
   }
 
-  // Overspending → per-category choice
+  const totalDeficit = overspentCategories.reduce((s, c) => s + c.deficit, 0);
+  const mode = _rolloverPlan.globalMode || "per-category";
+
+  // Global mode selector — lets the person skip the per-category picker
+  // entirely and just clear every overspent category at once.
+  const modeSelector = `
+    <div class="bm-ro-choices" style="margin-bottom: 12px;">
+      <label class="bm-ro-choice">
+        <input type="radio" name="ro-global-mode" value="per-category" ${mode === "per-category" ? "checked" : ""}
+               onchange="_setRolloverGlobalMode('per-category')">
+        <span class="bm-ro-choice-label">
+          <strong>Decide per category</strong>
+          <small>Choose Cover or Absorb individually for each overspent category.</small>
+        </span>
+      </label>
+      <label class="bm-ro-choice">
+        <input type="radio" name="ro-global-mode" value="clear-all" ${mode === "clear-all" ? "checked" : ""}
+               onchange="_setRolloverGlobalMode('clear-all')">
+        <span class="bm-ro-choice-label">
+          <strong>Clear all overspent categories</strong>
+          <small>Reset every overspent category to ₱0 next month, and take the
+          full −${formatCurrency(totalDeficit)} from next month's Available
+          Balance / To Be Budgeted now — the same "ROLLOVER AMOUNT / BALANCE
+          FROM LAST MONTH" entry, just without picking each category individually.</small>
+        </span>
+      </label>
+    </div>
+  `;
+
+  // Per-category choice — only shown/interactive in "per-category" mode.
   const rows = overspentCategories.map(c => `
     <div class="bm-ro-row" data-cat="${_escapeHtml(c.name)}">
       <div class="bm-ro-row-head">
@@ -1446,7 +1511,9 @@ function _renderRolloverModal() {
       </div>
       <div class="bm-ro-choices">
         <label class="bm-ro-choice">
-          <input type="radio" name="ro-${_escapeHtml(c.name)}" value="cover" checked
+          <input type="radio" name="ro-${_escapeHtml(c.name)}" value="cover"
+                 ${(_rolloverPlan.choices[c.name] || "cover") === "cover" ? "checked" : ""}
+                 ${mode === "clear-all" ? "disabled" : ""}
                  onchange="_setRolloverChoice('${_escapeHtmlAttr(c.name)}','cover')">
           <span class="bm-ro-choice-label">
             <strong>Cover</strong>
@@ -1456,6 +1523,8 @@ function _renderRolloverModal() {
         </label>
         <label class="bm-ro-choice">
           <input type="radio" name="ro-${_escapeHtml(c.name)}" value="absorb"
+                 ${_rolloverPlan.choices[c.name] === "absorb" ? "checked" : ""}
+                 ${mode === "clear-all" ? "disabled" : ""}
                  onchange="_setRolloverChoice('${_escapeHtmlAttr(c.name)}','absorb')">
           <span class="bm-ro-choice-label">
             <strong>Absorb</strong>
@@ -1467,18 +1536,24 @@ function _renderRolloverModal() {
     </div>
   `).join("");
 
-  const totalDeficit = overspentCategories.reduce((s, c) => s + c.deficit, 0);
-
   body.innerHTML = `
     <p class="bm-ro-intro">
       You overspent in <strong>${overspentCategories.length}</strong>
       ${overspentCategories.length === 1 ? "category" : "categories"}
       (total <strong>−${formatCurrency(totalDeficit)}</strong>).
-      Choose how to handle each one:
     </p>
-    <div class="bm-ro-list">${rows}</div>
+    ${modeSelector}
+    <div class="bm-ro-list" style="${mode === "clear-all" ? "opacity: 0.5; pointer-events: none;" : ""}">${rows}</div>
     <p class="bm-ro-note">Positive balances carry forward automatically. This action cannot be undone.</p>
   `;
+}
+
+// Called by the global mode radio buttons — re-renders the modal so the
+// per-category list visually reflects the chosen mode.
+function _setRolloverGlobalMode(mode) {
+  if (!_rolloverPlan) return;
+  _rolloverPlan.globalMode = mode;
+  _renderRolloverModal();
 }
 
 // Called by the radio buttons
@@ -1534,10 +1609,21 @@ async function performRollover() {
   const currentMonthData = currentMonthSnap.data();
   const categories = currentMonthData.categories || [];
 
+  // Same card-funded exclusion as initiateRollover/renderCategories — a
+  // category charged to a liability (credit card) or paid from an asset
+  // account never drew from the available balance, so it must not be
+  // treated as overspent here either.
+  const cardFundedMap = computeCardFundedPerCategory(currentMonthData.transactions);
+
   // Available Balance is the carry-forward pool (source of truth)
   const availableBalance = currentMonthData.availableBalance || 0;
 
-  // Use the choices captured when the modal opened (default to "cover")
+  // Use the choices captured when the modal opened (default to "cover").
+  // NEW: if the global "clear all overspent categories" mode was selected,
+  // every overspent category is forced to "absorb" regardless of its
+  // individual radio state (those radios were disabled in the UI for this
+  // exact reason).
+  const globalMode = (_rolloverPlan && _rolloverPlan.globalMode) || "per-category";
   const choices = (_rolloverPlan && _rolloverPlan.choices) ? _rolloverPlan.choices : {};
 
   // Save a snapshot of the closing month
@@ -1551,28 +1637,34 @@ async function performRollover() {
   const auditDecisions = [];
 
   const newCategories = categories.map(c => {
-    const assigned = c.assigned || 0;
-    const spent    = c.spent || 0;
-    const balance  = assigned - spent;
+    const assigned    = c.assigned || 0;
+    // budgetSpent, not raw c.spent — excludes liability/asset-funded charges,
+    // which is the fix for the bug where Account-funded expenses falsely
+    // triggered "overspent" and reduced next month's To Be Budgeted.
+    const budgetSpent = getBudgetSpent(c, cardFundedMap);
+    const balance     = assigned - budgetSpent;
 
     if (balance >= 0) {
       // Not overspent — carry the leftover forward as starting balance
       auditDecisions.push({
-        categoryName: c.name, previousAssigned: assigned, previousSpent: spent,
+        categoryName: c.name, previousAssigned: assigned, previousSpent: budgetSpent,
         previousBalance: balance, action: "carry_positive",
         carriedForward: balance, absorbedFromTbb: 0,
       });
       return { name: c.name, assigned: 0, spent: 0, balance: balance, startingBalance: balance };
     }
 
-    // Overspent
+    // Overspent (based on budgetSpent, i.e. cash actually drawn from the pool)
     const deficit = Math.abs(balance);
-    const choice = choices[c.name] || "cover";
+    // Clear-all mode forces every overspent category to "absorb" — the
+    // per-category choices map is ignored in that mode (its radios were
+    // disabled in the modal for the same reason).
+    const choice = globalMode === "clear-all" ? "absorb" : (choices[c.name] || "cover");
 
     if (choice === "absorb") {
       tbbAdjustment += deficit;
       auditDecisions.push({
-        categoryName: c.name, previousAssigned: assigned, previousSpent: spent,
+        categoryName: c.name, previousAssigned: assigned, previousSpent: budgetSpent,
         previousBalance: balance, action: "absorb",
         carriedForward: 0, absorbedFromTbb: deficit,
       });
@@ -1581,7 +1673,7 @@ async function performRollover() {
 
     // Cover (default): carry the deficit forward as a negative starting balance
     auditDecisions.push({
-      categoryName: c.name, previousAssigned: assigned, previousSpent: spent,
+      categoryName: c.name, previousAssigned: assigned, previousSpent: budgetSpent,
       previousBalance: balance, action: "cover",
       carriedForward: balance, absorbedFromTbb: 0,
     });
@@ -1632,6 +1724,7 @@ async function performRollover() {
     totalCarriedForward: totalCarried,
     nextMonthTbbStart: nextMonthTbb,
     triggeredBy: "manual",
+    globalMode: globalMode,
   });
 
   // Update main doc pointer
@@ -2890,14 +2983,16 @@ function renderBudgetSection(categories, transactions) {
       No categories yet. Tap <strong>+ Category</strong> on the dashboard to add your first one.
     </td></tr>`;
   } else {
+    const _cardFundedMap = computeCardFundedPerCategory(transactions);
     categories.forEach((c, index) => {
-      const balance = categoryBalance(c);
+      const budgetSpent = getBudgetSpent(c, _cardFundedMap);
+      const balance = categoryBalance(c, _cardFundedMap);
       const row = document.createElement("tr");
       row.innerHTML = `
         <td><input type="checkbox" class="category-checkbox" data-index="${index}" /></td>
         <td>${c.name}</td>
         <td>${formatCurrency(c.assigned)}</td>
-        <td>${formatCurrency(c.spent)}</td>
+        <td>${formatCurrency(budgetSpent)}</td>
         <td style="color:${balance<0?'red':'green'}">${formatCurrency(balance)}</td>
       `;
       tbody.appendChild(row);
