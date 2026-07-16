@@ -442,6 +442,11 @@ function renderTransactionsTable() {
       inflow = formatCurrency(t.inflow, false);
     }
 
+    // Hide card funding pass-through transactions — they are system entries
+    // that pair with liability/asset expenses to keep TBB balanced.
+    // Users only see the expense side ("Charged to Maya Black Card").
+    if (t.isCardFunding) return;
+
     if (t.type === "expense") {
       outflow = formatCurrency(t.amount, true);
     } else if (t.type === "income") {
@@ -601,12 +606,13 @@ async function renderBudget(data) {
   // Transfers also use inflow/outflow but are excluded via isAccountTransaction guard.
   let totalIncome = 0;
   transactions.forEach(t => {
-    if (t.fromAsset) return;    // Asset transactions don't count as income
-    if (t.fromLiability) return; // Liability transactions don't count as income
+    if (t.fromAsset) return;       // Asset-funded expenses don't count as income
+    if (t.fromLiability) return;   // Liability-funded expenses don't count as income
+    if (t.isCardFunding) return;   // Pass-through card funding — not real personal income
     const isAccountTransaction = t.category === 'Deposit' ||
                                  t.category === 'Withdrawal' ||
                                  t.category === 'Transfer';
-    if (isAccountTransaction) return; // Deposits/Withdrawals/Transfers are not income
+    if (isAccountTransaction) return; // Account transactions are not income
     if (t.isLiabilityPayment) return; // Liability payments are not income
     if (t.type === "income" || (t.inflow && t.inflow > 0)) {
       totalIncome += t.amount || t.inflow || 0;
@@ -635,9 +641,30 @@ async function renderBudget(data) {
 
 
 
+  // Compute liability-funded spent PER CATEGORY so we can exclude it from overspent
+  // A category is only truly overspent if BUDGET money overspent it — not card spending
+  const liabilitySpentPerCategory = {};
+  transactions.forEach(t => {
+    if (t.fromLiability && t.type === 'expense' && t.amount > 0 && t.category) {
+      liabilitySpentPerCategory[t.category] = (liabilitySpentPerCategory[t.category] || 0) + t.amount;
+    }
+  });
+  const assetSpentPerCategory = {};
+  transactions.forEach(t => {
+    if (t.fromAsset && t.type === 'expense' && t.amount > 0 && t.category) {
+      assetSpentPerCategory[t.category] = (assetSpentPerCategory[t.category] || 0) + t.amount;
+    }
+  });
+
+  // Overspent: only count if budget-funded spending exceeded what was assigned
+  // Card-funded (liability/asset) spending does NOT count as budget overspending
   const overspent = categories
-    .filter(c => c.spent > c.assigned)
-    .reduce((sum, c) => sum + (c.spent - c.assigned), 0);
+    .reduce((sum, c) => {
+      const cardSpent = (liabilitySpentPerCategory[c.name] || 0) + (assetSpentPerCategory[c.name] || 0);
+      const budgetSpent = Math.max(0, (c.spent || 0) - cardSpent);
+      const overage = budgetSpent - (c.assigned || 0);
+      return sum + (overage > 0 ? overage : 0);
+    }, 0);
   const tbbElement = document.getElementById("tbb");
   tbbElement.innerText = formatCurrency(tbb);
   
@@ -1515,6 +1542,10 @@ async function performRollover() {
   // Available Balance is the carry-forward pool (source of truth)
   const availableBalance = currentMonthData.availableBalance || 0;
 
+  // Note: isCardFunding transactions are excluded from availableBalance
+  // (handled in renderBudget). The availableBalance stored in Firestore
+  // is already correct — no additional filtering needed here.
+
   // Use the choices captured when the modal opened (default to "cover")
   const choices = (_rolloverPlan && _rolloverPlan.choices) ? _rolloverPlan.choices : {};
 
@@ -1528,22 +1559,37 @@ async function performRollover() {
   let tbbAdjustment = 0;        // total absorbed (reduces next month's TBB)
   const auditDecisions = [];
 
+  // Build per-category map of liability/asset funded spending
+  // These amounts in category.spent were paid by card — NOT by budget money.
+  // Rollover must NOT treat them as overspending.
+  const allTxns = currentMonthData.transactions || [];
+  const cardSpentPerCat = {};
+  allTxns.forEach(t => {
+    if ((t.fromLiability || t.fromAsset) && t.type === 'expense' && t.amount > 0 && t.category) {
+      cardSpentPerCat[t.category] = (cardSpentPerCat[t.category] || 0) + t.amount;
+    }
+  });
+
   const newCategories = categories.map(c => {
-    const assigned = c.assigned || 0;
-    const spent    = c.spent || 0;
-    const balance  = assigned - spent;
+    const assigned  = c.assigned || 0;
+    const totalSpent = c.spent || 0;
+    // Budget-funded spending only: exclude any amount paid by card
+    const cardPaid   = cardSpentPerCat[c.name] || 0;
+    const budgetSpent = Math.max(0, totalSpent - cardPaid);
+    const spent      = budgetSpent; // use budget-only spent for rollover decisions
+    const balance    = assigned - spent;
 
     if (balance >= 0) {
       // Not overspent — carry the leftover forward as starting balance
       auditDecisions.push({
-        categoryName: c.name, previousAssigned: assigned, previousSpent: spent,
+        categoryName: c.name, previousAssigned: assigned, previousSpent: totalSpent,
         previousBalance: balance, action: "carry_positive",
         carriedForward: balance, absorbedFromTbb: 0,
       });
       return { name: c.name, assigned: 0, spent: 0, balance: balance, startingBalance: balance };
     }
 
-    // Overspent
+    // Overspent by budget money (card-funded spending already excluded)
     const deficit = Math.abs(balance);
     const choice = choices[c.name] || "cover";
 
@@ -2662,16 +2708,19 @@ async function openTransactionPanel(index) {
       return;
     }
 
-    // ===== EXPENSE from LIABILITY (credit card charge — YNAB method) =====
-    // How this works:
-    //   1. Liability balance increases (you owe more on the card)
-    //   2. The spending category (Groceries, Dining, etc.) is NOT touched
-    //      — you did not spend budget money, you spent credit
-    //   3. A "CC Payment: [Card Name]" category gets its ASSIGNED increased
-    //      — this reserves money so you can pay the bill when it is due
-    //   4. TBB decreases by the charge amount (reserved for CC payment)
-    //   5. When you actually PAY the credit card bill, THAT is the real
-    //      cash outflow — it deducts from Available Balance at that time
+    // ===== EXPENSE from LIABILITY — Pass-Through Method =====
+    //
+    // How it works (net effect on TBB = ZERO):
+    //   1. A hidden "Card Funding" income transaction is created for +amount
+    //      → TBB increases by amount (card money enters the budget pool)
+    //   2. The expense transaction is recorded against the chosen category
+    //      → TBB decreases by amount (spent from budget pool)
+    //   3. Net TBB change = +amount - amount = ZERO
+    //   4. Available Balance: same pass-through — isCardFunding income is
+    //      excluded from Available Balance, and fromLiability expense is
+    //      excluded too, so Available Balance stays unchanged.
+    //   5. Dashboard shows the expense as "Charged to [Card]" for tracking.
+    //   6. Rollover sees correct TBB because in/out cancel perfectly.
     if (type === 'expense' && isLiability) {
       const catIndex = parseInt(wrapper.querySelector('#expense-category').value);
 
@@ -2684,54 +2733,65 @@ async function openTransactionPanel(index) {
 
       const categoryName = (monthData.categories[catIndex] && monthData.categories[catIndex].name) || "Uncategorized";
 
-      // Step 1: Increase the liability balance (spending on credit = more owed)
-      data.accounts[transactionAccountIndex].balance = (data.accounts[transactionAccountIndex].balance || 0) + amount;
+      // Step 1: Increase the liability account balance (used more of the card)
+      data.accounts[transactionAccountIndex].balance =
+        (data.accounts[transactionAccountIndex].balance || 0) + amount;
 
-      // Step 2: Do NOT touch the spending category spent
-      //         The budget category is unaffected — credit was spent, not budget money
+      // Step 2: Pass-Through income — card money enters the budget pool
+      // Tagged isCardFunding:true so renderBudget excludes it from Available Balance
+      // (it's not real personal income — it's the card's funds passing through)
+      const fundingId = `card-funding-${transactionId}`;
+      const fundingTransaction = {
+        id:            fundingId,
+        date,
+        name:          `Card Funding — ${sourceAccount.name}`,
+        category:      'Card Funding',
+        amount,
+        type:          'income',
+        inflow:        amount,
+        outflow:       0,
+        isCardFunding: true,          // excludes from Available Balance display
+        linkedExpenseId: transactionId, // paired with the expense below
+        fromAccount:   sourceAccount.name
+      };
 
-      // Step 3: Find or create "CC Payment: [Card Name]" category
-      const ccPayCatName = `CC Payment: ${sourceAccount.name}`;
-      let ccPayIndex = monthData.categories.findIndex(c => c.name === ccPayCatName);
-
-      if (ccPayIndex === -1) {
-        monthData.categories.push({
-          name:            ccPayCatName,
-          assigned:        0,
-          spent:           0,
-          balance:         0,
-          startingBalance: 0,
-          isCCPayment:     true,
-          linkedAccount:   sourceAccount.name
-        });
-        ccPayIndex = monthData.categories.length - 1;
+      // Step 3: Update category.spent — the expense is recorded against the category
+      if (monthData.categories[catIndex]) {
+        monthData.categories[catIndex].spent =
+          (monthData.categories[catIndex].spent || 0) + amount;
+        monthData.categories[catIndex].balance =
+          (Number(monthData.categories[catIndex].startingBalance) || 0) +
+          monthData.categories[catIndex].assigned -
+          monthData.categories[catIndex].spent;
       }
 
-      // Step 4: Reserve the charge amount in CC Payment category (TBB → CC Payment)
-      const ccCat = monthData.categories[ccPayIndex];
-      ccCat.assigned = (ccCat.assigned || 0) + amount;
-      ccCat.balance  = (Number(ccCat.startingBalance) || 0) + ccCat.assigned - (ccCat.spent || 0);
+      // Step 4: TBB pass-through
+      // +amount (from card funding income) then -amount (from category spent)
+      // Net = 0. We write the tbb as-is since these cancel.
+      // The income adds to TBB, then the category spend deducts from TBB.
+      // Both are handled by renderBudget which re-reads tbb from monthData.tbb.
+      // No manual tbb change needed here — renderBudget recalculates.
 
-      // Step 5: Deduct from TBB — money moved from TBB into CC Payment reserved pool
-      monthData.tbb = (monthData.tbb || 0) - amount;
-
-      // Record the transaction
+      // Step 5: Expense transaction — fromLiability:true for dashboard display
       const expenseTransaction = {
         id:            transactionId,
         date,
         name:          reason || sourceAccount.name,
         category:      categoryName,
-        ccPayCategory: ccPayCatName,
         amount,
         type:          'expense',
         outflow:       amount,
         inflow:        0,
-        fromLiability: true,
+        fromLiability: true,          // dashboard shows "Charged to [Card]"
         fromAccount:   sourceAccount.name,
-        fromAsset:     false
+        fromAsset:     false,
+        linkedFundingId: fundingId    // paired with the funding income above
       };
 
+      // Push both transactions — funding first, then expense
+      monthData.transactions.push(fundingTransaction);
       monthData.transactions.push(expenseTransaction);
+
       await docRef.update({ accounts: data.accounts });
       await monthDocRef.set(monthData);
 
@@ -2741,8 +2801,7 @@ async function openTransactionPanel(index) {
       await loadMonthData(currentMonth);
       await loadBudget();
       showToast(
-        `${formatCurrency(amount)} charged to ${sourceAccount.name} · ` +
-        `${formatCurrency(amount)} reserved in "${ccPayCatName}"`,
+        `${formatCurrency(amount)} charged to ${sourceAccount.name} → "${categoryName}" · TBB unchanged`,
         "success"
       );
       return;
@@ -2807,9 +2866,31 @@ async function openTransactionPanel(index) {
       newTransaction.type     = "expense";
 
       const sourceAccountType = ACCOUNT_TYPES[data.accounts[transactionAccountIndex].type];
-      if (sourceAccountType && sourceAccountType.category === 'asset') {
-        newTransaction.fromAsset    = true;
-        newTransaction.fromAccount  = data.accounts[transactionAccountIndex].name;
+      const isFromAsset = sourceAccountType && sourceAccountType.category === 'asset';
+      if (isFromAsset) {
+        newTransaction.fromAsset   = true;
+        newTransaction.fromAccount = data.accounts[transactionAccountIndex].name;
+        newTransaction.linkedFundingId = `card-funding-${transactionId}`;
+      }
+
+      // Pass-Through: asset expense also gets a paired card funding income
+      // so TBB stays unchanged (asset money enters pool, then exits via category)
+      if (isFromAsset) {
+        const assetFundingId = `card-funding-${transactionId}`;
+        const assetFundingTx = {
+          id:              assetFundingId,
+          date,
+          name:            `Card Funding — ${data.accounts[transactionAccountIndex].name}`,
+          category:        'Card Funding',
+          amount,
+          type:            'income',
+          inflow:          amount,
+          outflow:         0,
+          isCardFunding:   true,
+          linkedExpenseId: transactionId,
+          fromAccount:     data.accounts[transactionAccountIndex].name
+        };
+        monthData.transactions.push(assetFundingTx);
       }
 
       monthData.transactions.push(newTransaction);
@@ -2823,7 +2904,7 @@ async function openTransactionPanel(index) {
       await loadMonthData(currentMonth);
       await loadBudget();
 
-      showToast(`${formatCurrency(amount)} expense under "${categoryName}" recorded from ${data.accounts[transactionAccountIndex].name}`, "success");
+      showToast(`${formatCurrency(amount)} expense under "${categoryName}" recorded from ${data.accounts[transactionAccountIndex].name} · TBB unchanged`, "success");
       return;
     }
 
@@ -3477,6 +3558,13 @@ async function deleteTransaction(categoryName, txId) {
       await docRef.update({ accounts: rootData.accounts });
       accounts = rootData.accounts;
     }
+
+    // Pass-Through cleanup: also delete the paired card funding income transaction
+    const fundingId = tx.linkedFundingId || `card-funding-${tx.id}`;
+    const fundingIdx = monthData.transactions.findIndex(t => t.id === fundingId);
+    if (fundingIdx !== -1) {
+      monthData.transactions.splice(fundingIdx, 1);
+    }
   }
 
   if (tx.fromLiability && tx.fromAccount && rootData) {
@@ -3487,16 +3575,13 @@ async function deleteTransaction(categoryName, txId) {
       accounts = rootData.accounts;
     }
 
-    // YNAB method: reverse the CC Payment category reservation
-    // When a liability expense is deleted, the reserved amount goes back to TBB
-    const ccPayCatName = tx.ccPayCategory || `CC Payment: ${tx.fromAccount}`;
-    const ccPayCat = monthData.categories.find(c => c.name === ccPayCatName);
-    if (ccPayCat) {
-      ccPayCat.assigned = Math.max(0, (ccPayCat.assigned || 0) - tx.amount);
-      ccPayCat.balance  = (Number(ccPayCat.startingBalance) || 0) + ccPayCat.assigned - (ccPayCat.spent || 0);
+    // Pass-Through cleanup: also delete the paired card funding income transaction
+    // so the TBB pass-through is fully reversed when the expense is deleted.
+    const fundingId = tx.linkedFundingId || `card-funding-${tx.id}`;
+    const fundingIdx = monthData.transactions.findIndex(t => t.id === fundingId);
+    if (fundingIdx !== -1) {
+      monthData.transactions.splice(fundingIdx, 1);
     }
-    // Restore TBB
-    monthData.tbb = (monthData.tbb || 0) + tx.amount;
   }
 
   if (tx.isLiabilityPayment && tx.liabilityAccount && rootData) {
