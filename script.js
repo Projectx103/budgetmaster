@@ -284,10 +284,12 @@ function renderCategories(categories) {
          </div>`
       : "";
 
+    const isCCPay = c.isCCPayment || c.name.startsWith('CC Payment:');
+    const ccBadge = isCCPay ? `<span class="cc-payment-badge">CC Reserved</span>` : '';
     div.innerHTML += `
-      <div class="budget-item">
+      <div class="budget-item" ${isCCPay ? 'data-cc-payment="true"' : ''}>
         <div class="item-header">
-          <span class="font-bold">${c.name}</span>
+          <span class="font-bold">${c.name}${ccBadge}</span>
           ${monthLabel}
         </div>
         <div class="amounts">
@@ -512,7 +514,6 @@ function clearTransactionFilters() {
 
 async function renderBudget(data) {
   if (!data) return;
-  window._currentMonthData = data;
   const categories = data.categories || [];
   const transactions = data.transactions || [];
   const tbb = data.tbb || 0;
@@ -1876,7 +1877,6 @@ const ACCOUNT_TYPES = {
 
 // Render accounts with separation
 function renderAccounts(list) {
-  window._bmAccounts = Array.isArray(list) ? list : [];
   const assetsList = document.getElementById("assets-list");
   const liabilitiesList = document.getElementById("liabilities-list");
   const assetsCount = document.getElementById("assets-count");
@@ -2071,7 +2071,6 @@ async function loadAccounts() {
   const data = docSnap.exists ? docSnap.data() : null;
 
   accounts = data?.accounts || [];
-  window._bmAccounts = accounts;
   renderAccounts(accounts);
 }
 
@@ -2663,7 +2662,16 @@ async function openTransactionPanel(index) {
       return;
     }
 
-    // ===== EXPENSE from LIABILITY (credit card charge) =====
+    // ===== EXPENSE from LIABILITY (credit card charge — YNAB method) =====
+    // How this works:
+    //   1. Liability balance increases (you owe more on the card)
+    //   2. The spending category (Groceries, Dining, etc.) is NOT touched
+    //      — you did not spend budget money, you spent credit
+    //   3. A "CC Payment: [Card Name]" category gets its ASSIGNED increased
+    //      — this reserves money so you can pay the bill when it is due
+    //   4. TBB decreases by the charge amount (reserved for CC payment)
+    //   5. When you actually PAY the credit card bill, THAT is the real
+    //      cash outflow — it deducts from Available Balance at that time
     if (type === 'expense' && isLiability) {
       const catIndex = parseInt(wrapper.querySelector('#expense-category').value);
 
@@ -2676,28 +2684,51 @@ async function openTransactionPanel(index) {
 
       const categoryName = (monthData.categories[catIndex] && monthData.categories[catIndex].name) || "Uncategorized";
 
-      // Increase the liability balance (spending on credit = more owed)
+      // Step 1: Increase the liability balance (spending on credit = more owed)
       data.accounts[transactionAccountIndex].balance = (data.accounts[transactionAccountIndex].balance || 0) + amount;
 
-      // Deduct from budget category spent
-      if (monthData.categories[catIndex]) {
-        monthData.categories[catIndex].spent   = (monthData.categories[catIndex].spent || 0) + amount;
-        monthData.categories[catIndex].balance = (Number(monthData.categories[catIndex].startingBalance) || 0) +
-          monthData.categories[catIndex].assigned - monthData.categories[catIndex].spent;
+      // Step 2: Do NOT touch the spending category spent
+      //         The budget category is unaffected — credit was spent, not budget money
+
+      // Step 3: Find or create "CC Payment: [Card Name]" category
+      const ccPayCatName = `CC Payment: ${sourceAccount.name}`;
+      let ccPayIndex = monthData.categories.findIndex(c => c.name === ccPayCatName);
+
+      if (ccPayIndex === -1) {
+        monthData.categories.push({
+          name:            ccPayCatName,
+          assigned:        0,
+          spent:           0,
+          balance:         0,
+          startingBalance: 0,
+          isCCPayment:     true,
+          linkedAccount:   sourceAccount.name
+        });
+        ccPayIndex = monthData.categories.length - 1;
       }
 
+      // Step 4: Reserve the charge amount in CC Payment category (TBB → CC Payment)
+      const ccCat = monthData.categories[ccPayIndex];
+      ccCat.assigned = (ccCat.assigned || 0) + amount;
+      ccCat.balance  = (Number(ccCat.startingBalance) || 0) + ccCat.assigned - (ccCat.spent || 0);
+
+      // Step 5: Deduct from TBB — money moved from TBB into CC Payment reserved pool
+      monthData.tbb = (monthData.tbb || 0) - amount;
+
+      // Record the transaction
       const expenseTransaction = {
-        id: transactionId,
+        id:            transactionId,
         date,
-        name: reason || sourceAccount.name,
-        category: categoryName,
+        name:          reason || sourceAccount.name,
+        category:      categoryName,
+        ccPayCategory: ccPayCatName,
         amount,
-        type: 'expense',
-        outflow: amount,
-        inflow: 0,
+        type:          'expense',
+        outflow:       amount,
+        inflow:        0,
         fromLiability: true,
-        fromAccount: sourceAccount.name,   // liability account name
-        fromAsset: false
+        fromAccount:   sourceAccount.name,
+        fromAsset:     false
       };
 
       monthData.transactions.push(expenseTransaction);
@@ -2709,7 +2740,11 @@ async function openTransactionPanel(index) {
       renderAccounts(accounts);
       await loadMonthData(currentMonth);
       await loadBudget();
-      showToast(`${formatCurrency(amount)} expense on "${categoryName}" charged to ${sourceAccount.name}`, "success");
+      showToast(
+        `${formatCurrency(amount)} charged to ${sourceAccount.name} · ` +
+        `${formatCurrency(amount)} reserved in "${ccPayCatName}"`,
+        "success"
+      );
       return;
     }
 
@@ -3451,6 +3486,17 @@ async function deleteTransaction(categoryName, txId) {
       await docRef.update({ accounts: rootData.accounts });
       accounts = rootData.accounts;
     }
+
+    // YNAB method: reverse the CC Payment category reservation
+    // When a liability expense is deleted, the reserved amount goes back to TBB
+    const ccPayCatName = tx.ccPayCategory || `CC Payment: ${tx.fromAccount}`;
+    const ccPayCat = monthData.categories.find(c => c.name === ccPayCatName);
+    if (ccPayCat) {
+      ccPayCat.assigned = Math.max(0, (ccPayCat.assigned || 0) - tx.amount);
+      ccPayCat.balance  = (Number(ccPayCat.startingBalance) || 0) + ccPayCat.assigned - (ccPayCat.spent || 0);
+    }
+    // Restore TBB
+    monthData.tbb = (monthData.tbb || 0) + tx.amount;
   }
 
   if (tx.isLiabilityPayment && tx.liabilityAccount && rootData) {
@@ -7707,17 +7753,19 @@ async function loadGoals() {
 function renderGoals() {
     const goalsGrid = document.getElementById("goals-grid");
     const emptyState = document.getElementById("empty-state");
-    if (!goalsGrid || !emptyState) return;
-    window._bmGoals = goals;
+
     if (goals.length === 0) {
-        goalsGrid.style.setProperty("display","none","important");
-        emptyState.style.setProperty("display","block","important");
+        goalsGrid.style.display = "none";
+        emptyState.style.display = "block";
         return;
     }
-    goalsGrid.style.setProperty("display","grid","important");
-    emptyState.style.setProperty("display","none","important");
+
+    goalsGrid.style.display = "grid";
+    emptyState.style.display = "none";
+    
+    //console.log("🎯 Rendering goals with currency:", userCurrency); // Add this debug line
+    
     goalsGrid.innerHTML = goals.map(goal => createGoalCard(goal)).join("");
-    updateGoalsDashboardWidget();
 }
         // Create goal card HTML
 function createGoalCard(goal) {
@@ -9664,393 +9712,3 @@ if ("serviceWorker" in navigator) {
   }
 
 })();
-
-
-// ════════════════════════════════════════════════════════════════════════════
-// BUDGET-PERIOD REPORTING + GOALS INTEGRATION
-// Appended block. currentDateRange already declared in reports closure above.
-// ════════════════════════════════════════════════════════════════════════════
-
-function getBudgetPeriod(monthKey) {
-  if (!monthKey) return null;
-  const [yearStr, monthStr] = monthKey.split('-');
-  const year  = parseInt(yearStr, 10);
-  const month = parseInt(monthStr, 10);
-  const history  = (typeof budgetData !== 'undefined' && budgetData && budgetData.rolloverHistory) || {};
-  const months   = (typeof budgetData !== 'undefined' && budgetData && budgetData.months) || {};
-  const settings = (typeof budgetData !== 'undefined' && budgetData && budgetData.rolloverSettings) || null;
-  const rolloverDay = settings && settings.automaticDay ? parseInt(settings.automaticDay, 10) : null;
-
-  function getRolloverTxDate(mk) {
-    const md = months[mk];
-    if (!md || !md.transactions) return null;
-    const tx = md.transactions.find(t => t.category === 'BALANCE FROM LAST MONTH' || t.name === 'ROLLOVER AMOUNT');
-    if (!tx || !tx.date) return null;
-    const d = new Date(tx.date + 'T00:00:00');
-    return isNaN(d.getTime()) ? null : d;
-  }
-
-  // startDate
-  let startDate;
-  const prevDate     = new Date(year, month - 2, 1);
-  const prevMK       = `${prevDate.getFullYear()}-${String(prevDate.getMonth()+1).padStart(2,'0')}`;
-  const prevH        = history[prevMK];
-  if (prevH && prevH.rolledOverAt) {
-    const r = new Date(prevH.rolledOverAt);
-    startDate = new Date(r.getFullYear(), r.getMonth(), r.getDate());
-  }
-  if (!startDate) { const d = getRolloverTxDate(monthKey); if (d) startDate = d; }
-  if (!startDate && rolloverDay >= 1 && rolloverDay <= 31) {
-    startDate = new Date(year, month-1, Math.min(rolloverDay, new Date(year,month,0).getDate()));
-  }
-  if (!startDate) startDate = new Date(year, month-1, 1);
-
-  // endDate
-  let endDate;
-  const thisH = history[monthKey];
-  if (thisH && thisH.rolledOverAt) {
-    const r = new Date(thisH.rolledOverAt);
-    endDate = new Date(r.getFullYear(), r.getMonth(), r.getDate(), 23, 59, 59, 999);
-  }
-  if (!endDate) {
-    const nxt  = new Date(year, month, 1);
-    const nMK  = `${nxt.getFullYear()}-${String(nxt.getMonth()+1).padStart(2,'0')}`;
-    const nd   = getRolloverTxDate(nMK);
-    if (nd) { const db2 = new Date(nd); db2.setDate(db2.getDate()-1); endDate = new Date(db2.getFullYear(),db2.getMonth(),db2.getDate(),23,59,59,999); }
-  }
-  if (!endDate && rolloverDay >= 1 && rolloverDay <= 31) {
-    const nxt = new Date(year, month, 1);
-    const pe  = new Date(nxt.getFullYear(), nxt.getMonth(), Math.min(rolloverDay, new Date(nxt.getFullYear(),nxt.getMonth()+1,0).getDate()));
-    pe.setDate(pe.getDate()-1);
-    endDate = new Date(pe.getFullYear(), pe.getMonth(), pe.getDate(), 23,59,59,999);
-  }
-  if (!endDate) endDate = new Date(year, month, 0, 23, 59, 59, 999);
-
-  const sl = startDate.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-  const el = endDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'});
-  return { startDate, endDate, label:`${sl} – ${el}`, monthKey };
-}
-
-function getBudgetPeriodsForRange(rangeType) {
-  if (!budgetData || !budgetData.months) return [];
-  const keys = Object.keys(budgetData.months).sort();
-  if (!keys.length) return [];
-  const cur = budgetData.currentMonth || keys[keys.length-1];
-  const idx = keys.indexOf(cur);
-  let sel;
-  switch(rangeType) {
-    case 'current-month':  sel = [cur]; break;
-    case 'last-month':     sel = idx > 0 ? [keys[idx-1]] : [cur]; break;
-    case 'last-3-months':  sel = keys.slice(Math.max(0,idx-2), idx+1); break;
-    case 'last-6-months':  sel = keys.slice(Math.max(0,idx-5), idx+1); break;
-    case 'current-year':   sel = keys.filter(k => k.startsWith(cur.slice(0,4))); break;
-    case 'last-year':      sel = keys.filter(k => k.startsWith(String(+cur.slice(0,4)-1))); break;
-    case 'custom':         sel = keys; break;
-    default:               sel = [cur];
-  }
-  return sel.map(getBudgetPeriod).filter(Boolean);
-}
-
-function getBudgetDateRange() {
-  // currentDateRange is the variable declared in the reports closure above
-  if (typeof currentDateRange !== 'undefined' && currentDateRange === 'custom') {
-    const fv = document.getElementById('fromDate')?.value;
-    const tv = document.getElementById('toDate')?.value;
-    if (fv && tv) return { startDate: new Date(fv+'T00:00:00'), endDate: new Date(tv+'T23:59:59') };
-  }
-  const cdr = typeof currentDateRange !== 'undefined' ? currentDateRange : 'current-month';
-  const periods = getBudgetPeriodsForRange(cdr);
-  if (!periods.length) {
-    const n = new Date();
-    return { startDate: new Date(n.getFullYear(),n.getMonth(),1), endDate: new Date(n.getFullYear(),n.getMonth()+1,0,23,59,59) };
-  }
-  return { startDate: periods[0].startDate, endDate: periods[periods.length-1].endDate };
-}
-
-function _scanAllMonths(startDate, endDate, cb) {
-  if (!budgetData || !budgetData.months) return;
-  Object.values(budgetData.months).forEach(md => {
-    if (!md.transactions) return;
-    md.transactions.forEach(t => {
-      const d = new Date(t.date+'T00:00:00');
-      if (d >= startDate && d <= endDate) cb(t);
-    });
-  });
-}
-
-function getBudgetFilteredTransactions() {
-  const { startDate, endDate } = getBudgetDateRange();
-  const seen = new Set(), result = [];
-  _scanAllMonths(startDate, endDate, t => {
-    if (t.id && seen.has(t.id)) return;
-    if (t.id) seen.add(t.id);
-    result.push(t);
-  });
-  return result;
-}
-
-function getBudgetMonthlyIncomeExpense() {
-  const cdr = typeof currentDateRange !== 'undefined' ? currentDateRange : 'current-month';
-  const periods = getBudgetPeriodsForRange(cdr);
-  const result = { labels:[], income:[], expenses:[], periodKeys:[] };
-  periods.forEach(({ startDate, endDate, label, monthKey }) => {
-    result.labels.push(label); result.periodKeys.push(monthKey);
-    let inc=0, exp=0;
-    _scanAllMonths(startDate, endDate, t => {
-      if (t.category==='Deposit'||t.category==='Withdrawal'||t.category==='Transfer') return;
-      if (t.type==='income') inc+=t.amount;
-      if (t.type==='expense') exp+=t.amount;
-    });
-    result.income.push(inc); result.expenses.push(exp);
-  });
-  return result;
-}
-
-function getBudgetMonthlySpending() {
-  const cdr = typeof currentDateRange !== 'undefined' ? currentDateRange : 'current-month';
-  const periods = getBudgetPeriodsForRange(cdr);
-  const result = { labels:[], amounts:[], periodKeys:[] };
-  periods.forEach(({ startDate, endDate, label, monthKey }) => {
-    result.labels.push(label); result.periodKeys.push(monthKey);
-    let spending=0;
-    _scanAllMonths(startDate, endDate, t => {
-      if (t.category==='Deposit'||t.category==='Withdrawal'||t.category==='Transfer') return;
-      if (t.type==='expense') spending+=t.amount;
-    });
-    result.amounts.push(spending);
-  });
-  return result;
-}
-
-function getBudgetComparisonData(rangeType) {
-  if (!budgetData || !budgetData.months) return { income:0, expenses:0, net:0, savingsRate:0 };
-  const periods = getBudgetPeriodsForRange(rangeType);
-  if (!periods.length) return { income:0, expenses:0, net:0, savingsRate:0 };
-  const startDate = periods[0].startDate;
-  const endDate   = periods[periods.length-1].endDate;
-  let inc=0, exp=0;
-  _scanAllMonths(startDate, endDate, t => {
-    if (t.category==='Deposit'||t.category==='Withdrawal'||t.category==='Transfer') return;
-    if (t.type==='income') inc+=t.amount;
-    if (t.type==='expense') exp+=t.amount;
-  });
-  const net=inc-exp;
-  return { income:inc, expenses:exp, net, savingsRate: inc>0 ? parseFloat(((net/inc)*100).toFixed(1)) : 0 };
-}
-
-// Wire overrides — only active after budgetData.rolloverHistory is loaded
-(function wireReportOverrides() {
-  const hasBP = () => typeof budgetData !== 'undefined' && budgetData && budgetData.rolloverHistory !== undefined;
-  if (typeof getDateRange === 'function') {
-    const _o = getDateRange;
-    window.getDateRange = () => hasBP() ? getBudgetDateRange() : _o();
-  }
-  if (typeof getFilteredTransactions === 'function') {
-    window.getFilteredTransactions = () => hasBP() ? getBudgetFilteredTransactions() : [];
-  }
-  if (typeof getMonthlyIncomeExpense === 'function') {
-    window.getMonthlyIncomeExpense = () => hasBP() ? getBudgetMonthlyIncomeExpense() : {labels:[],income:[],expenses:[]};
-  }
-  if (typeof getMonthlySpending === 'function') {
-    window.getMonthlySpending = () => hasBP() ? getBudgetMonthlySpending() : {labels:[],amounts:[]};
-  }
-  if (typeof getComparisonData === 'function') {
-    window.getComparisonData = async (p) => hasBP() ? getBudgetComparisonData(p) : {income:0,expenses:0,net:0,savingsRate:0};
-  }
-})();
-
-// Patch reports loadData to fetch rolloverHistory + rolloverSettings
-(function() {
-  if (typeof loadData !== 'function') return;
-  const _o = loadData;
-  window.loadData = async function() {
-    await _o();
-    if (!budgetData) return;
-    try {
-      const user = typeof auth !== 'undefined' ? auth.currentUser : null;
-      if (!user) return;
-      const br = db.collection('budget').doc(user.uid);
-      budgetData.rolloverHistory = {};
-      (await br.collection('rolloverHistory').get()).forEach(d => { budgetData.rolloverHistory[d.id] = d.data(); });
-      budgetData.rolloverSettings = null;
-      const ud = await db.collection('users').doc(user.uid).get();
-      if (ud.exists && ud.data().rolloverSettings) budgetData.rolloverSettings = ud.data().rolloverSettings;
-    } catch(e) { console.warn('BP data load:', e); }
-  };
-})();
-
-console.log('✅ Budget-period reporting loaded.');
-
-// ── Goals Integration ────────────────────────────────────────────────────
-
-function populateGoalModalDropdowns() {
-  const cs = document.getElementById('goal-linked-category');
-  const as = document.getElementById('goal-linked-account');
-  if (!cs || !as) return;
-  const cats = (window._currentMonthData && window._currentMonthData.categories) || [];
-  cs.innerHTML = '<option value="">None (manual tracking)</option>';
-  cats.forEach(c => { const o=document.createElement('option'); o.value=c.name; o.textContent=c.name; cs.appendChild(o); });
-  const accts = Array.isArray(window._bmAccounts) ? window._bmAccounts : [];
-  as.innerHTML = '<option value="">None (manual tracking)</option>';
-  accts.filter(a => { const i=typeof ACCOUNT_TYPES!=='undefined'?ACCOUNT_TYPES[a.type]:null; return i&&i.category==='asset'; })
-    .forEach(a => { const o=document.createElement('option'); o.value=a.id||a.name; o.textContent=`${a.name} (${typeof formatCurrency==='function'?formatCurrency(a.balance):a.balance})`; as.appendChild(o); });
-}
-
-(function() {
-  const _o = window.openAddGoalModal;
-  window.openAddGoalModal = function() {
-    window._editingGoalId = null;
-    if (typeof _o === 'function') _o();
-    populateGoalModalDropdowns();
-    const cs=document.getElementById('goal-linked-category'); if(cs) cs.value='';
-    const as=document.getElementById('goal-linked-account'); if(as) as.value='';
-  };
-})();
-
-(function() {
-  const _o = window.editGoal;
-  window.editGoal = async function(goalId) {
-    window._editingGoalId = goalId;
-    if (typeof _o === 'function') await _o(goalId);
-    populateGoalModalDropdowns();
-    const g = (window._bmGoals||[]).find(x=>x.id===goalId); if(!g) return;
-    const cs=document.getElementById('goal-linked-category'); if(cs) cs.value=g.linkedCategoryName||'';
-    const as=document.getElementById('goal-linked-account'); if(as) as.value=g.linkedAccountId||'';
-  };
-})();
-
-// Goal form submit — capture phase beats original handler
-document.addEventListener('submit', async function(e) {
-  if (!e.target || e.target.id !== 'goal-form') return;
-  e.preventDefault(); e.stopImmediatePropagation();
-  const v = id => document.getElementById(id)?.value;
-  const name=v('goal-name')?.trim(), type=v('goal-type'), targetAmount=parseFloat(v('target-amount'));
-  if (!name||!type||isNaN(targetAmount)||targetAmount<=0) { if(typeof showToast==='function') showToast('Please fill in all required fields','error'); return; }
-  const goalData = {
-    name, type, targetAmount,
-    targetDate: v('target-date')||null,
-    monthlyContribution: parseFloat(v('monthly-contribution'))||null,
-    description: v('goal-description')?.trim()||null,
-    linkedCategoryName: v('goal-linked-category')||null,
-    linkedAccountId:    v('goal-linked-account')||null,
-    status:'active', updatedAt:new Date().toISOString()
-  };
-  const user = typeof auth!=='undefined'?auth.currentUser:null; if(!user) return;
-  const ref = db.collection('budget').doc(user.uid).collection('goals');
-  try {
-    if (window._editingGoalId) { await ref.doc(window._editingGoalId).update(goalData); if(typeof showToast==='function') showToast('Goal updated','success'); }
-    else { goalData.currentAmount=0; goalData.createdAt=new Date().toISOString(); await ref.add(goalData); if(typeof showToast==='function') showToast('Goal created','success'); }
-    if(typeof closeGoalModal==='function') closeGoalModal();
-    if(typeof loadGoals==='function') await loadGoals();
-  } catch(err) { console.error(err); if(typeof showToast==='function') showToast('Error saving goal','error'); }
-}, true);
-
-function computeGoalProgress(goal) {
-  if (goal.linkedAccountId) {
-    const a=(Array.isArray(window._bmAccounts)?window._bmAccounts:[]).find(x=>(x.id||x.name)===goal.linkedAccountId);
-    if (a) return { currentAmount:Math.max(0,a.balance||0), source:'account', accountName:a.name };
-  }
-  if (goal.linkedCategoryName) {
-    const md = window._currentMonthData;
-    if (md) {
-      const cat=(md.categories||[]).find(c=>c.name===goal.linkedCategoryName);
-      if (cat) {
-        const bal=(Number(cat.startingBalance)||0)+(Number(cat.assigned)||0)-(Number(cat.spent)||0);
-        return { currentAmount:Math.max(0,bal), source:'category', categoryName:goal.linkedCategoryName };
-      }
-    }
-    return { currentAmount:0, source:'category', categoryName:goal.linkedCategoryName };
-  }
-  return { currentAmount:goal.currentAmount||0, source:'manual' };
-}
-
-window.createGoalCard = function(goal) {
-  const { currentAmount, source, categoryName, accountName } = computeGoalProgress(goal);
-  const pct  = Math.min(goal.targetAmount>0?(currentAmount/goal.targetAmount)*100:0,100);
-  const rem  = Math.max(goal.targetAmount-currentAmount,0);
-  const done = currentAmount>=goal.targetAmount;
-  const days = goal.targetDate ? Math.ceil((new Date(goal.targetDate)-new Date())/86400000) : null;
-  const fmt  = typeof formatCurrency==='function'?formatCurrency:v=>v;
-
-  let warn='';
-  if (!done && goal.monthlyContribution && source==='category') {
-    const cat=(window._currentMonthData?.categories||[]).find(c=>c.name===goal.linkedCategoryName);
-    const asgn=cat?Number(cat.assigned)||0:0;
-    if (asgn<goal.monthlyContribution) warn=`<div class="goal-funding-alert"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Needs ${fmt(goal.monthlyContribution-asgn)} more assigned this month</div>`;
-  }
-
-  const badge = source==='account'
-    ? `<span class="goal-source-badge goal-source-account">📊 ${accountName}</span>`
-    : source==='category'
-    ? `<span class="goal-source-badge goal-source-category">📁 ${categoryName}</span>`
-    : `<span class="goal-source-badge goal-source-manual">✏️ Manual</span>`;
-
-  let sc='status-active',st='Active';
-  if(done){sc='status-completed';st='Completed 🎉';}else if(goal.status==='paused'){sc='status-paused';st='Paused';}
-
-  let proj='';
-  if(!done&&goal.monthlyContribution>0&&rem>0){const d=new Date();d.setMonth(d.getMonth()+Math.ceil(rem/goal.monthlyContribution));proj=`<div class="goal-projection">At current rate: complete by <strong>${d.toLocaleDateString('en-US',{month:'short',year:'numeric'})}</strong></div>`;}
-
-  return `<div class="goal-card" id="goal-card-${goal.id}">
-    <div class="goal-card-top">
-      <div class="goal-header">
-        <div class="goal-title-row"><div class="goal-title">${goal.name}</div><div class="goal-type-badge">${goal.type}</div></div>
-        <div class="goal-header-right">${badge}
-          <div class="goal-actions">
-            <button class="goal-action-btn" onclick="editGoal('${goal.id}')" title="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-            <button class="goal-action-btn goal-action-danger" onclick="deleteGoal('${goal.id}')" title="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
-          </div>
-        </div>
-      </div>
-      ${warn}
-      <div class="goal-progress-section">
-        <div class="goal-progress-track"><div class="goal-progress-fill ${done?'completed':''}" style="width:${pct.toFixed(1)}%"></div></div>
-        <div class="goal-progress-meta"><span class="goal-progress-pct">${pct.toFixed(1)}%</span><span class="goal-status-pill ${sc}">${st}</span></div>
-      </div>
-      <div class="goal-amounts-row">
-        <div class="goal-amount-block"><div class="goal-amount-label">Saved</div><div class="goal-amount-value positive">${fmt(currentAmount)}</div></div>
-        <div class="goal-amount-divider"></div>
-        <div class="goal-amount-block"><div class="goal-amount-label">Target</div><div class="goal-amount-value">${fmt(goal.targetAmount)}</div></div>
-        <div class="goal-amount-divider"></div>
-        <div class="goal-amount-block"><div class="goal-amount-label">Remaining</div><div class="goal-amount-value ${rem>0?'negative':'positive'}">${fmt(rem)}</div></div>
-      </div>
-      ${goal.description?`<div class="goal-description">${goal.description}</div>`:''}
-      <div class="goal-meta-row">
-        ${goal.targetDate?`<span class="goal-meta-item">🗓 ${goal.targetDate}${days!==null?` · ${days>0?days+'d left':'Past due'}`:''}</span>`:''}
-        ${goal.monthlyContribution?`<span class="goal-meta-item">📅 ${fmt(goal.monthlyContribution)}/mo</span>`:''}
-      </div>
-      ${proj}
-    </div>
-    ${!done&&source==='manual'?`<div class="add-funds-section"><input type="number" class="funds-input" id="funds-${goal.id}" placeholder="Add amount" min="0" step="0.01"><button class="add-funds-btn" onclick="addFunds('${goal.id}')">Add Funds</button></div>`:''}
-    ${!done&&source==='category'?`<div class="goal-budget-action"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Assign money to <strong>${goal.linkedCategoryName}</strong> in Budget to fund this goal</div>`:''}
-    ${!done&&source==='account'?`<div class="goal-budget-action"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Balance of <strong>${accountName}</strong> tracks this goal automatically</div>`:''}
-  </div>`;
-};
-
-function updateGoalsDashboardWidget() {
-  const widget=document.getElementById('bm-goals-widget');
-  const body=document.getElementById('bm-goals-widget-body');
-  const gl=window._bmGoals||[];
-  if(!widget||!body||!gl.length){if(widget)widget.style.display='none';return;}
-  const active=gl.filter(g=>g.status!=='paused');
-  if(!active.length){widget.style.display='none';return;}
-  widget.style.display='block';
-  const fmt=typeof formatCurrency==='function'?formatCurrency:v=>v;
-  let uf=0;
-  body.innerHTML=active.map(goal=>{
-    const {currentAmount,source}=computeGoalProgress(goal);
-    const pct=Math.min(goal.targetAmount>0?(currentAmount/goal.targetAmount)*100:0,100);
-    const done=currentAmount>=goal.targetAmount;
-    let alert='';
-    if(!done&&goal.monthlyContribution&&source==='category'&&goal.linkedCategoryName){
-      const cat=(window._currentMonthData?.categories||[]).find(c=>c.name===goal.linkedCategoryName);
-      const asgn=cat?Number(cat.assigned)||0:0;
-      if(asgn<goal.monthlyContribution){uf++;alert=`<span class="bm-gw-alert">Needs ${fmt(goal.monthlyContribution-asgn)}</span>`;}
-    }
-    return `<div class="bm-gw-item"><div class="bm-gw-item-top"><span class="bm-gw-name">${goal.name}</span>${alert}<span class="bm-gw-pct ${done?'complete':''}">${pct.toFixed(0)}%</span></div><div class="bm-gw-track"><div class="bm-gw-fill ${done?'complete':''}" style="width:${pct.toFixed(1)}%"></div></div><div class="bm-gw-amounts"><span>${fmt(currentAmount)}</span><span>${fmt(goal.targetAmount)}</span></div></div>`;
-  }).join('');
-  const t=widget.querySelector('.bm-gw-title');
-  if(t){const e=t.querySelector('.bm-gw-badge');if(e)e.remove();if(uf>0){const b=document.createElement('span');b.className='bm-gw-badge';b.textContent=`${uf} need funding`;t.appendChild(b);}}
-}
-
-console.log('✅ Goals integration loaded.');
