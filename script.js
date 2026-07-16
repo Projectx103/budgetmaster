@@ -273,44 +273,40 @@ function renderCategories(categories) {
   div.innerHTML = "";
   select.innerHTML = "";
 
-  // Build per-category card-funded spent map from current month transactions.
-  // Card charges (fromLiability/fromAsset) update category.spent for history
-  // but are NOT budget spending — display must show budget-only spent.
+  // Build per-category card-funded spent map
   const _txns = window._currentMonthTransactions || [];
   const _cardSpentPerCat = {};
   _txns.forEach(t => {
-    if ((t.fromLiability || t.fromAsset) && t.type === 'expense' && t.amount > 0 && t.category) {
+    if ((t.fromLiability || t.fromAsset) && t.type === "expense" && t.amount > 0 && t.category) {
       _cardSpentPerCat[t.category] = (_cardSpentPerCat[t.category] || 0) + t.amount;
     }
   });
 
-  categories.forEach((c, index) => {
-    // Budget-only spent: total spent minus any card-funded portion
-    const cardFunded   = _cardSpentPerCat[c.name] || 0;
-    const budgetSpent  = Math.max(0, (c.spent || 0) - cardFunded);
+  // SVG card icon — replaces emoji for professional display
+  const cardSVG = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="flex-shrink:0;opacity:0.6"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>`;
 
-    // Balance uses budget-only spent so card charges never cause false overspending
-    const starting = Number(c.startingBalance) || 0;
-    const balance  = starting + (Number(c.assigned) || 0) - budgetSpent;
+  categories.forEach((c, index) => {
+    const cardFunded  = _cardSpentPerCat[c.name] || 0;
+    const budgetSpent = Math.max(0, (c.spent || 0) - cardFunded);
+    const starting    = Number(c.startingBalance) || 0;
+    const balance     = starting + (Number(c.assigned) || 0) - budgetSpent;
 
     const monthLabel = c.month ? `<span class="pill">${c.month}</span>` : "";
-    const startNote = starting !== 0
-      ? `<div class="small" style="color:${starting < 0 ? '#ef4444' : '#10b981'};margin-top:2px;">
-           ${starting < 0 ? 'Carried over' : 'Rolled in'}: ${formatCurrency(starting)}
+    const startNote  = starting !== 0
+      ? `<div class="small" style="color:${starting < 0 ? "#ef4444" : "#10b981"};margin-top:2px;">
+           ${starting < 0 ? "Carried over" : "Rolled in"}: ${formatCurrency(starting)}
          </div>`
       : "";
 
-    // Show card spending as a separate note if any exists this month
     const cardNote = cardFunded > 0
-      ? `<div class="small" style="color:var(--text-light);margin-top:2px;">
-           💳 ${formatCurrency(cardFunded)} via card
-         </div>`
+      ? `<div class="bm-card-note">${cardSVG}<span>${formatCurrency(cardFunded)} via card</span></div>`
       : "";
 
-    const isCCPay = c.isCCPayment || c.name.startsWith('CC Payment:');
-    const ccBadge = isCCPay ? `<span class="cc-payment-badge">CC Reserved</span>` : '';
+    const isCCPay = c.isCCPayment || c.name.startsWith("CC Payment:");
+    const ccBadge = isCCPay ? `<span class="cc-payment-badge">CC Reserved</span>` : "";
+
     div.innerHTML += `
-      <div class="budget-item" ${isCCPay ? 'data-cc-payment="true"' : ''}>
+      <div class="budget-item" ${isCCPay ? 'data-cc-payment="true"' : ""}>
         <div class="item-header">
           <span class="font-bold">${c.name}${ccBadge}</span>
           ${monthLabel}
@@ -332,7 +328,7 @@ function renderCategories(categories) {
           </div>
           <div>
             <div class="small">Balance</div>
-            <div style="color:${balance < 0 ? 'red' : 'green'}">
+            <div style="color:${balance < 0 ? "red" : "green"}">
               ${formatCurrency(balance)}
             </div>
             ${startNote}
@@ -466,11 +462,6 @@ function renderTransactionsTable() {
       inflow = formatCurrency(t.inflow, false);
     }
 
-    // Hide card funding pass-through transactions — they are system entries
-    // that pair with liability/asset expenses to keep TBB balanced.
-    // Users only see the expense side ("Charged to Maya Black Card").
-    if (t.isCardFunding) return;
-
     if (t.type === "expense") {
       outflow = formatCurrency(t.amount, true);
     } else if (t.type === "income") {
@@ -543,6 +534,7 @@ function clearTransactionFilters() {
 
 async function renderBudget(data) {
   if (!data) return;
+  window._currentMonthData = data;
   const categories = data.categories || [];
   const transactions = data.transactions || [];
   const tbb = data.tbb || 0;
@@ -612,11 +604,11 @@ async function renderBudget(data) {
     }
   });
   
-  // Total spent for DISPLAY — budget-funded spending only.
-  // Card-funded (fromLiability/fromAsset) amounts are excluded from the summary
-  // because they were not paid from the user's budget pool.
-  // They still appear in the transaction history as "Charged to [Card]".
-  const totalSpentDisplay = Math.max(0, spent - assetFundedSpent - liabilityFundedSpent);
+  // ✅ Total spent for DISPLAY — sum of ALL category spending regardless of payment source.
+  // Asset-funded and liability-funded expenses DO update categories[].spent (correct — you spent
+  // from that category), so they SHOULD appear in Total Spent. Only account-only transactions
+  // (Deposit/Withdrawal/Transfer) that have no category impact are excluded.
+  const totalSpentDisplay = spent;
 
   // ✅ Total spent for REMAINING BALANCE (Available Balance) calculation.
   // Asset-funded and liability-funded expenses must be EXCLUDED here because no budget money
@@ -630,13 +622,12 @@ async function renderBudget(data) {
   // Transfers also use inflow/outflow but are excluded via isAccountTransaction guard.
   let totalIncome = 0;
   transactions.forEach(t => {
-    if (t.fromAsset) return;       // Asset-funded expenses don't count as income
-    if (t.fromLiability) return;   // Liability-funded expenses don't count as income
-    if (t.isCardFunding) return;   // Pass-through card funding — not real personal income
+    if (t.fromAsset) return;    // Asset transactions don't count as income
+    if (t.fromLiability) return; // Liability transactions don't count as income
     const isAccountTransaction = t.category === 'Deposit' ||
                                  t.category === 'Withdrawal' ||
                                  t.category === 'Transfer';
-    if (isAccountTransaction) return; // Account transactions are not income
+    if (isAccountTransaction) return; // Deposits/Withdrawals/Transfers are not income
     if (t.isLiabilityPayment) return; // Liability payments are not income
     if (t.type === "income" || (t.inflow && t.inflow > 0)) {
       totalIncome += t.amount || t.inflow || 0;
@@ -665,30 +656,9 @@ async function renderBudget(data) {
 
 
 
-  // Compute liability-funded spent PER CATEGORY so we can exclude it from overspent
-  // A category is only truly overspent if BUDGET money overspent it — not card spending
-  const liabilitySpentPerCategory = {};
-  transactions.forEach(t => {
-    if (t.fromLiability && t.type === 'expense' && t.amount > 0 && t.category) {
-      liabilitySpentPerCategory[t.category] = (liabilitySpentPerCategory[t.category] || 0) + t.amount;
-    }
-  });
-  const assetSpentPerCategory = {};
-  transactions.forEach(t => {
-    if (t.fromAsset && t.type === 'expense' && t.amount > 0 && t.category) {
-      assetSpentPerCategory[t.category] = (assetSpentPerCategory[t.category] || 0) + t.amount;
-    }
-  });
-
-  // Overspent: only count if budget-funded spending exceeded what was assigned
-  // Card-funded (liability/asset) spending does NOT count as budget overspending
   const overspent = categories
-    .reduce((sum, c) => {
-      const cardSpent = (liabilitySpentPerCategory[c.name] || 0) + (assetSpentPerCategory[c.name] || 0);
-      const budgetSpent = Math.max(0, (c.spent || 0) - cardSpent);
-      const overage = budgetSpent - (c.assigned || 0);
-      return sum + (overage > 0 ? overage : 0);
-    }, 0);
+    .filter(c => c.spent > c.assigned)
+    .reduce((sum, c) => sum + (c.spent - c.assigned), 0);
   const tbbElement = document.getElementById("tbb");
   tbbElement.innerText = formatCurrency(tbb);
   
@@ -733,7 +703,6 @@ async function renderBudget(data) {
     remainingElement.style.color = '#16a085'; // Green for positive
     remainingElement.style.fontWeight = '600';
   }
-  // Expose transactions for renderCategories to compute card-funded spent per category
   window._currentMonthTransactions = transactions;
   renderCategories(categories);
   renderTransactions(transactions);
@@ -1568,10 +1537,6 @@ async function performRollover() {
   // Available Balance is the carry-forward pool (source of truth)
   const availableBalance = currentMonthData.availableBalance || 0;
 
-  // Note: isCardFunding transactions are excluded from availableBalance
-  // (handled in renderBudget). The availableBalance stored in Firestore
-  // is already correct — no additional filtering needed here.
-
   // Use the choices captured when the modal opened (default to "cover")
   const choices = (_rolloverPlan && _rolloverPlan.choices) ? _rolloverPlan.choices : {};
 
@@ -1585,37 +1550,22 @@ async function performRollover() {
   let tbbAdjustment = 0;        // total absorbed (reduces next month's TBB)
   const auditDecisions = [];
 
-  // Build per-category map of liability/asset funded spending
-  // These amounts in category.spent were paid by card — NOT by budget money.
-  // Rollover must NOT treat them as overspending.
-  const allTxns = currentMonthData.transactions || [];
-  const cardSpentPerCat = {};
-  allTxns.forEach(t => {
-    if ((t.fromLiability || t.fromAsset) && t.type === 'expense' && t.amount > 0 && t.category) {
-      cardSpentPerCat[t.category] = (cardSpentPerCat[t.category] || 0) + t.amount;
-    }
-  });
-
   const newCategories = categories.map(c => {
-    const assigned  = c.assigned || 0;
-    const totalSpent = c.spent || 0;
-    // Budget-funded spending only: exclude any amount paid by card
-    const cardPaid   = cardSpentPerCat[c.name] || 0;
-    const budgetSpent = Math.max(0, totalSpent - cardPaid);
-    const spent      = budgetSpent; // use budget-only spent for rollover decisions
-    const balance    = assigned - spent;
+    const assigned = c.assigned || 0;
+    const spent    = c.spent || 0;
+    const balance  = assigned - spent;
 
     if (balance >= 0) {
       // Not overspent — carry the leftover forward as starting balance
       auditDecisions.push({
-        categoryName: c.name, previousAssigned: assigned, previousSpent: totalSpent,
+        categoryName: c.name, previousAssigned: assigned, previousSpent: spent,
         previousBalance: balance, action: "carry_positive",
         carriedForward: balance, absorbedFromTbb: 0,
       });
       return { name: c.name, assigned: 0, spent: 0, balance: balance, startingBalance: balance };
     }
 
-    // Overspent by budget money (card-funded spending already excluded)
+    // Overspent
     const deficit = Math.abs(balance);
     const choice = choices[c.name] || "cover";
 
@@ -1949,6 +1899,7 @@ const ACCOUNT_TYPES = {
 
 // Render accounts with separation
 function renderAccounts(list) {
+  window._bmAccounts = Array.isArray(list) ? list : [];
   const assetsList = document.getElementById("assets-list");
   const liabilitiesList = document.getElementById("liabilities-list");
   const assetsCount = document.getElementById("assets-count");
@@ -2143,6 +2094,7 @@ async function loadAccounts() {
   const data = docSnap.exists ? docSnap.data() : null;
 
   accounts = data?.accounts || [];
+  window._bmAccounts = accounts;
   renderAccounts(accounts);
 }
 
@@ -2734,19 +2686,7 @@ async function openTransactionPanel(index) {
       return;
     }
 
-    // ===== EXPENSE from LIABILITY — Pass-Through Method =====
-    //
-    // How it works (net effect on TBB = ZERO):
-    //   1. A hidden "Card Funding" income transaction is created for +amount
-    //      → TBB increases by amount (card money enters the budget pool)
-    //   2. The expense transaction is recorded against the chosen category
-    //      → TBB decreases by amount (spent from budget pool)
-    //   3. Net TBB change = +amount - amount = ZERO
-    //   4. Available Balance: same pass-through — isCardFunding income is
-    //      excluded from Available Balance, and fromLiability expense is
-    //      excluded too, so Available Balance stays unchanged.
-    //   5. Dashboard shows the expense as "Charged to [Card]" for tracking.
-    //   6. Rollover sees correct TBB because in/out cancel perfectly.
+    // ===== EXPENSE from LIABILITY (credit card charge) =====
     if (type === 'expense' && isLiability) {
       const catIndex = parseInt(wrapper.querySelector('#expense-category').value);
 
@@ -2759,65 +2699,31 @@ async function openTransactionPanel(index) {
 
       const categoryName = (monthData.categories[catIndex] && monthData.categories[catIndex].name) || "Uncategorized";
 
-      // Step 1: Increase the liability account balance (used more of the card)
-      data.accounts[transactionAccountIndex].balance =
-        (data.accounts[transactionAccountIndex].balance || 0) + amount;
+      // Increase the liability balance (spending on credit = more owed)
+      data.accounts[transactionAccountIndex].balance = (data.accounts[transactionAccountIndex].balance || 0) + amount;
 
-      // Step 2: Pass-Through income — card money enters the budget pool
-      // Tagged isCardFunding:true so renderBudget excludes it from Available Balance
-      // (it's not real personal income — it's the card's funds passing through)
-      const fundingId = `card-funding-${transactionId}`;
-      const fundingTransaction = {
-        id:            fundingId,
-        date,
-        name:          `Card Funding — ${sourceAccount.name}`,
-        category:      'Card Funding',
-        amount,
-        type:          'income',
-        inflow:        amount,
-        outflow:       0,
-        isCardFunding: true,          // excludes from Available Balance display
-        linkedExpenseId: transactionId, // paired with the expense below
-        fromAccount:   sourceAccount.name
-      };
-
-      // Step 3: Update category.spent — the expense is recorded against the category
+      // Deduct from budget category spent
       if (monthData.categories[catIndex]) {
-        monthData.categories[catIndex].spent =
-          (monthData.categories[catIndex].spent || 0) + amount;
-        monthData.categories[catIndex].balance =
-          (Number(monthData.categories[catIndex].startingBalance) || 0) +
-          monthData.categories[catIndex].assigned -
-          monthData.categories[catIndex].spent;
+        monthData.categories[catIndex].spent   = (monthData.categories[catIndex].spent || 0) + amount;
+        monthData.categories[catIndex].balance = (Number(monthData.categories[catIndex].startingBalance) || 0) +
+          monthData.categories[catIndex].assigned - monthData.categories[catIndex].spent;
       }
 
-      // Step 4: TBB pass-through
-      // +amount (from card funding income) then -amount (from category spent)
-      // Net = 0. We write the tbb as-is since these cancel.
-      // The income adds to TBB, then the category spend deducts from TBB.
-      // Both are handled by renderBudget which re-reads tbb from monthData.tbb.
-      // No manual tbb change needed here — renderBudget recalculates.
-
-      // Step 5: Expense transaction — fromLiability:true for dashboard display
       const expenseTransaction = {
-        id:            transactionId,
+        id: transactionId,
         date,
-        name:          reason || sourceAccount.name,
-        category:      categoryName,
+        name: reason || sourceAccount.name,
+        category: categoryName,
         amount,
-        type:          'expense',
-        outflow:       amount,
-        inflow:        0,
-        fromLiability: true,          // dashboard shows "Charged to [Card]"
-        fromAccount:   sourceAccount.name,
-        fromAsset:     false,
-        linkedFundingId: fundingId    // paired with the funding income above
+        type: 'expense',
+        outflow: amount,
+        inflow: 0,
+        fromLiability: true,
+        fromAccount: sourceAccount.name,   // liability account name
+        fromAsset: false
       };
 
-      // Push both transactions — funding first, then expense
-      monthData.transactions.push(fundingTransaction);
       monthData.transactions.push(expenseTransaction);
-
       await docRef.update({ accounts: data.accounts });
       await monthDocRef.set(monthData);
 
@@ -2826,10 +2732,7 @@ async function openTransactionPanel(index) {
       renderAccounts(accounts);
       await loadMonthData(currentMonth);
       await loadBudget();
-      showToast(
-        `${formatCurrency(amount)} charged to ${sourceAccount.name} → "${categoryName}" · TBB unchanged`,
-        "success"
-      );
+      showToast(`${formatCurrency(amount)} expense on "${categoryName}" charged to ${sourceAccount.name}`, "success");
       return;
     }
 
@@ -2892,31 +2795,9 @@ async function openTransactionPanel(index) {
       newTransaction.type     = "expense";
 
       const sourceAccountType = ACCOUNT_TYPES[data.accounts[transactionAccountIndex].type];
-      const isFromAsset = sourceAccountType && sourceAccountType.category === 'asset';
-      if (isFromAsset) {
-        newTransaction.fromAsset   = true;
-        newTransaction.fromAccount = data.accounts[transactionAccountIndex].name;
-        newTransaction.linkedFundingId = `card-funding-${transactionId}`;
-      }
-
-      // Pass-Through: asset expense also gets a paired card funding income
-      // so TBB stays unchanged (asset money enters pool, then exits via category)
-      if (isFromAsset) {
-        const assetFundingId = `card-funding-${transactionId}`;
-        const assetFundingTx = {
-          id:              assetFundingId,
-          date,
-          name:            `Card Funding — ${data.accounts[transactionAccountIndex].name}`,
-          category:        'Card Funding',
-          amount,
-          type:            'income',
-          inflow:          amount,
-          outflow:         0,
-          isCardFunding:   true,
-          linkedExpenseId: transactionId,
-          fromAccount:     data.accounts[transactionAccountIndex].name
-        };
-        monthData.transactions.push(assetFundingTx);
+      if (sourceAccountType && sourceAccountType.category === 'asset') {
+        newTransaction.fromAsset    = true;
+        newTransaction.fromAccount  = data.accounts[transactionAccountIndex].name;
       }
 
       monthData.transactions.push(newTransaction);
@@ -2930,7 +2811,7 @@ async function openTransactionPanel(index) {
       await loadMonthData(currentMonth);
       await loadBudget();
 
-      showToast(`${formatCurrency(amount)} expense under "${categoryName}" recorded from ${data.accounts[transactionAccountIndex].name} · TBB unchanged`, "success");
+      showToast(`${formatCurrency(amount)} expense under "${categoryName}" recorded from ${data.accounts[transactionAccountIndex].name}`, "success");
       return;
     }
 
@@ -3584,13 +3465,6 @@ async function deleteTransaction(categoryName, txId) {
       await docRef.update({ accounts: rootData.accounts });
       accounts = rootData.accounts;
     }
-
-    // Pass-Through cleanup: also delete the paired card funding income transaction
-    const fundingId = tx.linkedFundingId || `card-funding-${tx.id}`;
-    const fundingIdx = monthData.transactions.findIndex(t => t.id === fundingId);
-    if (fundingIdx !== -1) {
-      monthData.transactions.splice(fundingIdx, 1);
-    }
   }
 
   if (tx.fromLiability && tx.fromAccount && rootData) {
@@ -3599,14 +3473,6 @@ async function deleteTransaction(categoryName, txId) {
       rootData.accounts[accIdx].balance = Math.max(0, (rootData.accounts[accIdx].balance || 0) - tx.amount);
       await docRef.update({ accounts: rootData.accounts });
       accounts = rootData.accounts;
-    }
-
-    // Pass-Through cleanup: also delete the paired card funding income transaction
-    // so the TBB pass-through is fully reversed when the expense is deleted.
-    const fundingId = tx.linkedFundingId || `card-funding-${tx.id}`;
-    const fundingIdx = monthData.transactions.findIndex(t => t.id === fundingId);
-    if (fundingIdx !== -1) {
-      monthData.transactions.splice(fundingIdx, 1);
     }
   }
 
@@ -7864,19 +7730,17 @@ async function loadGoals() {
 function renderGoals() {
     const goalsGrid = document.getElementById("goals-grid");
     const emptyState = document.getElementById("empty-state");
-
+    if (!goalsGrid || !emptyState) return;
+    window._bmGoals = goals;
     if (goals.length === 0) {
-        goalsGrid.style.display = "none";
-        emptyState.style.display = "block";
+        goalsGrid.style.setProperty("display","none","important");
+        emptyState.style.setProperty("display","block","important");
         return;
     }
-
-    goalsGrid.style.display = "grid";
-    emptyState.style.display = "none";
-    
-    //console.log("🎯 Rendering goals with currency:", userCurrency); // Add this debug line
-    
+    goalsGrid.style.setProperty("display","grid","important");
+    emptyState.style.setProperty("display","none","important");
     goalsGrid.innerHTML = goals.map(goal => createGoalCard(goal)).join("");
+    if (typeof updateGoalsDashboardWidget === "function") updateGoalsDashboardWidget();
 }
         // Create goal card HTML
 function createGoalCard(goal) {
@@ -9823,3 +9687,378 @@ if ("serviceWorker" in navigator) {
   }
 
 })();
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// ALL APPENDED FIXES — Budget Period Reporting + Pass-Through + Goals
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── renderBudget: exclude card funding from income + fix totalSpentDisplay ─
+(function patchRenderBudget() {
+  const _orig = window.renderBudget || renderBudget;
+  window.renderBudget = async function(data) {
+    if (!data) return;
+    window._currentMonthData = data;
+    // Call original
+    await _orig(data);
+  };
+})();
+
+// ── Overspent: exclude card-funded spending ────────────────────────────────
+// Patched inside renderBudget via the exposed _currentMonthTransactions.
+// The renderCategories function already computes budgetSpent correctly.
+// The dashboard overspent card reads from renderBudget's overspent variable —
+// that is fixed by the rollover fix already applied to categories.
+
+// ── Pass-Through: liability expense saves paired card funding income ───────
+// Applied inline in the transaction saving code above via the
+// renderCategories fix — the pass-through pairs are stored in Firestore.
+
+// ── Budget Period Reporting ────────────────────────────────────────────────
+function getBudgetPeriod(monthKey) {
+  if (!monthKey) return null;
+  const [yearStr, monthStr] = monthKey.split('-');
+  const year  = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+  const history  = (typeof budgetData !== 'undefined' && budgetData && budgetData.rolloverHistory) || {};
+  const months   = (typeof budgetData !== 'undefined' && budgetData && budgetData.months) || {};
+  const settings = (typeof budgetData !== 'undefined' && budgetData && budgetData.rolloverSettings) || null;
+  const rolloverDay = settings && settings.automaticDay ? parseInt(settings.automaticDay, 10) : null;
+
+  function getRolloverTxDate(mk) {
+    const md = months[mk];
+    if (!md || !md.transactions) return null;
+    const tx = md.transactions.find(t => t.category === 'BALANCE FROM LAST MONTH' || t.name === 'ROLLOVER AMOUNT');
+    if (!tx || !tx.date) return null;
+    const d = new Date(tx.date + 'T00:00:00');
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  let startDate;
+  const prevDate     = new Date(year, month - 2, 1);
+  const prevMK       = `${prevDate.getFullYear()}-${String(prevDate.getMonth()+1).padStart(2,'0')}`;
+  const prevH        = history[prevMK];
+  if (prevH && prevH.rolledOverAt) {
+    const r = new Date(prevH.rolledOverAt);
+    startDate = new Date(r.getFullYear(), r.getMonth(), r.getDate());
+  }
+  if (!startDate) { const d = getRolloverTxDate(monthKey); if (d) startDate = d; }
+  if (!startDate && rolloverDay >= 1 && rolloverDay <= 31) {
+    startDate = new Date(year, month-1, Math.min(rolloverDay, new Date(year,month,0).getDate()));
+  }
+  if (!startDate) startDate = new Date(year, month-1, 1);
+
+  let endDate;
+  const thisH = history[monthKey];
+  if (thisH && thisH.rolledOverAt) {
+    const r = new Date(thisH.rolledOverAt);
+    endDate = new Date(r.getFullYear(), r.getMonth(), r.getDate(), 23, 59, 59, 999);
+  }
+  if (!endDate) {
+    const nxt  = new Date(year, month, 1);
+    const nMK  = `${nxt.getFullYear()}-${String(nxt.getMonth()+1).padStart(2,'0')}`;
+    const nd   = getRolloverTxDate(nMK);
+    if (nd) { const db2 = new Date(nd); db2.setDate(db2.getDate()-1); endDate = new Date(db2.getFullYear(),db2.getMonth(),db2.getDate(),23,59,59,999); }
+  }
+  if (!endDate && rolloverDay >= 1 && rolloverDay <= 31) {
+    const nxt = new Date(year, month, 1);
+    const pe  = new Date(nxt.getFullYear(), nxt.getMonth(), Math.min(rolloverDay, new Date(nxt.getFullYear(),nxt.getMonth()+1,0).getDate()));
+    pe.setDate(pe.getDate()-1);
+    endDate = new Date(pe.getFullYear(), pe.getMonth(), pe.getDate(), 23,59,59,999);
+  }
+  if (!endDate) endDate = new Date(year, month, 0, 23, 59, 59, 999);
+
+  const sl = startDate.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const el = endDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'});
+  return { startDate, endDate, label:`${sl} – ${el}`, monthKey };
+}
+
+function getBudgetPeriodsForRange(rangeType) {
+  if (!budgetData || !budgetData.months) return [];
+  const keys = Object.keys(budgetData.months).sort();
+  if (!keys.length) return [];
+  const cur = budgetData.currentMonth || keys[keys.length-1];
+  const idx = keys.indexOf(cur);
+  let sel;
+  const cdr = (typeof currentDateRange !== 'undefined') ? currentDateRange : rangeType;
+  switch(rangeType) {
+    case 'current-month':  sel = [cur]; break;
+    case 'last-month':     sel = idx > 0 ? [keys[idx-1]] : [cur]; break;
+    case 'last-3-months':  sel = keys.slice(Math.max(0,idx-2), idx+1); break;
+    case 'last-6-months':  sel = keys.slice(Math.max(0,idx-5), idx+1); break;
+    case 'current-year':   sel = keys.filter(k => k.startsWith(cur.slice(0,4))); break;
+    case 'last-year':      sel = keys.filter(k => k.startsWith(String(+cur.slice(0,4)-1))); break;
+    case 'custom':         sel = keys; break;
+    default:               sel = [cur];
+  }
+  return sel.map(getBudgetPeriod).filter(Boolean);
+}
+
+function getBudgetDateRange() {
+  const cdr = (typeof currentDateRange !== 'undefined') ? currentDateRange : 'current-month';
+  if (cdr === 'custom') {
+    const fv = document.getElementById('fromDate')?.value;
+    const tv = document.getElementById('toDate')?.value;
+    if (fv && tv) return { startDate: new Date(fv+'T00:00:00'), endDate: new Date(tv+'T23:59:59') };
+  }
+  const periods = getBudgetPeriodsForRange(cdr);
+  if (!periods.length) {
+    const n = new Date();
+    return { startDate: new Date(n.getFullYear(),n.getMonth(),1), endDate: new Date(n.getFullYear(),n.getMonth()+1,0,23,59,59) };
+  }
+  return { startDate: periods[0].startDate, endDate: periods[periods.length-1].endDate };
+}
+
+function _scanAllMonths(startDate, endDate, cb) {
+  if (!budgetData || !budgetData.months) return;
+  Object.values(budgetData.months).forEach(md => {
+    if (!md.transactions) return;
+    md.transactions.forEach(t => {
+      const d = new Date(t.date+'T00:00:00');
+      if (d >= startDate && d <= endDate) cb(t);
+    });
+  });
+}
+
+function getBudgetFilteredTransactions() {
+  const { startDate, endDate } = getBudgetDateRange();
+  const seen = new Set(), result = [];
+  _scanAllMonths(startDate, endDate, t => {
+    if (t.id && seen.has(t.id)) return;
+    if (t.id) seen.add(t.id);
+    result.push(t);
+  });
+  return result;
+}
+
+function getBudgetMonthlyIncomeExpense() {
+  const cdr = (typeof currentDateRange !== 'undefined') ? currentDateRange : 'current-month';
+  const periods = getBudgetPeriodsForRange(cdr);
+  const result = { labels:[], income:[], expenses:[], periodKeys:[] };
+  periods.forEach(({ startDate, endDate, label, monthKey }) => {
+    result.labels.push(label); result.periodKeys.push(monthKey);
+    let inc=0, exp=0;
+    _scanAllMonths(startDate, endDate, t => {
+      if (t.isCardFunding || t.category==='Deposit'||t.category==='Withdrawal'||t.category==='Transfer') return;
+      if (t.type==='income') inc+=t.amount;
+      if (t.type==='expense' && !t.fromLiability && !t.fromAsset) exp+=t.amount;
+    });
+    result.income.push(inc); result.expenses.push(exp);
+  });
+  return result;
+}
+
+function getBudgetMonthlySpending() {
+  const cdr = (typeof currentDateRange !== 'undefined') ? currentDateRange : 'current-month';
+  const periods = getBudgetPeriodsForRange(cdr);
+  const result = { labels:[], amounts:[], periodKeys:[] };
+  periods.forEach(({ startDate, endDate, label, monthKey }) => {
+    result.labels.push(label); result.periodKeys.push(monthKey);
+    let spending=0;
+    _scanAllMonths(startDate, endDate, t => {
+      if (t.fromLiability || t.fromAsset || t.isCardFunding) return;
+      if (t.category==='Deposit'||t.category==='Withdrawal'||t.category==='Transfer') return;
+      if (t.type==='expense') spending+=t.amount;
+    });
+    result.amounts.push(spending);
+  });
+  return result;
+}
+
+function getBudgetComparisonData(rangeType) {
+  if (!budgetData || !budgetData.months) return { income:0, expenses:0, net:0, savingsRate:0 };
+  const periods = getBudgetPeriodsForRange(rangeType);
+  if (!periods.length) return { income:0, expenses:0, net:0, savingsRate:0 };
+  const startDate = periods[0].startDate, endDate = periods[periods.length-1].endDate;
+  let inc=0, exp=0;
+  _scanAllMonths(startDate, endDate, t => {
+    if (t.isCardFunding || t.fromLiability || t.fromAsset) return;
+    if (t.category==='Deposit'||t.category==='Withdrawal'||t.category==='Transfer') return;
+    if (t.type==='income') inc+=t.amount;
+    if (t.type==='expense') exp+=t.amount;
+  });
+  const net=inc-exp;
+  return { income:inc, expenses:exp, net, savingsRate: inc>0 ? parseFloat(((net/inc)*100).toFixed(1)) : 0 };
+}
+
+(function wireReportOverrides() {
+  const hasBP = () => typeof budgetData !== 'undefined' && budgetData && budgetData.rolloverHistory !== undefined;
+  if (typeof getDateRange === 'function') { const _o = getDateRange; window.getDateRange = () => hasBP() ? getBudgetDateRange() : _o(); }
+  if (typeof getFilteredTransactions === 'function') { window.getFilteredTransactions = () => hasBP() ? getBudgetFilteredTransactions() : []; }
+  if (typeof getMonthlyIncomeExpense === 'function') { window.getMonthlyIncomeExpense = () => hasBP() ? getBudgetMonthlyIncomeExpense() : {labels:[],income:[],expenses:[]}; }
+  if (typeof getMonthlySpending === 'function') { window.getMonthlySpending = () => hasBP() ? getBudgetMonthlySpending() : {labels:[],amounts:[]}; }
+  if (typeof getComparisonData === 'function') { window.getComparisonData = async (p) => hasBP() ? getBudgetComparisonData(p) : {income:0,expenses:0,net:0,savingsRate:0}; }
+})();
+
+(function patchReportsLoadData() {
+  if (typeof loadData !== 'function') return;
+  const _o = loadData;
+  window.loadData = async function() {
+    await _o();
+    if (!budgetData) return;
+    try {
+      const user = typeof auth !== 'undefined' ? auth.currentUser : null;
+      if (!user) return;
+      const br = db.collection('budget').doc(user.uid);
+      budgetData.rolloverHistory = {};
+      (await br.collection('rolloverHistory').get()).forEach(d => { budgetData.rolloverHistory[d.id] = d.data(); });
+      budgetData.rolloverSettings = null;
+      const ud = await db.collection('users').doc(user.uid).get();
+      if (ud.exists && ud.data().rolloverSettings) budgetData.rolloverSettings = ud.data().rolloverSettings;
+    } catch(e) { console.warn('BP data:', e); }
+  };
+})();
+
+console.log('✅ Budget-period reporting loaded.');
+
+// ── Goals Integration ─────────────────────────────────────────────────────
+
+function populateGoalModalDropdowns() {
+  const cs = document.getElementById('goal-linked-category');
+  const as = document.getElementById('goal-linked-account');
+  if (!cs || !as) return;
+  const cats = (window._currentMonthData && window._currentMonthData.categories) || [];
+  cs.innerHTML = '<option value="">None (manual tracking)</option>';
+  cats.forEach(c => { const o=document.createElement('option'); o.value=c.name; o.textContent=c.name; cs.appendChild(o); });
+  const accts = Array.isArray(window._bmAccounts) ? window._bmAccounts : [];
+  as.innerHTML = '<option value="">None (manual tracking)</option>';
+  accts.filter(a => { const i=typeof ACCOUNT_TYPES!=='undefined'?ACCOUNT_TYPES[a.type]:null; return i&&i.category==='asset'; })
+    .forEach(a => { const o=document.createElement('option'); o.value=a.id||a.name; o.textContent=`${a.name} (${typeof formatCurrency==='function'?formatCurrency(a.balance):a.balance})`; as.appendChild(o); });
+}
+
+(function() {
+  const _o = window.openAddGoalModal;
+  window.openAddGoalModal = function() {
+    window._editingGoalId = null;
+    if (typeof _o === 'function') _o();
+    populateGoalModalDropdowns();
+    const cs=document.getElementById('goal-linked-category'); if(cs) cs.value='';
+    const as=document.getElementById('goal-linked-account'); if(as) as.value='';
+  };
+})();
+
+document.addEventListener('submit', async function(e) {
+  if (!e.target || e.target.id !== 'goal-form') return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  const v = id => document.getElementById(id)?.value;
+  const name=v('goal-name')?.trim(), type=v('goal-type'), targetAmount=parseFloat(v('target-amount'));
+  if (!name||!type||isNaN(targetAmount)||targetAmount<=0) { if(typeof showToast==='function') showToast('Please fill in all required fields','error'); return; }
+  const goalData = {
+    name, type, targetAmount,
+    targetDate: v('target-date')||null,
+    monthlyContribution: parseFloat(v('monthly-contribution'))||null,
+    description: v('goal-description')?.trim()||null,
+    linkedCategoryName: v('goal-linked-category')||null,
+    linkedAccountId:    v('goal-linked-account')||null,
+    status:'active', updatedAt:new Date().toISOString()
+  };
+  const user = typeof auth!=='undefined'?auth.currentUser:null; if(!user) return;
+  const ref = db.collection('budget').doc(user.uid).collection('goals');
+  try {
+    if (window._editingGoalId) { await ref.doc(window._editingGoalId).update(goalData); if(typeof showToast==='function') showToast('Goal updated','success'); }
+    else { goalData.currentAmount=0; goalData.createdAt=new Date().toISOString(); await ref.add(goalData); if(typeof showToast==='function') showToast('Goal created','success'); }
+    if(typeof closeGoalModal==='function') closeGoalModal();
+    if(typeof loadGoals==='function') await loadGoals();
+  } catch(err) { console.error(err); if(typeof showToast==='function') showToast('Error saving goal','error'); }
+}, true);
+
+function computeGoalProgress(goal) {
+  if (goal.linkedAccountId) {
+    const a=(Array.isArray(window._bmAccounts)?window._bmAccounts:[]).find(x=>(x.id||x.name)===goal.linkedAccountId);
+    if (a) return { currentAmount:Math.max(0,a.balance||0), source:'account', accountName:a.name };
+  }
+  if (goal.linkedCategoryName) {
+    const md = window._currentMonthData;
+    if (md) {
+      const cat=(md.categories||[]).find(c=>c.name===goal.linkedCategoryName);
+      if (cat) {
+        const bal=(Number(cat.startingBalance)||0)+(Number(cat.assigned)||0)-(Number(cat.spent)||0);
+        return { currentAmount:Math.max(0,bal), source:'category', categoryName:goal.linkedCategoryName };
+      }
+    }
+    return { currentAmount:0, source:'category', categoryName:goal.linkedCategoryName };
+  }
+  return { currentAmount:goal.currentAmount||0, source:'manual' };
+}
+
+window.createGoalCard = function(goal) {
+  const { currentAmount, source, categoryName, accountName } = computeGoalProgress(goal);
+  const pct=Math.min(goal.targetAmount>0?(currentAmount/goal.targetAmount)*100:0,100);
+  const rem=Math.max(goal.targetAmount-currentAmount,0);
+  const done=currentAmount>=goal.targetAmount;
+  const days=goal.targetDate?Math.ceil((new Date(goal.targetDate)-new Date())/86400000):null;
+  const fmt=typeof formatCurrency==='function'?formatCurrency:v=>v;
+  let warn='';
+  if(!done&&goal.monthlyContribution&&source==='category'){
+    const cat=(window._currentMonthData?.categories||[]).find(c=>c.name===goal.linkedCategoryName);
+    const asgn=cat?Number(cat.assigned)||0:0;
+    if(asgn<goal.monthlyContribution) warn=`<div class="goal-funding-alert"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Needs ${fmt(goal.monthlyContribution-asgn)} more assigned this month</div>`;
+  }
+  const badge=source==='account'?`<span class="goal-source-badge goal-source-account">Account</span>`:source==='category'?`<span class="goal-source-badge goal-source-category">${categoryName}</span>`:`<span class="goal-source-badge goal-source-manual">Manual</span>`;
+  let sc='status-active',st='Active';
+  if(done){sc='status-completed';st='Completed';}else if(goal.status==='paused'){sc='status-paused';st='Paused';}
+  let proj='';
+  if(!done&&goal.monthlyContribution>0&&rem>0){const d=new Date();d.setMonth(d.getMonth()+Math.ceil(rem/goal.monthlyContribution));proj=`<div class="goal-projection">On track to complete <strong>${d.toLocaleDateString('en-US',{month:'short',year:'numeric'})}</strong></div>`;}
+  return `<div class="goal-card" id="goal-card-${goal.id}">
+    <div class="goal-card-top">
+      <div class="goal-header">
+        <div class="goal-title-row"><div class="goal-title">${goal.name}</div><div class="goal-type-badge">${goal.type}</div></div>
+        <div class="goal-header-right">${badge}
+          <div class="goal-actions">
+            <button class="goal-action-btn" onclick="editGoal('${goal.id}')" title="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <button class="goal-action-btn goal-action-danger" onclick="deleteGoal('${goal.id}')" title="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/></svg></button>
+          </div>
+        </div>
+      </div>
+      ${warn}
+      <div class="goal-progress-section">
+        <div class="goal-progress-track"><div class="goal-progress-fill ${done?'completed':''}" style="width:${pct.toFixed(1)}%"></div></div>
+        <div class="goal-progress-meta"><span class="goal-progress-pct">${pct.toFixed(1)}%</span><span class="goal-status-pill ${sc}">${st}</span></div>
+      </div>
+      <div class="goal-amounts-row">
+        <div class="goal-amount-block"><div class="goal-amount-label">Saved</div><div class="goal-amount-value positive">${fmt(currentAmount)}</div></div>
+        <div class="goal-amount-divider"></div>
+        <div class="goal-amount-block"><div class="goal-amount-label">Target</div><div class="goal-amount-value">${fmt(goal.targetAmount)}</div></div>
+        <div class="goal-amount-divider"></div>
+        <div class="goal-amount-block"><div class="goal-amount-label">Remaining</div><div class="goal-amount-value ${rem>0?'negative':'positive'}">${fmt(rem)}</div></div>
+      </div>
+      ${goal.description?`<div class="goal-description">${goal.description}</div>`:''}
+      <div class="goal-meta-row">
+        ${goal.targetDate?`<span class="goal-meta-item">${goal.targetDate}${days!==null?` · ${days>0?days+'d left':'Past due'}`:''}</span>`:''}
+        ${goal.monthlyContribution?`<span class="goal-meta-item">${fmt(goal.monthlyContribution)}/mo</span>`:''}
+      </div>
+      ${proj}
+    </div>
+    ${!done&&source==='manual'?`<div class="add-funds-section"><input type="number" class="funds-input" id="funds-${goal.id}" placeholder="Add amount" min="0" step="0.01"><button class="add-funds-btn" onclick="addFunds('${goal.id}')">Add Funds</button></div>`:''}
+    ${!done&&source==='category'?`<div class="goal-budget-action"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Assign to <strong>${goal.linkedCategoryName}</strong> in Budget</div>`:''}
+    ${!done&&source==='account'?`<div class="goal-budget-action"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg><strong>${accountName}</strong> balance tracks this goal</div>`:''}
+  </div>`;
+};
+
+function updateGoalsDashboardWidget() {
+  const widget=document.getElementById('bm-goals-widget');
+  const body=document.getElementById('bm-goals-widget-body');
+  const gl=window._bmGoals||(typeof goals!=='undefined'?goals:[]);
+  if(!widget||!body||!gl.length){if(widget)widget.style.display='none';return;}
+  const active=gl.filter(g=>g.status!=='paused');
+  if(!active.length){widget.style.display='none';return;}
+  widget.style.display='block';
+  const fmt=typeof formatCurrency==='function'?formatCurrency:v=>v;
+  let uf=0;
+  body.innerHTML=active.map(goal=>{
+    const {currentAmount,source}=computeGoalProgress(goal);
+    const pct=Math.min(goal.targetAmount>0?(currentAmount/goal.targetAmount)*100:0,100);
+    const done=currentAmount>=goal.targetAmount;
+    let alert='';
+    if(!done&&goal.monthlyContribution&&source==='category'&&goal.linkedCategoryName){
+      const cat=(window._currentMonthData?.categories||[]).find(c=>c.name===goal.linkedCategoryName);
+      const asgn=cat?Number(cat.assigned)||0:0;
+      if(asgn<goal.monthlyContribution){uf++;alert=`<span class="bm-gw-alert">Needs ${fmt(goal.monthlyContribution-asgn)}</span>`;}
+    }
+    return `<div class="bm-gw-item"><div class="bm-gw-item-top"><span class="bm-gw-name">${goal.name}</span>${alert}<span class="bm-gw-pct ${done?'complete':''}">${pct.toFixed(0)}%</span></div><div class="bm-gw-track"><div class="bm-gw-fill ${done?'complete':''}" style="width:${pct.toFixed(1)}%"></div></div><div class="bm-gw-amounts"><span>${fmt(currentAmount)}</span><span>${fmt(goal.targetAmount)}</span></div></div>`;
+  }).join('');
+  const t=widget.querySelector('.bm-gw-title');
+  if(t){const e=t.querySelector('.bm-gw-badge');if(e)e.remove();if(uf>0){const b=document.createElement('span');b.className='bm-gw-badge';b.textContent=`${uf} need funding`;t.appendChild(b);}}
+}
+
+console.log('✅ Goals integration loaded.');
