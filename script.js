@@ -1474,21 +1474,18 @@ function _renderRolloverModal() {
         <input type="radio" name="ro-global-mode" value="normal" ${mode === "normal" ? "checked" : ""}
                onchange="_setRolloverGlobalMode('normal')">
         <span class="bm-ro-choice-label">
-          <strong>Normal rollover</strong>
-          <small>Positive category balances carry forward into next month.
-          ${overspentCategories.length > 0 ? "Overspent categories: choose Cover or Absorb below." : "No categories are currently overspent."}</small>
+          <strong>Keep my categories</strong>
+          <small>Leftover money in each category stays there next month.
+          ${overspentCategories.length > 0 ? "You've overspent in some categories — choose how to handle those below." : "Nothing is overspent right now."}</small>
         </span>
       </label>
       <label class="bm-ro-choice">
         <input type="radio" name="ro-global-mode" value="clear-all" ${mode === "clear-all" ? "checked" : ""}
                onchange="_setRolloverGlobalMode('clear-all')">
         <span class="bm-ro-choice-label">
-          <strong>Clear all categories</strong>
-          <small>Reset every category — positive or overspent — to ₱0 next
-          month. Nothing carries forward per-category; the entire Available
-          Balance moves into next month's unassigned <strong>To Be Budgeted</strong>
-          as one "ROLLOVER AMOUNT / BALANCE FROM LAST MONTH" entry, ready to
-          reassign from scratch.</small>
+          <strong>Start fresh</strong>
+          <small>Every category resets to ₱0. All your money moves into one
+          pot next month, ready for you to assign again from scratch.</small>
         </span>
       </label>
     </div>
@@ -1500,10 +1497,10 @@ function _renderRolloverModal() {
       ${modeSelector}
       <p class="bm-ro-intro">
         ${mode === "clear-all"
-          ? "Every category will reset to ₱0. Your full Available Balance becomes next month's unassigned To Be Budgeted."
-          : "Positive category balances carry forward, and your Available Balance becomes next month's starting To Be Budgeted."}
+          ? "All your categories will reset to ₱0, and your money moves to next month ready to assign."
+          : "Your categories carry over as-is, and your leftover money starts next month's budget."}
       </p>
-      <p class="bm-ro-note">This action cannot be undone.</p>
+      <p class="bm-ro-note">This can't be undone.</p>
     `;
     return;
   }
@@ -1524,9 +1521,8 @@ function _renderRolloverModal() {
                  ${mode === "clear-all" ? "disabled" : ""}
                  onchange="_setRolloverChoice('${_escapeHtmlAttr(c.name)}','cover')">
           <span class="bm-ro-choice-label">
-            <strong>Cover</strong>
-            <small>Carry the −${formatCurrency(c.deficit)} into next month. You'll
-            assign new money to clear it.</small>
+            <strong>Pay it back later</strong>
+            <small>Keep the −${formatCurrency(c.deficit)} on this category. It clears once you assign new money to it.</small>
           </span>
         </label>
         <label class="bm-ro-choice">
@@ -1535,9 +1531,8 @@ function _renderRolloverModal() {
                  ${mode === "clear-all" ? "disabled" : ""}
                  onchange="_setRolloverChoice('${_escapeHtmlAttr(c.name)}','absorb')">
           <span class="bm-ro-choice-label">
-            <strong>Absorb</strong>
-            <small>Reset to ₱0 and take ${formatCurrency(c.deficit)} from next
-            month's To Be Budgeted now.</small>
+            <strong>Write it off now</strong>
+            <small>Reset to ₱0, and take ${formatCurrency(c.deficit)} out of next month's budget instead.</small>
           </span>
         </label>
       </div>
@@ -1547,13 +1542,13 @@ function _renderRolloverModal() {
   body.innerHTML = `
     ${modeSelector}
     <p class="bm-ro-intro">
-      You overspent in <strong>${overspentCategories.length}</strong>
+      You've overspent in <strong>${overspentCategories.length}</strong>
       ${overspentCategories.length === 1 ? "category" : "categories"}
-      (total <strong>−${formatCurrency(totalDeficit)}</strong>).
-      ${mode === "clear-all" ? "All categories (including these) will reset to ₱0." : ""}
+      (<strong>−${formatCurrency(totalDeficit)}</strong> total).
+      ${mode === "clear-all" ? "These will also reset to ₱0." : ""}
     </p>
     <div class="bm-ro-list" style="${mode === "clear-all" ? "opacity: 0.5; pointer-events: none;" : ""}">${rows}</div>
-    <p class="bm-ro-note">Positive balances carry forward automatically (unless "Clear all categories" is selected). This action cannot be undone.</p>
+    <p class="bm-ro-note">This can't be undone.</p>
   `;
 }
 
