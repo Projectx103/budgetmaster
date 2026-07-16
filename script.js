@@ -1443,10 +1443,11 @@ async function initiateRollover() {
     overspentCategories,
     // default every overspent category to "cover"
     choices: Object.fromEntries(overspentCategories.map(c => [c.name, "cover"])),
-    // NEW: global mode — 'per-category' (default, existing Cover/Absorb picker)
-    // or 'clear-all' (new: reset every overspent category to ₱0, absorbing the
-    // total deficit from next month's Available Balance / TBB in one step).
-    globalMode: "per-category",
+    // NEW: global mode — 'normal' (default, existing behavior: positive
+    // balances carry forward, overspent categories use the Cover/Absorb picker)
+    // or 'clear-all' (reset every category — positive or overspent — to ₱0,
+    // moving the entire Available Balance into next month's unassigned TBB).
+    globalMode: "normal",
   };
 
   _renderRolloverModal();
@@ -1459,50 +1460,57 @@ function _renderRolloverModal() {
   if (!body || !_rolloverPlan) return;
 
   const { overspentCategories } = _rolloverPlan;
-
-  // No overspending → simple confirm
-  if (overspentCategories.length === 0) {
-    body.innerHTML = `
-      <p class="bm-ro-intro">
-        Roll the current month over to next month. Positive category balances
-        carry forward, and your available balance becomes next month's
-        starting <strong>To Be Budgeted</strong>.
-      </p>
-      <p class="bm-ro-note">This action cannot be undone.</p>
-    `;
-    return;
-  }
-
+  const mode = _rolloverPlan.globalMode || "normal";
   const totalDeficit = overspentCategories.reduce((s, c) => s + c.deficit, 0);
-  const mode = _rolloverPlan.globalMode || "per-category";
 
-  // Global mode selector — lets the person skip the per-category picker
-  // entirely and just clear every overspent category at once.
+  // Top-level mode choice — ALWAYS shown, regardless of whether anything is
+  // currently overspent. This is the choice that was missing before: it isn't
+  // conditional on overspentCategories.length, because "clear all categories"
+  // means literally every category (including ones with a positive balance),
+  // not just the overspent ones.
   const modeSelector = `
     <div class="bm-ro-choices" style="margin-bottom: 12px;">
       <label class="bm-ro-choice">
-        <input type="radio" name="ro-global-mode" value="per-category" ${mode === "per-category" ? "checked" : ""}
-               onchange="_setRolloverGlobalMode('per-category')">
+        <input type="radio" name="ro-global-mode" value="normal" ${mode === "normal" ? "checked" : ""}
+               onchange="_setRolloverGlobalMode('normal')">
         <span class="bm-ro-choice-label">
-          <strong>Decide per category</strong>
-          <small>Choose Cover or Absorb individually for each overspent category.</small>
+          <strong>Normal rollover</strong>
+          <small>Positive category balances carry forward into next month.
+          ${overspentCategories.length > 0 ? "Overspent categories: choose Cover or Absorb below." : "No categories are currently overspent."}</small>
         </span>
       </label>
       <label class="bm-ro-choice">
         <input type="radio" name="ro-global-mode" value="clear-all" ${mode === "clear-all" ? "checked" : ""}
                onchange="_setRolloverGlobalMode('clear-all')">
         <span class="bm-ro-choice-label">
-          <strong>Clear all overspent categories</strong>
-          <small>Reset every overspent category to ₱0 next month, and take the
-          full −${formatCurrency(totalDeficit)} from next month's Available
-          Balance / To Be Budgeted now — the same "ROLLOVER AMOUNT / BALANCE
-          FROM LAST MONTH" entry, just without picking each category individually.</small>
+          <strong>Clear all categories</strong>
+          <small>Reset every category — positive or overspent — to ₱0 next
+          month. Nothing carries forward per-category; the entire Available
+          Balance moves into next month's unassigned <strong>To Be Budgeted</strong>
+          as one "ROLLOVER AMOUNT / BALANCE FROM LAST MONTH" entry, ready to
+          reassign from scratch.</small>
         </span>
       </label>
     </div>
   `;
 
-  // Per-category choice — only shown/interactive in "per-category" mode.
+  // No overspending AND normal mode → simple confirm, no per-category rows needed.
+  if (overspentCategories.length === 0) {
+    body.innerHTML = `
+      ${modeSelector}
+      <p class="bm-ro-intro">
+        ${mode === "clear-all"
+          ? "Every category will reset to ₱0. Your full Available Balance becomes next month's unassigned To Be Budgeted."
+          : "Positive category balances carry forward, and your Available Balance becomes next month's starting To Be Budgeted."}
+      </p>
+      <p class="bm-ro-note">This action cannot be undone.</p>
+    `;
+    return;
+  }
+
+  // Per-category Cover/Absorb choice — only relevant/interactive in "normal"
+  // mode. In "clear-all" mode every category resets regardless, so these are
+  // shown disabled purely for context, not as a live choice.
   const rows = overspentCategories.map(c => `
     <div class="bm-ro-row" data-cat="${_escapeHtml(c.name)}">
       <div class="bm-ro-row-head">
@@ -1537,14 +1545,15 @@ function _renderRolloverModal() {
   `).join("");
 
   body.innerHTML = `
+    ${modeSelector}
     <p class="bm-ro-intro">
       You overspent in <strong>${overspentCategories.length}</strong>
       ${overspentCategories.length === 1 ? "category" : "categories"}
       (total <strong>−${formatCurrency(totalDeficit)}</strong>).
+      ${mode === "clear-all" ? "All categories (including these) will reset to ₱0." : ""}
     </p>
-    ${modeSelector}
     <div class="bm-ro-list" style="${mode === "clear-all" ? "opacity: 0.5; pointer-events: none;" : ""}">${rows}</div>
-    <p class="bm-ro-note">Positive balances carry forward automatically. This action cannot be undone.</p>
+    <p class="bm-ro-note">Positive balances carry forward automatically (unless "Clear all categories" is selected). This action cannot be undone.</p>
   `;
 }
 
@@ -1619,66 +1628,82 @@ async function performRollover() {
   const availableBalance = currentMonthData.availableBalance || 0;
 
   // Use the choices captured when the modal opened (default to "cover").
-  // NEW: if the global "clear all overspent categories" mode was selected,
-  // every overspent category is forced to "absorb" regardless of its
-  // individual radio state (those radios were disabled in the UI for this
-  // exact reason).
-  const globalMode = (_rolloverPlan && _rolloverPlan.globalMode) || "per-category";
+  const globalMode = (_rolloverPlan && _rolloverPlan.globalMode) || "normal";
   const choices = (_rolloverPlan && _rolloverPlan.choices) ? _rolloverPlan.choices : {};
 
   // Save a snapshot of the closing month
   await currentMonthDocRef.set({ ...currentMonthData, savedAt: new Date().toISOString() });
 
-  // ── Build next month's categories based on each category's situation ──────
-  // Positive balance   → carries forward as a positive starting balance
-  // Overspent + cover  → carries forward as a NEGATIVE starting balance
-  // Overspent + absorb → resets to 0, and we subtract the deficit from TBB
-  let tbbAdjustment = 0;        // total absorbed (reduces next month's TBB)
+  let tbbAdjustment = 0;        // total absorbed (reduces next month's TBB) — normal mode only
   const auditDecisions = [];
+  let newCategories;
 
-  const newCategories = categories.map(c => {
-    const assigned    = c.assigned || 0;
-    // budgetSpent, not raw c.spent — excludes liability/asset-funded charges,
-    // which is the fix for the bug where Account-funded expenses falsely
-    // triggered "overspent" and reduced next month's To Be Budgeted.
-    const budgetSpent = getBudgetSpent(c, cardFundedMap);
-    const balance     = assigned - budgetSpent;
-
-    if (balance >= 0) {
-      // Not overspent — carry the leftover forward as starting balance
+  if (globalMode === "clear-all") {
+    // ── Clear all categories ──────────────────────────────────────────────
+    // Every category — positive balance or overspent, doesn't matter — resets
+    // to ₱0 and carries NOTHING forward individually. availableBalance already
+    // represents true net cash (income minus real budgetSpent, computed
+    // elsewhere with the same liability/asset exclusion), independent of how
+    // it was allocated across categories, so the entire amount simply becomes
+    // next month's unassigned To Be Budgeted. No per-category math, no
+    // tbbAdjustment — that's the whole point of this mode.
+    newCategories = categories.map(c => {
+      const assigned    = c.assigned || 0;
+      const budgetSpent = getBudgetSpent(c, cardFundedMap);
+      const balance     = assigned - budgetSpent;
       auditDecisions.push({
         categoryName: c.name, previousAssigned: assigned, previousSpent: budgetSpent,
-        previousBalance: balance, action: "carry_positive",
+        previousBalance: balance, action: "clear_all_reset",
+        carriedForward: 0, absorbedFromTbb: 0,
+      });
+      return { name: c.name, assigned: 0, spent: 0, balance: 0, startingBalance: 0 };
+    });
+  } else {
+    // ── Normal rollover ────────────────────────────────────────────────────
+    // Positive balance   → carries forward as a positive starting balance
+    // Overspent + cover  → carries forward as a NEGATIVE starting balance
+    // Overspent + absorb → resets to 0, and we subtract the deficit from TBB
+    newCategories = categories.map(c => {
+      const assigned    = c.assigned || 0;
+      // budgetSpent, not raw c.spent — excludes liability/asset-funded charges,
+      // which is the fix for the bug where Account-funded expenses falsely
+      // triggered "overspent" and reduced next month's To Be Budgeted.
+      const budgetSpent = getBudgetSpent(c, cardFundedMap);
+      const balance     = assigned - budgetSpent;
+
+      if (balance >= 0) {
+        // Not overspent — carry the leftover forward as starting balance
+        auditDecisions.push({
+          categoryName: c.name, previousAssigned: assigned, previousSpent: budgetSpent,
+          previousBalance: balance, action: "carry_positive",
+          carriedForward: balance, absorbedFromTbb: 0,
+        });
+        return { name: c.name, assigned: 0, spent: 0, balance: balance, startingBalance: balance };
+      }
+
+      // Overspent (based on budgetSpent, i.e. cash actually drawn from the pool)
+      const deficit = Math.abs(balance);
+      const choice = choices[c.name] || "cover";
+
+      if (choice === "absorb") {
+        tbbAdjustment += deficit;
+        auditDecisions.push({
+          categoryName: c.name, previousAssigned: assigned, previousSpent: budgetSpent,
+          previousBalance: balance, action: "absorb",
+          carriedForward: 0, absorbedFromTbb: deficit,
+        });
+        return { name: c.name, assigned: 0, spent: 0, balance: 0, startingBalance: 0 };
+      }
+
+      // Cover (default): carry the deficit forward as a negative starting balance
+      auditDecisions.push({
+        categoryName: c.name, previousAssigned: assigned, previousSpent: budgetSpent,
+        previousBalance: balance, action: "cover",
         carriedForward: balance, absorbedFromTbb: 0,
       });
       return { name: c.name, assigned: 0, spent: 0, balance: balance, startingBalance: balance };
-    }
-
-    // Overspent (based on budgetSpent, i.e. cash actually drawn from the pool)
-    const deficit = Math.abs(balance);
-    // Clear-all mode forces every overspent category to "absorb" — the
-    // per-category choices map is ignored in that mode (its radios were
-    // disabled in the modal for the same reason).
-    const choice = globalMode === "clear-all" ? "absorb" : (choices[c.name] || "cover");
-
-    if (choice === "absorb") {
-      tbbAdjustment += deficit;
-      auditDecisions.push({
-        categoryName: c.name, previousAssigned: assigned, previousSpent: budgetSpent,
-        previousBalance: balance, action: "absorb",
-        carriedForward: 0, absorbedFromTbb: deficit,
-      });
-      return { name: c.name, assigned: 0, spent: 0, balance: 0, startingBalance: 0 };
-    }
-
-    // Cover (default): carry the deficit forward as a negative starting balance
-    auditDecisions.push({
-      categoryName: c.name, previousAssigned: assigned, previousSpent: budgetSpent,
-      previousBalance: balance, action: "cover",
-      carriedForward: balance, absorbedFromTbb: 0,
     });
-    return { name: c.name, assigned: 0, spent: 0, balance: balance, startingBalance: balance };
-  });
+  }
 
   // Next month's TBB = carried available balance, minus anything absorbed
   const nextMonthTbb = availableBalance - tbbAdjustment;
