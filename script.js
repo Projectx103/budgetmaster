@@ -1484,7 +1484,7 @@ function _renderRolloverModal() {
                onchange="_setRolloverGlobalMode('clear-all')">
         <span class="bm-ro-choice-label">
           <strong>Start fresh</strong>
-          <small>Every category resets to ₱0. All your money moves into one
+          <small>Every category resets to 0. All your money moves into one
           pot next month, ready for you to assign again from scratch.</small>
         </span>
       </label>
