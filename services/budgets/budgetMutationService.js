@@ -59,6 +59,17 @@
  *    → TBB -= amount  (cash leaves available balance)
  *    → No category touch
  *
+ *  deposit (Phase 6)
+ *    → TBB -= amount  (cash is parked into a tracked asset account, leaves
+ *      the assignable pool — matches _computeAvailableBalance in
+ *      transactionPersistence.js)
+ *    → No category touch
+ *
+ *  withdrawal (Phase 6)
+ *    → TBB += amount  (cash comes back out of a tracked account, becomes
+ *      loose/assignable again — matches _computeAvailableBalance)
+ *    → No category touch
+ *
  * @param {import('../transactions/transactionIntent').TransactionIntent} intent
  * @returns {BudgetDelta}
  */
@@ -108,27 +119,35 @@ function computeBudgetDelta(intent) {
       };
 
     // ── Phase 6: deposit / withdrawal ──────────────────────────────────────
+    // FIX: these must mirror _computeAvailableBalance() in
+    // transactionPersistence.js exactly, or tbb and availableBalance drift
+    // apart. A deposit parks cash into a tracked asset account, so it leaves
+    // the assignable pool (tbb goes DOWN, same direction as availableBalance).
+    // A withdrawal pulls cash back out of a tracked account into loose cash,
+    // so it re-enters the assignable pool (tbb goes UP, same direction as
+    // availableBalance). The previous code had deposit at 0 (no change) and
+    // withdrawal decreasing tbb — both wrong, and withdrawal was moving tbb
+    // and availableBalance in OPPOSITE directions.
     case "deposit":
-      // Deposit increases account balance — no direct budget impact
-      // (tbb and categories are unchanged; availableBalance handled by renderBudget)
-      return {
-        tbbDeltaCents:      0,
-        categoryName:       null,
-        categorySpentDelta: 0,
-        assignedDelta:      0,
-        isNewCategory:      false,
-        reason: `Deposit of ${_bmsFmt(intent.amountCents)} — no budget impact`,
-      };
-
-    case "withdrawal":
-      // Withdrawal decreases tbb (cash leaves the budget pool)
+      // Deposit reduces tbb — the cash is now parked in a tracked account
       return {
         tbbDeltaCents:      -intent.amountCents,
         categoryName:       null,
         categorySpentDelta: 0,
         assignedDelta:      0,
         isNewCategory:      false,
-        reason: `Withdrawal of ${_bmsFmt(intent.amountCents)} deducted from TBB`,
+        reason: `Deposit of ${_bmsFmt(intent.amountCents)} deducted from TBB (cash moved into a tracked account)`,
+      };
+
+    case "withdrawal":
+      // Withdrawal increases tbb — the cash is loose again, ready to budget
+      return {
+        tbbDeltaCents:      intent.amountCents,
+        categoryName:       null,
+        categorySpentDelta: 0,
+        assignedDelta:      0,
+        isNewCategory:      false,
+        reason: `Withdrawal of ${_bmsFmt(intent.amountCents)} added back to TBB (cash is loose again)`,
       };
 
     // ── Phase 3: assign / unassign ─────────────────────────────────────────
