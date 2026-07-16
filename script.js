@@ -273,14 +273,37 @@ function renderCategories(categories) {
   div.innerHTML = "";
   select.innerHTML = "";
 
+  // Build per-category card-funded spent map from current month transactions.
+  // Card charges (fromLiability/fromAsset) update category.spent for history
+  // but are NOT budget spending — display must show budget-only spent.
+  const _txns = window._currentMonthTransactions || [];
+  const _cardSpentPerCat = {};
+  _txns.forEach(t => {
+    if ((t.fromLiability || t.fromAsset) && t.type === 'expense' && t.amount > 0 && t.category) {
+      _cardSpentPerCat[t.category] = (_cardSpentPerCat[t.category] || 0) + t.amount;
+    }
+  });
+
   categories.forEach((c, index) => {
-    const balance = categoryBalance(c);
+    // Budget-only spent: total spent minus any card-funded portion
+    const cardFunded   = _cardSpentPerCat[c.name] || 0;
+    const budgetSpent  = Math.max(0, (c.spent || 0) - cardFunded);
+
+    // Balance uses budget-only spent so card charges never cause false overspending
     const starting = Number(c.startingBalance) || 0;
+    const balance  = starting + (Number(c.assigned) || 0) - budgetSpent;
+
     const monthLabel = c.month ? `<span class="pill">${c.month}</span>` : "";
-    // Show a small note when a category started the month with a carried balance
     const startNote = starting !== 0
       ? `<div class="small" style="color:${starting < 0 ? '#ef4444' : '#10b981'};margin-top:2px;">
            ${starting < 0 ? 'Carried over' : 'Rolled in'}: ${formatCurrency(starting)}
+         </div>`
+      : "";
+
+    // Show card spending as a separate note if any exists this month
+    const cardNote = cardFunded > 0
+      ? `<div class="small" style="color:var(--text-light);margin-top:2px;">
+           💳 ${formatCurrency(cardFunded)} via card
          </div>`
       : "";
 
@@ -296,7 +319,7 @@ function renderCategories(categories) {
           <div>
             <div class="small">Assigned</div>
             <div>
-              <span class="assigned-value" id="assigned-${index}" 
+              <span class="assigned-value" id="assigned-${index}"
                 onclick="editAssigned(${index}, ${c.assigned})">
                 ${formatCurrency(c.assigned)}
               </span>
@@ -304,7 +327,8 @@ function renderCategories(categories) {
           </div>
           <div>
             <div class="small">Spent</div>
-            <div>${formatCurrency(c.spent)}</div>
+            <div>${formatCurrency(budgetSpent)}</div>
+            ${cardNote}
           </div>
           <div>
             <div class="small">Balance</div>
@@ -588,11 +612,11 @@ async function renderBudget(data) {
     }
   });
   
-  // ✅ Total spent for DISPLAY — sum of ALL category spending regardless of payment source.
-  // Asset-funded and liability-funded expenses DO update categories[].spent (correct — you spent
-  // from that category), so they SHOULD appear in Total Spent. Only account-only transactions
-  // (Deposit/Withdrawal/Transfer) that have no category impact are excluded.
-  const totalSpentDisplay = spent;
+  // Total spent for DISPLAY — budget-funded spending only.
+  // Card-funded (fromLiability/fromAsset) amounts are excluded from the summary
+  // because they were not paid from the user's budget pool.
+  // They still appear in the transaction history as "Charged to [Card]".
+  const totalSpentDisplay = Math.max(0, spent - assetFundedSpent - liabilityFundedSpent);
 
   // ✅ Total spent for REMAINING BALANCE (Available Balance) calculation.
   // Asset-funded and liability-funded expenses must be EXCLUDED here because no budget money
@@ -709,6 +733,8 @@ async function renderBudget(data) {
     remainingElement.style.color = '#16a085'; // Green for positive
     remainingElement.style.fontWeight = '600';
   }
+  // Expose transactions for renderCategories to compute card-funded spent per category
+  window._currentMonthTransactions = transactions;
   renderCategories(categories);
   renderTransactions(transactions);
 }
