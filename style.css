@@ -11353,34 +11353,178 @@ h3 {
 
 
 /* ════════════════════════════════════════════════════════════════════════════
-   CC PAYMENT CATEGORIES — YNAB Credit Card Accounting
-   These auto-created categories reserve money for credit card bill payments.
+   BUDGET CATEGORIES CARD LAYOUT FIX
+   Fixes: inconsistent widths, cramped labels, card note overflow,
+   uneven heights, misaligned columns.
+   Appended. Nothing above modified.
    ════════════════════════════════════════════════════════════════════════════ */
 
-/* CC Payment budget item — visually distinct from regular categories */
-.budget-item[data-cc-payment="true"] {
-  border-left: 3px solid var(--primary) !important;
-  background: color-mix(in srgb, var(--primary) 4%, var(--card-bg)) !important;
+/* ── Grid: fixed 3-col desktop, 2-col tablet, 1-col mobile ─────────────── */
+.budget-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 14px !important;
+  align-items: stretch !important;
+  margin-top: 16px !important;
 }
 
-.budget-item[data-cc-payment="true"] .font-bold::before {
-  content: '💳 ';
-  font-style: normal;
+@media (min-width: 1200px) {
+  .budget-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
 }
 
-/* CC Payment badge label */
+@media (max-width: 860px) and (min-width: 561px) {
+  .budget-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .budget-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── Card: uniform height, no overflow ─────────────────────────────────── */
+.budget-item {
+  min-height: 0 !important;          /* let grid stretch handle height */
+  height: 100% !important;           /* fill grid cell fully */
+  box-sizing: border-box !important;
+  padding: 16px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  overflow: hidden !important;       /* nothing escapes the card */
+}
+
+/* ── Item header: name truncates cleanly, never wraps layout ───────────── */
+.item-header {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  margin-bottom: 12px !important;
+}
+
+.item-header .font-bold {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  color: inherit !important;
+  line-height: 1.35 !important;
+  word-break: break-word !important;  /* long names wrap inside card */
+  overflow: hidden !important;
+  flex: 1 !important;
+}
+
+/* ── Amounts row: equal 3 columns, proper gap, aligned labels & values ── */
+.amounts {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr 1fr !important;
+  gap: 0 8px !important;
+  margin-top: auto !important;
+  align-items: start !important;
+}
+
+.amounts > div {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 3px !important;
+  min-width: 0 !important;           /* prevent grid blowout */
+  overflow: hidden !important;
+}
+
+/* Column labels */
+.amounts .small {
+  font-size: 9.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+  opacity: 0.7 !important;
+  white-space: nowrap !important;
+}
+
+/* Column values */
+.amounts > div > div,
+.amounts > div span.assigned-value {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  font-variant-numeric: tabular-nums !important;
+  letter-spacing: -0.01em !important;
+  line-height: 1.2 !important;
+  word-break: break-all !important;  /* long currency values wrap not overflow */
+  display: block !important;
+}
+
+/* ── Via card note: contained, professional, no overflow ─────────────── */
+.amounts .small + div > div[style*="color:var(--text-light)"],
+.amounts div div[style*="text-light"] {
+  overflow: hidden !important;
+}
+
+/* Target the card note specifically by its inline style pattern */
+.amounts > div > div > div {
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  color: var(--text-light) !important;
+  margin-top: 3px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+}
+
+/* ── Separator between Assigned and Spent columns ──────────────────────── */
+.amounts > div:not(:first-child) {
+  border-left: 1px solid rgba(255,255,255,0.15) !important;
+  padding-left: 8px !important;
+}
+
+/* ── Start note (Rolled in / Carried over) ──────────────────────────────── */
+.amounts .small + div + div {
+  margin-top: 4px !important;
+  font-size: 10px !important;
+}
+
+
+
+/* ── Card note: professional SVG icon, contained, no overflow ───────────── */
+.bm-card-note {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  margin-top: 4px !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  color: var(--text-light) !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+  opacity: 0.85 !important;
+}
+
+.bm-card-note span {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+/* CC Payment badge */
 .cc-payment-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--primary);
   background: color-mix(in srgb, var(--primary) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
-  padding: 2px 7px;
+  padding: 1px 6px;
   border-radius: 100px;
   margin-left: 6px;
   vertical-align: middle;
