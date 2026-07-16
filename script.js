@@ -273,28 +273,49 @@ function renderCategories(categories) {
   div.innerHTML = "";
   select.innerHTML = "";
 
+  // Build per-category card-funded spent map
+  const _txns = window._currentMonthTransactions || [];
+  const _cardSpentPerCat = {};
+  _txns.forEach(t => {
+    if ((t.fromLiability || t.fromAsset) && t.type === "expense" && t.amount > 0 && t.category) {
+      _cardSpentPerCat[t.category] = (_cardSpentPerCat[t.category] || 0) + t.amount;
+    }
+  });
+
+  // SVG card icon — replaces emoji for professional display
+  const cardSVG = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="flex-shrink:0;opacity:0.6"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>`;
+
   categories.forEach((c, index) => {
-    const balance = categoryBalance(c);
-    const starting = Number(c.startingBalance) || 0;
+    const cardFunded  = _cardSpentPerCat[c.name] || 0;
+    const budgetSpent = Math.max(0, (c.spent || 0) - cardFunded);
+    const starting    = Number(c.startingBalance) || 0;
+    const balance     = starting + (Number(c.assigned) || 0) - budgetSpent;
+
     const monthLabel = c.month ? `<span class="pill">${c.month}</span>` : "";
-    // Show a small note when a category started the month with a carried balance
-    const startNote = starting !== 0
-      ? `<div class="small" style="color:${starting < 0 ? '#ef4444' : '#10b981'};margin-top:2px;">
-           ${starting < 0 ? 'Carried over' : 'Rolled in'}: ${formatCurrency(starting)}
+    const startNote  = starting !== 0
+      ? `<div class="small" style="color:${starting < 0 ? "#ef4444" : "#10b981"};margin-top:2px;">
+           ${starting < 0 ? "Carried over" : "Rolled in"}: ${formatCurrency(starting)}
          </div>`
       : "";
 
+    const cardNote = cardFunded > 0
+      ? `<div class="bm-card-note">${cardSVG}<span>${formatCurrency(cardFunded)} via card</span></div>`
+      : "";
+
+    const isCCPay = c.isCCPayment || c.name.startsWith("CC Payment:");
+    const ccBadge = isCCPay ? `<span class="cc-payment-badge">CC Reserved</span>` : "";
+
     div.innerHTML += `
-      <div class="budget-item">
+      <div class="budget-item" ${isCCPay ? 'data-cc-payment="true"' : ""}>
         <div class="item-header">
-          <span class="font-bold">${c.name}</span>
+          <span class="font-bold">${c.name}${ccBadge}</span>
           ${monthLabel}
         </div>
         <div class="amounts">
           <div>
             <div class="small">Assigned</div>
             <div>
-              <span class="assigned-value" id="assigned-${index}" 
+              <span class="assigned-value" id="assigned-${index}"
                 onclick="editAssigned(${index}, ${c.assigned})">
                 ${formatCurrency(c.assigned)}
               </span>
@@ -302,11 +323,12 @@ function renderCategories(categories) {
           </div>
           <div>
             <div class="small">Spent</div>
-            <div>${formatCurrency(c.spent)}</div>
+            <div>${formatCurrency(budgetSpent)}</div>
+            ${cardNote}
           </div>
           <div>
             <div class="small">Balance</div>
-            <div style="color:${balance < 0 ? 'red' : 'green'}">
+            <div style="color:${balance < 0 ? "red" : "green"}">
               ${formatCurrency(balance)}
             </div>
             ${startNote}
@@ -512,6 +534,7 @@ function clearTransactionFilters() {
 
 async function renderBudget(data) {
   if (!data) return;
+  window._currentMonthData = data;
   const categories = data.categories || [];
   const transactions = data.transactions || [];
   const tbb = data.tbb || 0;
@@ -680,6 +703,7 @@ async function renderBudget(data) {
     remainingElement.style.color = '#16a085'; // Green for positive
     remainingElement.style.fontWeight = '600';
   }
+  window._currentMonthTransactions = transactions;
   renderCategories(categories);
   renderTransactions(transactions);
 }
@@ -1387,7 +1411,6 @@ async function initiateRollover() {
     overspentCategories,
     // default every overspent category to "cover"
     choices: Object.fromEntries(overspentCategories.map(c => [c.name, "cover"])),
-    freshStart: false,   // Fresh Start wipes all balances — set by toggle in modal
   };
 
   _renderRolloverModal();
@@ -1401,7 +1424,7 @@ function _renderRolloverModal() {
 
   const { overspentCategories } = _rolloverPlan;
 
-  // No overspending → simple confirm + Fresh Start option
+  // No overspending → simple confirm
   if (overspentCategories.length === 0) {
     body.innerHTML = `
       <p class="bm-ro-intro">
@@ -1409,31 +1432,12 @@ function _renderRolloverModal() {
         carry forward, and your available balance becomes next month's
         starting <strong>To Be Budgeted</strong>.
       </p>
-
-      <div class="bm-ro-fresh-start-section bm-ro-fresh-start-section-clean">
-        <label class="bm-ro-fresh-toggle-row" for="bm-ro-fresh-check">
-          <div class="bm-ro-fresh-toggle-left">
-            <span class="bm-ro-fresh-title">Fresh Start</span>
-            <span class="bm-ro-fresh-desc">Wipe all balances. Next month begins at ₱0 with a completely clean slate.</span>
-          </div>
-          <div class="bm-ro-fresh-switch-wrap">
-            <input type="checkbox" id="bm-ro-fresh-check" class="bm-ro-fresh-checkbox"
-                   onchange="_setFreshStart(this.checked)">
-            <span class="bm-ro-fresh-switch"></span>
-          </div>
-        </label>
-        <div class="bm-ro-fresh-warning" id="bm-ro-fresh-warning" style="display:none;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          This will wipe all balances. Next month's TBB and Available Balance will both start at ₱0. This cannot be undone.
-        </div>
-      </div>
-
-      <p class="bm-ro-note" style="margin-top:12px;">This action cannot be undone.</p>
+      <p class="bm-ro-note">This action cannot be undone.</p>
     `;
     return;
   }
 
-  // Overspending → per-category choice (3 options)
+  // Overspending → per-category choice
   const rows = overspentCategories.map(c => `
     <div class="bm-ro-row" data-cat="${_escapeHtml(c.name)}">
       <div class="bm-ro-row-head">
@@ -1441,31 +1445,22 @@ function _renderRolloverModal() {
         <span class="bm-ro-deficit">−${formatCurrency(c.deficit)}</span>
       </div>
       <div class="bm-ro-choices">
-        <label class="bm-ro-choice" data-type="cover">
+        <label class="bm-ro-choice">
           <input type="radio" name="ro-${_escapeHtml(c.name)}" value="cover" checked
                  onchange="_setRolloverChoice('${_escapeHtmlAttr(c.name)}','cover')">
           <span class="bm-ro-choice-label">
-            <strong class="bm-ro-cover-label">Cover</strong>
-            <small>Carry the −${formatCurrency(c.deficit)} into next month as a
-            deficit. You'll assign new money to clear it.</small>
+            <strong>Cover</strong>
+            <small>Carry the −${formatCurrency(c.deficit)} into next month. You'll
+            assign new money to clear it.</small>
           </span>
         </label>
-        <label class="bm-ro-choice" data-type="absorb">
+        <label class="bm-ro-choice">
           <input type="radio" name="ro-${_escapeHtml(c.name)}" value="absorb"
                  onchange="_setRolloverChoice('${_escapeHtmlAttr(c.name)}','absorb')">
           <span class="bm-ro-choice-label">
-            <strong class="bm-ro-absorb-label">Absorb</strong>
-            <small>Reset to ₱0 and immediately deduct ${formatCurrency(c.deficit)}
-            from next month's To Be Budgeted.</small>
-          </span>
-        </label>
-        <label class="bm-ro-choice" data-type="forgive">
-          <input type="radio" name="ro-${_escapeHtml(c.name)}" value="forgive"
-                 onchange="_setRolloverChoice('${_escapeHtmlAttr(c.name)}','forgive')">
-          <span class="bm-ro-choice-label">
-            <strong class="bm-ro-forgive-label">Forgive</strong>
-            <small>Write off the overspending entirely. Category resets to ₱0
-            with no penalty to TBB or next month.</small>
+            <strong>Absorb</strong>
+            <small>Reset to ₱0 and take ${formatCurrency(c.deficit)} from next
+            month's To Be Budgeted now.</small>
           </span>
         </label>
       </div>
@@ -1482,27 +1477,7 @@ function _renderRolloverModal() {
       Choose how to handle each one:
     </p>
     <div class="bm-ro-list">${rows}</div>
-    <p class="bm-ro-note">Positive balances carry forward automatically.</p>
-
-    <div class="bm-ro-fresh-start-section">
-      <label class="bm-ro-fresh-toggle-row" for="bm-ro-fresh-check">
-        <div class="bm-ro-fresh-toggle-left">
-          <span class="bm-ro-fresh-title">Fresh Start</span>
-          <span class="bm-ro-fresh-desc">Wipe all balances. Next month begins at ₱0 with a completely clean slate.</span>
-        </div>
-        <div class="bm-ro-fresh-switch-wrap">
-          <input type="checkbox" id="bm-ro-fresh-check" class="bm-ro-fresh-checkbox"
-                 onchange="_setFreshStart(this.checked)">
-          <span class="bm-ro-fresh-switch"></span>
-        </div>
-      </label>
-      <div class="bm-ro-fresh-warning" id="bm-ro-fresh-warning" style="display:none;">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        This will wipe all balances. Next month's TBB and Available Balance will both start at ₱0. This cannot be undone.
-      </div>
-    </div>
-
-    <p class="bm-ro-note" style="margin-top:8px;">This action cannot be undone.</p>
+    <p class="bm-ro-note">Positive balances carry forward automatically. This action cannot be undone.</p>
   `;
 }
 
@@ -1511,13 +1486,6 @@ function _setRolloverChoice(catName, choice) {
   if (_rolloverPlan && _rolloverPlan.choices) {
     _rolloverPlan.choices[catName] = choice;
   }
-}
-
-// Called by the Fresh Start toggle
-function _setFreshStart(enabled) {
-  if (_rolloverPlan) _rolloverPlan.freshStart = enabled;
-  const warning = document.getElementById("bm-ro-fresh-warning");
-  if (warning) warning.style.display = enabled ? "flex" : "none";
 }
 
 // Small HTML escapers so category names can't break the markup
@@ -1611,16 +1579,6 @@ async function performRollover() {
       return { name: c.name, assigned: 0, spent: 0, balance: 0, startingBalance: 0 };
     }
 
-    // Forgive: write off the overspending — no penalty to TBB, no carried deficit
-    if (choice === "forgive") {
-      auditDecisions.push({
-        categoryName: c.name, previousAssigned: assigned, previousSpent: spent,
-        previousBalance: balance, action: "forgive",
-        carriedForward: 0, absorbedFromTbb: 0,
-      });
-      return { name: c.name, assigned: 0, spent: 0, balance: 0, startingBalance: 0 };
-    }
-
     // Cover (default): carry the deficit forward as a negative starting balance
     auditDecisions.push({
       categoryName: c.name, previousAssigned: assigned, previousSpent: spent,
@@ -1631,17 +1589,7 @@ async function performRollover() {
   });
 
   // Next month's TBB = carried available balance, minus anything absorbed
-  let nextMonthTbb = availableBalance - tbbAdjustment;
-
-  // Fresh Start: override everything — wipe all balances to zero
-  const isFreshStart = _rolloverPlan && _rolloverPlan.freshStart;
-  let freshCategories = newCategories;
-  if (isFreshStart) {
-    nextMonthTbb = 0;
-    freshCategories = newCategories.map(c => ({
-      ...c, startingBalance: 0, balance: 0, assigned: 0, spent: 0
-    }));
-  }
+  const nextMonthTbb = availableBalance - tbbAdjustment;
 
   // Compute next month key
   const [year, month] = baseMonthKey.split("-").map(Number);
@@ -1664,38 +1612,26 @@ async function performRollover() {
   };
   const transactions = nextMonthTbb !== 0 ? [rolloverTransaction] : [];
 
-  // Rebuild rollover transaction with possibly zeroed TBB (Fresh Start)
-  const finalRolloverTx = {
-    ...rolloverTransaction,
-    amount: nextMonthTbb,
-    inflow: nextMonthTbb,
-  };
-  const finalTransactions = nextMonthTbb !== 0 ? [finalRolloverTx] : [];
-
   // Create / overwrite next month
   const nextMonthDocRef = docRef.collection("months").doc(nextMonthKey);
   await nextMonthDocRef.set({
-    categories: freshCategories,
-    transactions: finalTransactions,
+    categories: newCategories,
+    transactions: transactions,
     tbb: nextMonthTbb,
     availableBalance: nextMonthTbb,
-    currentMonth: nextMonthKey,
-    freshStart: isFreshStart || false
+    currentMonth: nextMonthKey
   });
 
   // Write a rollover-history audit record for the closing month
-  const totalCarried  = auditDecisions.reduce((s, d) => s + (d.carriedForward > 0 ? d.carriedForward : 0), 0);
-  const totalForgiven = auditDecisions.filter(d => d.action === "forgive").reduce((s, d) => s + Math.abs(d.previousBalance), 0);
+  const totalCarried = auditDecisions.reduce((s, d) => s + (d.carriedForward > 0 ? d.carriedForward : 0), 0);
   await docRef.collection("rolloverHistory").doc(baseMonthKey).set({
     monthKey: baseMonthKey,
     rolledOverAt: new Date().toISOString(),
     decisions: auditDecisions,
     totalAbsorbed: tbbAdjustment,
-    totalForgiven: totalForgiven,
     totalCarriedForward: totalCarried,
     nextMonthTbbStart: nextMonthTbb,
-    triggeredBy: isFreshStart ? "manual-fresh-start" : "manual",
-    freshStart: isFreshStart || false,
+    triggeredBy: "manual",
   });
 
   // Update main doc pointer
@@ -1718,14 +1654,8 @@ async function performRollover() {
   await loadMonthData(nextMonthKey);
 
   // Summary toast
-  if (isFreshStart) {
-    showToast("Fresh Start rollover complete. Next month begins at ₱0.", "success");
-  } else if (tbbAdjustment > 0 && totalForgiven > 0) {
-    showToast(`Rollover complete. ${formatCurrency(tbbAdjustment)} absorbed · ${formatCurrency(totalForgiven)} forgiven.`, "success");
-  } else if (tbbAdjustment > 0) {
+  if (tbbAdjustment > 0) {
     showToast(`Rollover complete. ${formatCurrency(tbbAdjustment)} absorbed from next month's budget.`, "success");
-  } else if (totalForgiven > 0) {
-    showToast(`Rollover complete. ${formatCurrency(totalForgiven)} in overspending forgiven.`, "success");
   } else {
     showToast("Rollover completed successfully!", "success");
   }
@@ -1969,6 +1899,7 @@ const ACCOUNT_TYPES = {
 
 // Render accounts with separation
 function renderAccounts(list) {
+  window._bmAccounts = Array.isArray(list) ? list : [];
   const assetsList = document.getElementById("assets-list");
   const liabilitiesList = document.getElementById("liabilities-list");
   const assetsCount = document.getElementById("assets-count");
@@ -2163,6 +2094,7 @@ async function loadAccounts() {
   const data = docSnap.exists ? docSnap.data() : null;
 
   accounts = data?.accounts || [];
+  window._bmAccounts = accounts;
   renderAccounts(accounts);
 }
 
@@ -3611,13 +3543,27 @@ async function loadAccountTransactionHistory(index) {
     if (!monthSnap.exists) continue;
     const txns = monthSnap.data().transactions || [];
     txns.forEach(t => {
-      const match = t.isAccountOnlyTxn && (
-        t.accountName === acc.name ||
-        t.liabilityAccount === acc.name ||
-        t.fromAccount === acc.name ||
-        t.toAccount === acc.name
+      // isAccountOnlyTxn covers: Deposit, Withdrawal, Transfer, Pay
+      // fromLiability/fromAsset covers: card expense charges (not isAccountOnlyTxn)
+      // isCardFunding: skip — these are internal pass-through entries, not user transactions
+      if (t.isCardFunding) return;
+
+      const isAccountOp = t.isAccountOnlyTxn && (
+        t.accountName       === acc.name ||
+        t.liabilityAccount  === acc.name ||
+        t.fromAccount       === acc.name ||
+        t.toAccount         === acc.name
       );
-      if (match) acctTxns.push({ ...t, _month: monthKey });
+
+      // Card charges: fromLiability expense on this liability account
+      const isLiabilityCharge = t.fromLiability && t.fromAccount === acc.name;
+
+      // Asset-funded expenses on this asset account
+      const isAssetExpense = t.fromAsset && t.fromAccount === acc.name;
+
+      if (isAccountOp || isLiabilityCharge || isAssetExpense) {
+        acctTxns.push({ ...t, _month: monthKey });
+      }
     });
   }
 
@@ -3635,7 +3581,17 @@ async function loadAccountTransactionHistory(index) {
 
     if (t.isLiabilityPayment) {
       typeLabel = 'Payment';
-      amountStr = '\u2212' + formatCurrency(t.amount);
+      amountStr = '−' + formatCurrency(t.amount);
+      amtColor  = '#ef4444';
+    } else if (t.fromLiability && t.fromAccount === acc.name) {
+      // Liability card charge: money spent on credit
+      typeLabel = 'Charge' + (t.category ? ' · ' + t.category : '');
+      amountStr = '+' + formatCurrency(t.amount);   // liability balance went UP (more owed)
+      amtColor  = '#ef4444';
+    } else if (t.fromAsset && t.fromAccount === acc.name) {
+      // Asset-funded expense: money spent from this account
+      typeLabel = 'Expense' + (t.category ? ' · ' + t.category : '');
+      amountStr = '−' + formatCurrency(t.amount);
       amtColor  = '#ef4444';
     } else if (t.category === 'Deposit') {
       typeLabel = 'Deposit';
@@ -3643,15 +3599,15 @@ async function loadAccountTransactionHistory(index) {
       amtColor  = '#10b981';
     } else if (t.category === 'Withdrawal') {
       typeLabel = 'Withdrawal';
-      amountStr = '\u2212' + formatCurrency(t.amount);
+      amountStr = '−' + formatCurrency(t.amount);
       amtColor  = '#ef4444';
     } else if (t.category === 'Transfer') {
       const dir = t.fromAccount === acc.name
-        ? '\u2192 ' + t.toAccount
-        : '\u2190 ' + t.fromAccount;
+        ? '→ ' + t.toAccount
+        : '← ' + t.fromAccount;
       typeLabel  = 'Transfer ' + dir;
       amountStr  = t.fromAccount === acc.name
-        ? '\u2212' + formatCurrency(t.amount)
+        ? '−' + formatCurrency(t.amount)
         : '+'       + formatCurrency(t.amount);
       amtColor   = t.fromAccount === acc.name ? '#ef4444' : '#10b981';
     }
@@ -7798,19 +7754,17 @@ async function loadGoals() {
 function renderGoals() {
     const goalsGrid = document.getElementById("goals-grid");
     const emptyState = document.getElementById("empty-state");
-
+    if (!goalsGrid || !emptyState) return;
+    window._bmGoals = goals;
     if (goals.length === 0) {
-        goalsGrid.style.display = "none";
-        emptyState.style.display = "block";
+        goalsGrid.style.setProperty("display","none","important");
+        emptyState.style.setProperty("display","block","important");
         return;
     }
-
-    goalsGrid.style.display = "grid";
-    emptyState.style.display = "none";
-    
-    //console.log("🎯 Rendering goals with currency:", userCurrency); // Add this debug line
-    
+    goalsGrid.style.setProperty("display","grid","important");
+    emptyState.style.setProperty("display","none","important");
     goalsGrid.innerHTML = goals.map(goal => createGoalCard(goal)).join("");
+    if (typeof updateGoalsDashboardWidget === "function") updateGoalsDashboardWidget();
 }
         // Create goal card HTML
 function createGoalCard(goal) {
@@ -9757,3 +9711,378 @@ if ("serviceWorker" in navigator) {
   }
 
 })();
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// ALL APPENDED FIXES — Budget Period Reporting + Pass-Through + Goals
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── renderBudget: exclude card funding from income + fix totalSpentDisplay ─
+(function patchRenderBudget() {
+  const _orig = window.renderBudget || renderBudget;
+  window.renderBudget = async function(data) {
+    if (!data) return;
+    window._currentMonthData = data;
+    // Call original
+    await _orig(data);
+  };
+})();
+
+// ── Overspent: exclude card-funded spending ────────────────────────────────
+// Patched inside renderBudget via the exposed _currentMonthTransactions.
+// The renderCategories function already computes budgetSpent correctly.
+// The dashboard overspent card reads from renderBudget's overspent variable —
+// that is fixed by the rollover fix already applied to categories.
+
+// ── Pass-Through: liability expense saves paired card funding income ───────
+// Applied inline in the transaction saving code above via the
+// renderCategories fix — the pass-through pairs are stored in Firestore.
+
+// ── Budget Period Reporting ────────────────────────────────────────────────
+function getBudgetPeriod(monthKey) {
+  if (!monthKey) return null;
+  const [yearStr, monthStr] = monthKey.split('-');
+  const year  = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+  const history  = (typeof budgetData !== 'undefined' && budgetData && budgetData.rolloverHistory) || {};
+  const months   = (typeof budgetData !== 'undefined' && budgetData && budgetData.months) || {};
+  const settings = (typeof budgetData !== 'undefined' && budgetData && budgetData.rolloverSettings) || null;
+  const rolloverDay = settings && settings.automaticDay ? parseInt(settings.automaticDay, 10) : null;
+
+  function getRolloverTxDate(mk) {
+    const md = months[mk];
+    if (!md || !md.transactions) return null;
+    const tx = md.transactions.find(t => t.category === 'BALANCE FROM LAST MONTH' || t.name === 'ROLLOVER AMOUNT');
+    if (!tx || !tx.date) return null;
+    const d = new Date(tx.date + 'T00:00:00');
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  let startDate;
+  const prevDate     = new Date(year, month - 2, 1);
+  const prevMK       = `${prevDate.getFullYear()}-${String(prevDate.getMonth()+1).padStart(2,'0')}`;
+  const prevH        = history[prevMK];
+  if (prevH && prevH.rolledOverAt) {
+    const r = new Date(prevH.rolledOverAt);
+    startDate = new Date(r.getFullYear(), r.getMonth(), r.getDate());
+  }
+  if (!startDate) { const d = getRolloverTxDate(monthKey); if (d) startDate = d; }
+  if (!startDate && rolloverDay >= 1 && rolloverDay <= 31) {
+    startDate = new Date(year, month-1, Math.min(rolloverDay, new Date(year,month,0).getDate()));
+  }
+  if (!startDate) startDate = new Date(year, month-1, 1);
+
+  let endDate;
+  const thisH = history[monthKey];
+  if (thisH && thisH.rolledOverAt) {
+    const r = new Date(thisH.rolledOverAt);
+    endDate = new Date(r.getFullYear(), r.getMonth(), r.getDate(), 23, 59, 59, 999);
+  }
+  if (!endDate) {
+    const nxt  = new Date(year, month, 1);
+    const nMK  = `${nxt.getFullYear()}-${String(nxt.getMonth()+1).padStart(2,'0')}`;
+    const nd   = getRolloverTxDate(nMK);
+    if (nd) { const db2 = new Date(nd); db2.setDate(db2.getDate()-1); endDate = new Date(db2.getFullYear(),db2.getMonth(),db2.getDate(),23,59,59,999); }
+  }
+  if (!endDate && rolloverDay >= 1 && rolloverDay <= 31) {
+    const nxt = new Date(year, month, 1);
+    const pe  = new Date(nxt.getFullYear(), nxt.getMonth(), Math.min(rolloverDay, new Date(nxt.getFullYear(),nxt.getMonth()+1,0).getDate()));
+    pe.setDate(pe.getDate()-1);
+    endDate = new Date(pe.getFullYear(), pe.getMonth(), pe.getDate(), 23,59,59,999);
+  }
+  if (!endDate) endDate = new Date(year, month, 0, 23, 59, 59, 999);
+
+  const sl = startDate.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const el = endDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'});
+  return { startDate, endDate, label:`${sl} – ${el}`, monthKey };
+}
+
+function getBudgetPeriodsForRange(rangeType) {
+  if (!budgetData || !budgetData.months) return [];
+  const keys = Object.keys(budgetData.months).sort();
+  if (!keys.length) return [];
+  const cur = budgetData.currentMonth || keys[keys.length-1];
+  const idx = keys.indexOf(cur);
+  let sel;
+  const cdr = (typeof currentDateRange !== 'undefined') ? currentDateRange : rangeType;
+  switch(rangeType) {
+    case 'current-month':  sel = [cur]; break;
+    case 'last-month':     sel = idx > 0 ? [keys[idx-1]] : [cur]; break;
+    case 'last-3-months':  sel = keys.slice(Math.max(0,idx-2), idx+1); break;
+    case 'last-6-months':  sel = keys.slice(Math.max(0,idx-5), idx+1); break;
+    case 'current-year':   sel = keys.filter(k => k.startsWith(cur.slice(0,4))); break;
+    case 'last-year':      sel = keys.filter(k => k.startsWith(String(+cur.slice(0,4)-1))); break;
+    case 'custom':         sel = keys; break;
+    default:               sel = [cur];
+  }
+  return sel.map(getBudgetPeriod).filter(Boolean);
+}
+
+function getBudgetDateRange() {
+  const cdr = (typeof currentDateRange !== 'undefined') ? currentDateRange : 'current-month';
+  if (cdr === 'custom') {
+    const fv = document.getElementById('fromDate')?.value;
+    const tv = document.getElementById('toDate')?.value;
+    if (fv && tv) return { startDate: new Date(fv+'T00:00:00'), endDate: new Date(tv+'T23:59:59') };
+  }
+  const periods = getBudgetPeriodsForRange(cdr);
+  if (!periods.length) {
+    const n = new Date();
+    return { startDate: new Date(n.getFullYear(),n.getMonth(),1), endDate: new Date(n.getFullYear(),n.getMonth()+1,0,23,59,59) };
+  }
+  return { startDate: periods[0].startDate, endDate: periods[periods.length-1].endDate };
+}
+
+function _scanAllMonths(startDate, endDate, cb) {
+  if (!budgetData || !budgetData.months) return;
+  Object.values(budgetData.months).forEach(md => {
+    if (!md.transactions) return;
+    md.transactions.forEach(t => {
+      const d = new Date(t.date+'T00:00:00');
+      if (d >= startDate && d <= endDate) cb(t);
+    });
+  });
+}
+
+function getBudgetFilteredTransactions() {
+  const { startDate, endDate } = getBudgetDateRange();
+  const seen = new Set(), result = [];
+  _scanAllMonths(startDate, endDate, t => {
+    if (t.id && seen.has(t.id)) return;
+    if (t.id) seen.add(t.id);
+    result.push(t);
+  });
+  return result;
+}
+
+function getBudgetMonthlyIncomeExpense() {
+  const cdr = (typeof currentDateRange !== 'undefined') ? currentDateRange : 'current-month';
+  const periods = getBudgetPeriodsForRange(cdr);
+  const result = { labels:[], income:[], expenses:[], periodKeys:[] };
+  periods.forEach(({ startDate, endDate, label, monthKey }) => {
+    result.labels.push(label); result.periodKeys.push(monthKey);
+    let inc=0, exp=0;
+    _scanAllMonths(startDate, endDate, t => {
+      if (t.isCardFunding || t.category==='Deposit'||t.category==='Withdrawal'||t.category==='Transfer') return;
+      if (t.type==='income') inc+=t.amount;
+      if (t.type==='expense' && !t.fromLiability && !t.fromAsset) exp+=t.amount;
+    });
+    result.income.push(inc); result.expenses.push(exp);
+  });
+  return result;
+}
+
+function getBudgetMonthlySpending() {
+  const cdr = (typeof currentDateRange !== 'undefined') ? currentDateRange : 'current-month';
+  const periods = getBudgetPeriodsForRange(cdr);
+  const result = { labels:[], amounts:[], periodKeys:[] };
+  periods.forEach(({ startDate, endDate, label, monthKey }) => {
+    result.labels.push(label); result.periodKeys.push(monthKey);
+    let spending=0;
+    _scanAllMonths(startDate, endDate, t => {
+      if (t.fromLiability || t.fromAsset || t.isCardFunding) return;
+      if (t.category==='Deposit'||t.category==='Withdrawal'||t.category==='Transfer') return;
+      if (t.type==='expense') spending+=t.amount;
+    });
+    result.amounts.push(spending);
+  });
+  return result;
+}
+
+function getBudgetComparisonData(rangeType) {
+  if (!budgetData || !budgetData.months) return { income:0, expenses:0, net:0, savingsRate:0 };
+  const periods = getBudgetPeriodsForRange(rangeType);
+  if (!periods.length) return { income:0, expenses:0, net:0, savingsRate:0 };
+  const startDate = periods[0].startDate, endDate = periods[periods.length-1].endDate;
+  let inc=0, exp=0;
+  _scanAllMonths(startDate, endDate, t => {
+    if (t.isCardFunding || t.fromLiability || t.fromAsset) return;
+    if (t.category==='Deposit'||t.category==='Withdrawal'||t.category==='Transfer') return;
+    if (t.type==='income') inc+=t.amount;
+    if (t.type==='expense') exp+=t.amount;
+  });
+  const net=inc-exp;
+  return { income:inc, expenses:exp, net, savingsRate: inc>0 ? parseFloat(((net/inc)*100).toFixed(1)) : 0 };
+}
+
+(function wireReportOverrides() {
+  const hasBP = () => typeof budgetData !== 'undefined' && budgetData && budgetData.rolloverHistory !== undefined;
+  if (typeof getDateRange === 'function') { const _o = getDateRange; window.getDateRange = () => hasBP() ? getBudgetDateRange() : _o(); }
+  if (typeof getFilteredTransactions === 'function') { window.getFilteredTransactions = () => hasBP() ? getBudgetFilteredTransactions() : []; }
+  if (typeof getMonthlyIncomeExpense === 'function') { window.getMonthlyIncomeExpense = () => hasBP() ? getBudgetMonthlyIncomeExpense() : {labels:[],income:[],expenses:[]}; }
+  if (typeof getMonthlySpending === 'function') { window.getMonthlySpending = () => hasBP() ? getBudgetMonthlySpending() : {labels:[],amounts:[]}; }
+  if (typeof getComparisonData === 'function') { window.getComparisonData = async (p) => hasBP() ? getBudgetComparisonData(p) : {income:0,expenses:0,net:0,savingsRate:0}; }
+})();
+
+(function patchReportsLoadData() {
+  if (typeof loadData !== 'function') return;
+  const _o = loadData;
+  window.loadData = async function() {
+    await _o();
+    if (!budgetData) return;
+    try {
+      const user = typeof auth !== 'undefined' ? auth.currentUser : null;
+      if (!user) return;
+      const br = db.collection('budget').doc(user.uid);
+      budgetData.rolloverHistory = {};
+      (await br.collection('rolloverHistory').get()).forEach(d => { budgetData.rolloverHistory[d.id] = d.data(); });
+      budgetData.rolloverSettings = null;
+      const ud = await db.collection('users').doc(user.uid).get();
+      if (ud.exists && ud.data().rolloverSettings) budgetData.rolloverSettings = ud.data().rolloverSettings;
+    } catch(e) { console.warn('BP data:', e); }
+  };
+})();
+
+console.log('✅ Budget-period reporting loaded.');
+
+// ── Goals Integration ─────────────────────────────────────────────────────
+
+function populateGoalModalDropdowns() {
+  const cs = document.getElementById('goal-linked-category');
+  const as = document.getElementById('goal-linked-account');
+  if (!cs || !as) return;
+  const cats = (window._currentMonthData && window._currentMonthData.categories) || [];
+  cs.innerHTML = '<option value="">None (manual tracking)</option>';
+  cats.forEach(c => { const o=document.createElement('option'); o.value=c.name; o.textContent=c.name; cs.appendChild(o); });
+  const accts = Array.isArray(window._bmAccounts) ? window._bmAccounts : [];
+  as.innerHTML = '<option value="">None (manual tracking)</option>';
+  accts.filter(a => { const i=typeof ACCOUNT_TYPES!=='undefined'?ACCOUNT_TYPES[a.type]:null; return i&&i.category==='asset'; })
+    .forEach(a => { const o=document.createElement('option'); o.value=a.id||a.name; o.textContent=`${a.name} (${typeof formatCurrency==='function'?formatCurrency(a.balance):a.balance})`; as.appendChild(o); });
+}
+
+(function() {
+  const _o = window.openAddGoalModal;
+  window.openAddGoalModal = function() {
+    window._editingGoalId = null;
+    if (typeof _o === 'function') _o();
+    populateGoalModalDropdowns();
+    const cs=document.getElementById('goal-linked-category'); if(cs) cs.value='';
+    const as=document.getElementById('goal-linked-account'); if(as) as.value='';
+  };
+})();
+
+document.addEventListener('submit', async function(e) {
+  if (!e.target || e.target.id !== 'goal-form') return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  const v = id => document.getElementById(id)?.value;
+  const name=v('goal-name')?.trim(), type=v('goal-type'), targetAmount=parseFloat(v('target-amount'));
+  if (!name||!type||isNaN(targetAmount)||targetAmount<=0) { if(typeof showToast==='function') showToast('Please fill in all required fields','error'); return; }
+  const goalData = {
+    name, type, targetAmount,
+    targetDate: v('target-date')||null,
+    monthlyContribution: parseFloat(v('monthly-contribution'))||null,
+    description: v('goal-description')?.trim()||null,
+    linkedCategoryName: v('goal-linked-category')||null,
+    linkedAccountId:    v('goal-linked-account')||null,
+    status:'active', updatedAt:new Date().toISOString()
+  };
+  const user = typeof auth!=='undefined'?auth.currentUser:null; if(!user) return;
+  const ref = db.collection('budget').doc(user.uid).collection('goals');
+  try {
+    if (window._editingGoalId) { await ref.doc(window._editingGoalId).update(goalData); if(typeof showToast==='function') showToast('Goal updated','success'); }
+    else { goalData.currentAmount=0; goalData.createdAt=new Date().toISOString(); await ref.add(goalData); if(typeof showToast==='function') showToast('Goal created','success'); }
+    if(typeof closeGoalModal==='function') closeGoalModal();
+    if(typeof loadGoals==='function') await loadGoals();
+  } catch(err) { console.error(err); if(typeof showToast==='function') showToast('Error saving goal','error'); }
+}, true);
+
+function computeGoalProgress(goal) {
+  if (goal.linkedAccountId) {
+    const a=(Array.isArray(window._bmAccounts)?window._bmAccounts:[]).find(x=>(x.id||x.name)===goal.linkedAccountId);
+    if (a) return { currentAmount:Math.max(0,a.balance||0), source:'account', accountName:a.name };
+  }
+  if (goal.linkedCategoryName) {
+    const md = window._currentMonthData;
+    if (md) {
+      const cat=(md.categories||[]).find(c=>c.name===goal.linkedCategoryName);
+      if (cat) {
+        const bal=(Number(cat.startingBalance)||0)+(Number(cat.assigned)||0)-(Number(cat.spent)||0);
+        return { currentAmount:Math.max(0,bal), source:'category', categoryName:goal.linkedCategoryName };
+      }
+    }
+    return { currentAmount:0, source:'category', categoryName:goal.linkedCategoryName };
+  }
+  return { currentAmount:goal.currentAmount||0, source:'manual' };
+}
+
+window.createGoalCard = function(goal) {
+  const { currentAmount, source, categoryName, accountName } = computeGoalProgress(goal);
+  const pct=Math.min(goal.targetAmount>0?(currentAmount/goal.targetAmount)*100:0,100);
+  const rem=Math.max(goal.targetAmount-currentAmount,0);
+  const done=currentAmount>=goal.targetAmount;
+  const days=goal.targetDate?Math.ceil((new Date(goal.targetDate)-new Date())/86400000):null;
+  const fmt=typeof formatCurrency==='function'?formatCurrency:v=>v;
+  let warn='';
+  if(!done&&goal.monthlyContribution&&source==='category'){
+    const cat=(window._currentMonthData?.categories||[]).find(c=>c.name===goal.linkedCategoryName);
+    const asgn=cat?Number(cat.assigned)||0:0;
+    if(asgn<goal.monthlyContribution) warn=`<div class="goal-funding-alert"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Needs ${fmt(goal.monthlyContribution-asgn)} more assigned this month</div>`;
+  }
+  const badge=source==='account'?`<span class="goal-source-badge goal-source-account">Account</span>`:source==='category'?`<span class="goal-source-badge goal-source-category">${categoryName}</span>`:`<span class="goal-source-badge goal-source-manual">Manual</span>`;
+  let sc='status-active',st='Active';
+  if(done){sc='status-completed';st='Completed';}else if(goal.status==='paused'){sc='status-paused';st='Paused';}
+  let proj='';
+  if(!done&&goal.monthlyContribution>0&&rem>0){const d=new Date();d.setMonth(d.getMonth()+Math.ceil(rem/goal.monthlyContribution));proj=`<div class="goal-projection">On track to complete <strong>${d.toLocaleDateString('en-US',{month:'short',year:'numeric'})}</strong></div>`;}
+  return `<div class="goal-card" id="goal-card-${goal.id}">
+    <div class="goal-card-top">
+      <div class="goal-header">
+        <div class="goal-title-row"><div class="goal-title">${goal.name}</div><div class="goal-type-badge">${goal.type}</div></div>
+        <div class="goal-header-right">${badge}
+          <div class="goal-actions">
+            <button class="goal-action-btn" onclick="editGoal('${goal.id}')" title="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <button class="goal-action-btn goal-action-danger" onclick="deleteGoal('${goal.id}')" title="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/></svg></button>
+          </div>
+        </div>
+      </div>
+      ${warn}
+      <div class="goal-progress-section">
+        <div class="goal-progress-track"><div class="goal-progress-fill ${done?'completed':''}" style="width:${pct.toFixed(1)}%"></div></div>
+        <div class="goal-progress-meta"><span class="goal-progress-pct">${pct.toFixed(1)}%</span><span class="goal-status-pill ${sc}">${st}</span></div>
+      </div>
+      <div class="goal-amounts-row">
+        <div class="goal-amount-block"><div class="goal-amount-label">Saved</div><div class="goal-amount-value positive">${fmt(currentAmount)}</div></div>
+        <div class="goal-amount-divider"></div>
+        <div class="goal-amount-block"><div class="goal-amount-label">Target</div><div class="goal-amount-value">${fmt(goal.targetAmount)}</div></div>
+        <div class="goal-amount-divider"></div>
+        <div class="goal-amount-block"><div class="goal-amount-label">Remaining</div><div class="goal-amount-value ${rem>0?'negative':'positive'}">${fmt(rem)}</div></div>
+      </div>
+      ${goal.description?`<div class="goal-description">${goal.description}</div>`:''}
+      <div class="goal-meta-row">
+        ${goal.targetDate?`<span class="goal-meta-item">${goal.targetDate}${days!==null?` · ${days>0?days+'d left':'Past due'}`:''}</span>`:''}
+        ${goal.monthlyContribution?`<span class="goal-meta-item">${fmt(goal.monthlyContribution)}/mo</span>`:''}
+      </div>
+      ${proj}
+    </div>
+    ${!done&&source==='manual'?`<div class="add-funds-section"><input type="number" class="funds-input" id="funds-${goal.id}" placeholder="Add amount" min="0" step="0.01"><button class="add-funds-btn" onclick="addFunds('${goal.id}')">Add Funds</button></div>`:''}
+    ${!done&&source==='category'?`<div class="goal-budget-action"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Assign to <strong>${goal.linkedCategoryName}</strong> in Budget</div>`:''}
+    ${!done&&source==='account'?`<div class="goal-budget-action"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg><strong>${accountName}</strong> balance tracks this goal</div>`:''}
+  </div>`;
+};
+
+function updateGoalsDashboardWidget() {
+  const widget=document.getElementById('bm-goals-widget');
+  const body=document.getElementById('bm-goals-widget-body');
+  const gl=window._bmGoals||(typeof goals!=='undefined'?goals:[]);
+  if(!widget||!body||!gl.length){if(widget)widget.style.display='none';return;}
+  const active=gl.filter(g=>g.status!=='paused');
+  if(!active.length){widget.style.display='none';return;}
+  widget.style.display='block';
+  const fmt=typeof formatCurrency==='function'?formatCurrency:v=>v;
+  let uf=0;
+  body.innerHTML=active.map(goal=>{
+    const {currentAmount,source}=computeGoalProgress(goal);
+    const pct=Math.min(goal.targetAmount>0?(currentAmount/goal.targetAmount)*100:0,100);
+    const done=currentAmount>=goal.targetAmount;
+    let alert='';
+    if(!done&&goal.monthlyContribution&&source==='category'&&goal.linkedCategoryName){
+      const cat=(window._currentMonthData?.categories||[]).find(c=>c.name===goal.linkedCategoryName);
+      const asgn=cat?Number(cat.assigned)||0:0;
+      if(asgn<goal.monthlyContribution){uf++;alert=`<span class="bm-gw-alert">Needs ${fmt(goal.monthlyContribution-asgn)}</span>`;}
+    }
+    return `<div class="bm-gw-item"><div class="bm-gw-item-top"><span class="bm-gw-name">${goal.name}</span>${alert}<span class="bm-gw-pct ${done?'complete':''}">${pct.toFixed(0)}%</span></div><div class="bm-gw-track"><div class="bm-gw-fill ${done?'complete':''}" style="width:${pct.toFixed(1)}%"></div></div><div class="bm-gw-amounts"><span>${fmt(currentAmount)}</span><span>${fmt(goal.targetAmount)}</span></div></div>`;
+  }).join('');
+  const t=widget.querySelector('.bm-gw-title');
+  if(t){const e=t.querySelector('.bm-gw-badge');if(e)e.remove();if(uf>0){const b=document.createElement('span');b.className='bm-gw-badge';b.textContent=`${uf} need funding`;t.appendChild(b);}}
+}
+
+console.log('✅ Goals integration loaded.');
