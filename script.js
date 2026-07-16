@@ -656,15 +656,9 @@ async function renderBudget(data) {
 
 
 
-  // ✅ Overspent must only reflect real cash overspend — a category charged
-  // to a credit card or paid directly from an asset account never drew on
-  // the budget/TBB, so it shouldn't count as "Overspent" here even though
-  // categories[].spent (used for display) still includes it.
-  const _overspentCardFunded = _getCardFundedByCategory(transactions);
   const overspent = categories
-    .map(c => ({ c, cashSpent: _cashSpentForCategory(c, _overspentCardFunded) }))
-    .filter(({ c, cashSpent }) => cashSpent > c.assigned)
-    .reduce((sum, { c, cashSpent }) => sum + (cashSpent - c.assigned), 0);
+    .filter(c => c.spent > c.assigned)
+    .reduce((sum, c) => sum + (c.spent - c.assigned), 0);
   const tbbElement = document.getElementById("tbb");
   tbbElement.innerText = formatCurrency(tbb);
   
@@ -1360,49 +1354,19 @@ document.getElementById("saveRolloverBtn").addEventListener("click", async () =>
 
 // Initiate manual rollover (called from dashboard button)
 // ════════════════════════════════════════════════════════════════════════════
-// ROLLOVER — with per-category Cover / Absorb / Clear choices for overspent categories
+// ROLLOVER — with per-category Cover / Absorb choices for overspent categories
 // ════════════════════════════════════════════════════════════════════════════
 //
 //   Cover  → carry the deficit forward as a NEGATIVE starting balance next month
 //            (you must assign new money next month to clear it)
 //   Absorb → reset the category to ₱0 next month, and reduce next month's TBB
 //            by the overspent amount (the pool eats the loss now)
-//   Clear  → reset the category to ₱0 next month, but FORGIVE the deficit —
-//            next month's TBB/available balance is untouched
 //
 // Positive leftover balances always carry forward. The choice only applies to
-// categories that are overspent in CASH terms — i.e. cashSpent > assigned,
-// where cashSpent excludes anything charged to a credit card (fromLiability)
-// or paid directly from an asset account (fromAsset). Those never drew on
-// the budget/TBB, so they never trigger this prompt even though
-// categories[].spent (used for display) still includes them.
+// categories where spent > assigned.
 
 // Holds the scan result between opening the modal and confirming
 let _rolloverPlan = null;
-
-// ── Cash-only spend helper ─────────────────────────────────────────────────
-// category.spent includes card charges (fromLiability) and asset-direct
-// expenses (fromAsset) on purpose, for display — see renderCategories'
-// _cardSpentPerCat. But those never touched Available Balance/TBB, so they
-// must NOT count toward "Overspent" for rollover purposes. This mirrors the
-// same card-funded exclusion renderCategories already does (line ~276-283),
-// so category cards and the rollover modal agree on what "overspent" means.
-function _getCardFundedByCategory(transactions) {
-  const map = {};
-  (transactions || []).forEach(t => {
-    if ((t.fromLiability || t.fromAsset) && t.type === "expense" && t.amount > 0 && t.category) {
-      map[t.category] = (map[t.category] || 0) + t.amount;
-    }
-  });
-  return map;
-}
-
-// Real cash spend for a category = total spent minus whatever was charged to
-// a card or paid directly from an asset account (never drew on the budget).
-function _cashSpentForCategory(category, cardFundedMap) {
-  const cardFunded = (cardFundedMap && cardFundedMap[category.name]) || 0;
-  return Math.max(0, (category.spent || 0) - cardFunded);
-}
 
 async function initiateRollover() {
   if (!currentUser) return;
@@ -1431,18 +1395,14 @@ async function initiateRollover() {
   const monthData = monthSnap.data();
   const categories = monthData.categories || [];
 
-  // Identify overspent categories using CASH spend only (spent minus any
-  // card/asset-funded amount) — charging a credit card never touched the
-  // budget/TBB, so it shouldn't force a Cover/Absorb/Clear decision.
-  const _cardFundedMap = _getCardFundedByCategory(monthData.transactions || []);
+  // Identify overspent categories (spent > assigned)
   const overspentCategories = categories
-    .map(c => ({ c, cashSpent: _cashSpentForCategory(c, _cardFundedMap) }))
-    .filter(({ c, cashSpent }) => cashSpent > (c.assigned || 0))
-    .map(({ c, cashSpent }) => ({
+    .filter(c => (c.spent || 0) > (c.assigned || 0))
+    .map(c => ({
       name: c.name,
       assigned: c.assigned || 0,
-      spent: cashSpent,
-      deficit: cashSpent - (c.assigned || 0),
+      spent: c.spent || 0,
+      deficit: (c.spent || 0) - (c.assigned || 0),
     }));
 
   // Stash the plan for proceedWithRollover()
@@ -1501,15 +1461,6 @@ function _renderRolloverModal() {
             <strong>Absorb</strong>
             <small>Reset to ₱0 and take ${formatCurrency(c.deficit)} from next
             month's To Be Budgeted now.</small>
-          </span>
-        </label>
-        <label class="bm-ro-choice">
-          <input type="radio" name="ro-${_escapeHtml(c.name)}" value="clear"
-                 onchange="_setRolloverChoice('${_escapeHtmlAttr(c.name)}','clear')">
-          <span class="bm-ro-choice-label">
-            <strong>Clear</strong>
-            <small>Reset to ₱0 and forgive the ${formatCurrency(c.deficit)} deficit —
-            next month's To Be Budgeted is untouched.</small>
           </span>
         </label>
       </div>
@@ -1596,24 +1547,16 @@ async function performRollover() {
   // Positive balance   → carries forward as a positive starting balance
   // Overspent + cover  → carries forward as a NEGATIVE starting balance
   // Overspent + absorb → resets to 0, and we subtract the deficit from TBB
-  // Overspent + clear  → resets to 0, deficit forgiven — next month's TBB is untouched
   let tbbAdjustment = 0;        // total absorbed (reduces next month's TBB)
   const auditDecisions = [];
 
-  // Cash-only spend map (excludes card/asset-funded amounts) — see
-  // _getCardFundedByCategory. Balance/deficit math must use real cash spend,
-  // not raw c.spent, or a credit card charge would falsely look like a
-  // budget deficit that Cover/Absorb/Clear then acts on incorrectly.
-  const _cardFundedMap = _getCardFundedByCategory(currentMonthData.transactions || []);
-
   const newCategories = categories.map(c => {
-    const assigned  = c.assigned || 0;
-    const spent     = c.spent || 0; // raw total, kept for the audit record only
-    const cashSpent = _cashSpentForCategory(c, _cardFundedMap);
-    const balance   = assigned - cashSpent;
+    const assigned = c.assigned || 0;
+    const spent    = c.spent || 0;
+    const balance  = assigned - spent;
 
     if (balance >= 0) {
-      // Not overspent (in cash terms) — carry the leftover forward as starting balance
+      // Not overspent — carry the leftover forward as starting balance
       auditDecisions.push({
         categoryName: c.name, previousAssigned: assigned, previousSpent: spent,
         previousBalance: balance, action: "carry_positive",
@@ -1622,7 +1565,7 @@ async function performRollover() {
       return { name: c.name, assigned: 0, spent: 0, balance: balance, startingBalance: balance };
     }
 
-    // Overspent (real cash deficit)
+    // Overspent
     const deficit = Math.abs(balance);
     const choice = choices[c.name] || "cover";
 
@@ -1632,17 +1575,6 @@ async function performRollover() {
         categoryName: c.name, previousAssigned: assigned, previousSpent: spent,
         previousBalance: balance, action: "absorb",
         carriedForward: 0, absorbedFromTbb: deficit,
-      });
-      return { name: c.name, assigned: 0, spent: 0, balance: 0, startingBalance: 0 };
-    }
-
-    if (choice === "clear") {
-      // Reset to ₱0 like Absorb, but the deficit is simply forgiven —
-      // it does NOT reduce next month's TBB/available balance.
-      auditDecisions.push({
-        categoryName: c.name, previousAssigned: assigned, previousSpent: spent,
-        previousBalance: balance, action: "clear",
-        carriedForward: 0, absorbedFromTbb: 0,
       });
       return { name: c.name, assigned: 0, spent: 0, balance: 0, startingBalance: 0 };
     }
