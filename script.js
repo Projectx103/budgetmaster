@@ -3543,13 +3543,27 @@ async function loadAccountTransactionHistory(index) {
     if (!monthSnap.exists) continue;
     const txns = monthSnap.data().transactions || [];
     txns.forEach(t => {
-      const match = t.isAccountOnlyTxn && (
-        t.accountName === acc.name ||
-        t.liabilityAccount === acc.name ||
-        t.fromAccount === acc.name ||
-        t.toAccount === acc.name
+      // isAccountOnlyTxn covers: Deposit, Withdrawal, Transfer, Pay
+      // fromLiability/fromAsset covers: card expense charges (not isAccountOnlyTxn)
+      // isCardFunding: skip — these are internal pass-through entries, not user transactions
+      if (t.isCardFunding) return;
+
+      const isAccountOp = t.isAccountOnlyTxn && (
+        t.accountName       === acc.name ||
+        t.liabilityAccount  === acc.name ||
+        t.fromAccount       === acc.name ||
+        t.toAccount         === acc.name
       );
-      if (match) acctTxns.push({ ...t, _month: monthKey });
+
+      // Card charges: fromLiability expense on this liability account
+      const isLiabilityCharge = t.fromLiability && t.fromAccount === acc.name;
+
+      // Asset-funded expenses on this asset account
+      const isAssetExpense = t.fromAsset && t.fromAccount === acc.name;
+
+      if (isAccountOp || isLiabilityCharge || isAssetExpense) {
+        acctTxns.push({ ...t, _month: monthKey });
+      }
     });
   }
 
@@ -3567,7 +3581,17 @@ async function loadAccountTransactionHistory(index) {
 
     if (t.isLiabilityPayment) {
       typeLabel = 'Payment';
-      amountStr = '\u2212' + formatCurrency(t.amount);
+      amountStr = '−' + formatCurrency(t.amount);
+      amtColor  = '#ef4444';
+    } else if (t.fromLiability && t.fromAccount === acc.name) {
+      // Liability card charge: money spent on credit
+      typeLabel = 'Charge' + (t.category ? ' · ' + t.category : '');
+      amountStr = '+' + formatCurrency(t.amount);   // liability balance went UP (more owed)
+      amtColor  = '#ef4444';
+    } else if (t.fromAsset && t.fromAccount === acc.name) {
+      // Asset-funded expense: money spent from this account
+      typeLabel = 'Expense' + (t.category ? ' · ' + t.category : '');
+      amountStr = '−' + formatCurrency(t.amount);
       amtColor  = '#ef4444';
     } else if (t.category === 'Deposit') {
       typeLabel = 'Deposit';
@@ -3575,15 +3599,15 @@ async function loadAccountTransactionHistory(index) {
       amtColor  = '#10b981';
     } else if (t.category === 'Withdrawal') {
       typeLabel = 'Withdrawal';
-      amountStr = '\u2212' + formatCurrency(t.amount);
+      amountStr = '−' + formatCurrency(t.amount);
       amtColor  = '#ef4444';
     } else if (t.category === 'Transfer') {
       const dir = t.fromAccount === acc.name
-        ? '\u2192 ' + t.toAccount
-        : '\u2190 ' + t.fromAccount;
+        ? '→ ' + t.toAccount
+        : '← ' + t.fromAccount;
       typeLabel  = 'Transfer ' + dir;
       amountStr  = t.fromAccount === acc.name
-        ? '\u2212' + formatCurrency(t.amount)
+        ? '−' + formatCurrency(t.amount)
         : '+'       + formatCurrency(t.amount);
       amtColor   = t.fromAccount === acc.name ? '#ef4444' : '#10b981';
     }
