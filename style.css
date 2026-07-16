@@ -11353,119 +11353,35 @@ h3 {
 
 
 /* ════════════════════════════════════════════════════════════════════════════
-   GOALS + SETTINGS HEADER FIX
-   Goals: .header class stripped of card styling — plain page title like others.
-   Settings: header-bg gradient removed, margin-left reset, transparent bg.
+   CC PAYMENT CATEGORIES — YNAB Credit Card Accounting
+   These auto-created categories reserve money for credit card bill payments.
    ════════════════════════════════════════════════════════════════════════════ */
 
-/* ── Goals: .header — remove card styling, match other section headers ──── */
-#goals .header,
-#goals > .header {
-  background: transparent !important;
-  box-shadow: none !important;
-  border: none !important;
-  border-radius: 0 !important;
-  padding: 0 0 24px 0 !important;
-  height: auto !important;
-  min-height: 0 !important;
-  margin-bottom: 0 !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  gap: 12px !important;
+/* CC Payment budget item — visually distinct from regular categories */
+.budget-item[data-cc-payment="true"] {
+  border-left: 3px solid var(--primary) !important;
+  background: color-mix(in srgb, var(--primary) 4%, var(--card-bg)) !important;
 }
 
-#goals .header h1,
-#goals > .header h1 {
-  font-size: 26px !important;
-  font-weight: 700 !important;
-  letter-spacing: -0.03em !important;
-  color: var(--text) !important;
-  margin: 0 !important;
-  line-height: 1.2 !important;
+.budget-item[data-cc-payment="true"] .font-bold::before {
+  content: '💳 ';
+  font-style: normal;
 }
 
-#goals .add-goal-btn {
-  padding: 9px 16px !important;
-  font-size: 13px !important;
-  font-weight: 600 !important;
-  border-radius: 12px !important;
-  background: var(--primary) !important;
-  color: #fff !important;
-  border: none !important;
-  cursor: pointer !important;
-  flex-shrink: 0 !important;
-  transition: background 0.15s ease !important;
-}
-
-#goals .add-goal-btn:hover {
-  background: var(--primary-hover) !important;
-}
-
-/* ── Settings: header — transparent, no gradient, no margin-left ─────────── */
-#settings header.settings-header {
-  background: transparent !important;
-  box-shadow: none !important;
-  border-bottom: none !important;
-  margin-left: 0 !important;
-  height: auto !important;
-  min-height: 0 !important;
-  padding: 0 0 24px 0 !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  color: var(--text) !important;
-}
-
-#settings header.settings-header span {
-  font-size: 26px !important;
-  font-weight: 700 !important;
-  letter-spacing: -0.03em !important;
-  color: var(--text) !important;
-}
-
-/* Settings container: no gradient background, no margin-left */
-.settings-container {
-  background: transparent !important;
-  min-height: 0 !important;
-  margin-left: 0 !important;
-  padding: 0 !important;
-  display: flex !important;
-  gap: 24px !important;
-}
-
-/* Main content surface — blocks body gradient from bleeding through */
-.main-content {
-  background: var(--surface, #f5f6f8) !important;
-}
-
-[data-theme="pastel-dream"] .main-content,
-[data-theme="steel-blue"]   .main-content,
-[data-theme="royal-ember"]  .main-content {
-  background: var(--card-bg) !important;
-}
-
-/* Mobile */
-@media (max-width: 768px) {
-  #goals .header,
-  #goals > .header {
-    padding: 0 0 16px 0 !important;
-  }
-
-  #goals .header h1 {
-    font-size: 22px !important;
-  }
-
-  #settings header.settings-header {
-    padding: 0 0 14px 0 !important;
-  }
-
-  #settings header.settings-header span {
-    font-size: 22px !important;
-  }
-
-  .settings-container {
-    flex-direction: column !important;
-    gap: 0 !important;
-  }
+/* CC Payment badge label */
+.cc-payment-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+  padding: 2px 7px;
+  border-radius: 100px;
+  margin-left: 6px;
+  vertical-align: middle;
 }
